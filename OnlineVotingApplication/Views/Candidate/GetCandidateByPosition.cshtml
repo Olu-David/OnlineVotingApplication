@@ -1,0 +1,187 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model PaginatedListViewModel<CandidateViewModel>;
+
+@{
+    TempData["Title"] = "GetAllCandidateByPosition";
+    Layout = "_Layout";
+    int startItem = ((Model.PageNumber - 1) * Model.PageSize) + 1;
+    int endItem = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems);
+    if (Model.TotalItems == 0) { startItem = 0; endItem = 0; };
+}
+
+@if(TempData["SucessMessage"] !=null)
+{
+   <div class="alert alert-success alert-dismissible fade show shadow-sm mb-2" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+   </div>
+}
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-2" role="alert">
+        <i class="bi bi-check-circle-fill me-2"></i> @TempData["ErrorMessage"]
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+}
+<div class="container mt-4">
+<div class="card shadow-sm mb-3 rounded-3 border-0">
+    <div class="card-body p-4">
+        <form class="row g-3 align-items-center" asp-action="/" method="get">
+            <input type="hidden" name="PageNumber" value="1" />
+            <input type="hidden" name="Pagesize" value="@Model.PageSize" />
+            <div class="col-md-5">
+                <label class="form-label fw-semibold text-secondary small text-uppercase tracking-wider">List Of All Candidate By Position</label>
+                <select name="stateId" asp-items="ViewBag.Position" class="form-select border-2" style="border-color: #cbd5e1;">
+                    <option value="">-- Select Target Location --</option>
+                </select>
+            </div>
+
+            <div class="col-md-3 align-self-end">
+                <button type="submit" class="btn fw-semibold text-white px-4 shadow-sm" style="background-color: #2563eb; padding: 0.58rem 1.5rem;">
+                    <i class="bi bi-funnel-fill me-1"></i> Filter Dataset
+                </button>
+            </div>
+
+        </form>
+    </div>
+</div>
+
+    <!-- MAIN DATA DISPLAY SECTION WRAPPED IN MANAGEMENT CARD FRAME -->
+    <div class="card shadow-sm border-0 rounded-3 overflow-hidden bg-white" style="border: 1px solid #e2e8f0!important;">
+        <!-- Header Strip using your Deep Corporate Blue theme styling context -->
+        <div class="card-header text-white p-3 d-flex justify-content-between align-items-center" style="background-color: #1e3a8a!important;">
+            <h5 class="mb-0 fw-bold">
+                <i class="bi bi-geo-alt-fill me-2"></i>
+                @(!string.IsNullOrEmpty(ViewBag.SelectedStateName) ? $"Candidates Matrix: {ViewBag.SelectedStateName}" : "Party Candidates Registry")
+            </h5>
+            <span class="badge bg-white text-primary fw-bold shadow-sm">
+                Total Matches: @Model.TotalItems
+            </span>
+        </div>
+
+        <div class="card-body p-0 bg-white">
+            @if (Model.Items == null || !Model.Items.Any())
+            {
+                <div class="p-5 text-center text-muted bg-white">
+                    <i class="bi bi-folder-x display-4 d-block mb-3 text-secondary"></i>
+                    <h5 class="fw-medium text-dark mb-1">No active records found</h5>
+                    <p class="small text-muted mb-0">Select a specific state filtering boundary above or load default query configurations.</p>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0 bg-white">
+                        <thead class="table-light border-bottom">
+                            <tr>
+                                <th scope="col" class="ps-3" style="width: 70px;">Profile</th>
+                                <th scope="col">Candidate Info</th>
+                                <th scope="col">Party Affiliation</th>
+                                <th scope="col">Running Office</th>
+                                <th scope="col">Region State</th>
+                                <th scope="col" class="text-center" style="width: 240px;">Action Operations</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <!-- Dynamic Image Avatar -->
+                                    <td class="ps-3">
+                                        <img src="@(string.IsNullOrEmpty(item.image) ? "/images/default-avatar.png" : item.image)"
+                                             alt="@item.Name"
+                                             class="rounded-circle border shadow-sm"
+                                             style="width: 40px; height: 40px; object-fit: cover; border-color: #cbd5e1!important;" />
+                                    </td>
+
+
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.Name</div>
+                                        <small class="text-muted d-block text-truncate" style="max-width: 260px;">
+                                            @(string.IsNullOrEmpty(item.Manifesto) ? "No declaration statement profiles compiled." : item.Manifesto)
+                                        </small>
+                                    </td>
+
+                                    <!-- Context Badges -->
+                                    <td><span class="badge bg-light text-dark border fw-medium px-2.5 py-1.5">@item.PartyName</span></td>
+                                    <td><span class="text-primary fw-semibold small" style="color: #2563eb!important;">@item.Position</span></td>
+                                    <td><i class="bi bi-geo-alt text-muted small me-1"></i>@item.StateName</td>
+
+                                    <!-- System Operations Action Controls Row Column mapping -->
+                                    <td class="pe-3">
+                                        <div class="d-flex justify-content-center align-items-center gap-2">
+                                            <!-- EDIT CONTAINER LINK -->
+                                            <a asp-action="Edit" asp-route-id="@item.CandidateID"
+                                               class="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center gap-1 flex-grow-1 fw-medium">
+                                                <i class="bi bi-pencil-square"></i> Edit
+                                            </a>
+
+                                            <!-- POST OPERATIONAL SOFT DELETE COMPONENT -->
+                                            <form asp-action="ConfirmSoftDelete" method="post" class="m-0 flex-grow-1"
+                                                  onsubmit="return confirm('⚠️ SOFT-DELETE CONFIRMATION:\n\nAre you sure you want to transfer @item.Name to the trash bin directory system?');">
+                                                @Html.AntiForgeryToken()
+
+                                                <input type="hidden" name="candidateId" value="@item.CandidateID" />
+                                                <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
+                                                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1 fw-medium">
+                                                    <i class="bi bi-trash3-fill"></i> Delete
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- REFACTORED STABLE FOOTER ROUTING PAGINATION SYSTEM TOOLBAR -->
+        <div class="card-footer bg-white p-3 d-flex flex-column flex-sm-row justify-content-between align-items-center border-top" style="border-color: #e2e8f0!important;">
+            <!-- Summary Progress Text Tracker Box -->
+            <div class="text-muted small mb-2 mb-sm-0">
+                Showing <strong>@startItem</strong> to <strong>@endItem</strong> of <strong>@Model.TotalItems</strong> matching profiles
+                <span class="mx-1 text-slate-300">|</span> Page @Model.PageNumber of @Model.TotalPages
+            </div>
+
+            <nav aria-label="Candidates directory page navigation">
+                <ul class="pagination pagination-sm mb-0 shadow-sm">
+
+                    <!-- 1. PREVIOUS PAGE LINK BUTTON -->
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link px-3 fw-medium"
+                           asp-action="GetCandidateByState"
+                           asp-route-stateId="@ViewBag.SelectedPositionId"
+                           asp-route-pageNumber="@(Model.PageNumber - 1)"
+                           asp-route-pageSize="@Model.PageSize">
+                            &laquo; Previous
+                        </a>
+                    </li>
+
+                    <!-- 2. ACTIVE PAGE INDICATOR BADGE -->
+                    <li class="page-item active">
+                        <span class="page-link fw-bold px-3" style="background-color: #2563eb!important; border-color: #2563eb!important;">
+                            @Model.PageNumber
+                        </span>
+                    </li>
+
+                    <!-- 3. NEXT PAGE LINK BUTTON -->
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link px-3 fw-medium"
+                           asp-action="GetCandidateByState"
+                           asp-route-stateId="@ViewBag.SelectedPositionId"
+                           asp-route-pageNumber="@(Model.PageNumber + 1)"
+                           asp-route-pageSize="@Model.PageSize">
+                            Next &raquo;
+                        </a>
+                    </li>
+
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+ 

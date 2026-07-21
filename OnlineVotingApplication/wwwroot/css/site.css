@@ -1,0 +1,472 @@
+﻿/* ==========================================================================
+   votex.css  —  VoteX Online Voting System
+   Only covers what Bootstrap 5 does NOT provide:
+     - Sidebar shell geometry & scroll
+     - Custom colour tokens
+     - Active sidebar link indicator
+     - Navbar brand & role-specific link colours
+     - Avatar circles
+     - Pulse dot / live indicator
+     - Subtle animations
+   Bootstrap utility classes handle spacing, flex, grid, badges, alerts etc.
+   ========================================================================== */
+
+
+/* ── TOKENS ── */
+:root {
+    --vx-navy: #1a2e5a;
+    --vx-navy-dark: #111e3c;
+    --vx-navy-light: #243566;
+    --vx-accent: #f5a623;
+    --vx-accent-dark: #d4891a;
+    --vx-sidebar-w: 260px;
+    --vx-topbar-h: 60px;
+    --vx-radius: 10px;
+    --vx-transition: .22s ease;
+}
+
+
+/* ════════════════════════════════════════════════
+   BASE
+   ════════════════════════════════════════════════ */
+*, *::before, *::after {
+    box-sizing: border-box;
+}
+
+.vx-public-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #f4f6fb;
+}
+
+.vx-admin-body {
+    min-height: 100vh;
+    background: #f0f2f8;
+    overflow: hidden;
+}
+
+
+/* ════════════════════════════════════════════════
+   TOPBAR NAVBAR  (public / voter / candidate …)
+   ════════════════════════════════════════════════ */
+.vx-navbar {
+    background: var(--vx-navy) !important;
+    border-bottom: 3px solid var(--vx-accent);
+    padding-top: .6rem;
+    padding-bottom: .6rem;
+}
+
+.vx-nav-brand {
+    font-weight: 800;
+    font-size: 1.25rem;
+    color: #fff !important;
+    letter-spacing: -.3px;
+}
+
+.vx-navbar .nav-link {
+    color: rgba(255,255,255,.8) !important;
+    font-size: .875rem;
+    font-weight: 500;
+    padding: .45rem .75rem;
+    border-radius: 6px;
+    transition: background var(--vx-transition), color var(--vx-transition);
+}
+
+    .vx-navbar .nav-link:hover,
+    .vx-navbar .nav-link.active {
+        color: #fff !important;
+        background: rgba(255,255,255,.12);
+    }
+
+/* Vote link — pops in green */
+.vx-navbar .vx-vote-link {
+    color: #4ade80 !important;
+    font-weight: 700;
+}
+
+    .vx-navbar .vx-vote-link:hover,
+    .vx-navbar .vx-vote-link.active {
+        background: rgba(74,222,128,.15);
+    }
+
+/* Dashboard link — accent colour */
+.vx-navbar .vx-dash-link {
+    color: var(--vx-accent) !important;
+}
+
+    .vx-navbar .vx-dash-link:hover,
+    .vx-navbar .vx-dash-link.active {
+        background: rgba(245,166,35,.15);
+        color: var(--vx-accent) !important;
+    }
+
+/* Dropdown menus on public navbar */
+.vx-navbar .dropdown-menu {
+    border-radius: var(--vx-radius);
+    font-size: .875rem;
+    animation: dropIn .18s ease both;
+}
+
+@keyframes dropIn {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* User button (avatar trigger) */
+.vx-user-btn {
+    background: rgba(255,255,255,.1) !important;
+    border: 1.5px solid rgba(255,255,255,.2) !important;
+    border-radius: 8px !important;
+    color: #fff !important;
+    transition: background var(--vx-transition);
+    padding: .3rem .65rem !important;
+}
+
+    .vx-user-btn:hover {
+        background: rgba(255,255,255,.18) !important;
+    }
+
+/* Role pill badge in navbar */
+.vx-role-pill {
+    font-size: .68rem;
+    letter-spacing: .4px;
+    padding: .28em .65em;
+}
+
+
+/* ════════════════════════════════════════════════
+   AVATARS
+   ════════════════════════════════════════════════ */
+.vx-avatar-sm,
+.vx-avatar-md {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.vx-avatar-sm {
+    width: 32px;
+    height: 32px;
+    font-size: .85rem;
+    background: linear-gradient(135deg, var(--vx-accent), var(--vx-accent-dark));
+}
+
+.vx-avatar-md {
+    width: 40px;
+    height: 40px;
+    font-size: 1rem;
+    background: linear-gradient(135deg, var(--vx-accent), var(--vx-accent-dark));
+}
+
+
+/* ════════════════════════════════════════════════
+   ADMIN SHELL (sidebar + main column)
+   ════════════════════════════════════════════════ */
+.vx-admin-shell {
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* ── SIDEBAR ── */
+.vx-sidebar {
+    width: var(--vx-sidebar-w);
+    min-height: 100vh;
+    background: var(--vx-navy-dark);
+    border-right: 1px solid rgba(255,255,255,.06);
+    overflow-y: auto;
+    overflow-x: hidden;
+    transition: width var(--vx-transition);
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,.1) transparent;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 100;
+}
+
+    .vx-sidebar::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .vx-sidebar::-webkit-scrollbar-thumb {
+        background: rgba(255,255,255,.12);
+        border-radius: 2px;
+    }
+
+/* Brand area */
+.vx-sidebar-brand {
+    background: var(--vx-navy-dark);
+    border-bottom: 1px solid rgba(255,255,255,.06);
+    color: #fff;
+}
+
+.vx-brand-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    background: var(--vx-accent);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .9rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.vx-sidebar-brand-text span {
+    font-size: 1rem;
+    color: #fff;
+}
+
+.vx-sidebar-brand-text small {
+    font-size: .7rem;
+    color: rgba(255,255,255,.5);
+}
+
+/* User chip */
+.vx-sidebar-user {
+    background: rgba(255,255,255,.05);
+    border: 1px solid rgba(255,255,255,.08);
+}
+
+.vx-sidebar-role-label {
+    font-size: .65rem;
+    color: var(--vx-accent);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+}
+
+/* Section labels */
+.vx-nav-section-label {
+    font-size: .65rem;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    color: rgba(255,255,255,.3);
+    padding: .25rem .75rem;
+    margin: 0;
+}
+
+/* Sidebar links */
+.vx-sidebar-link {
+    display: flex !important;
+    align-items: center;
+    gap: .65rem;
+    color: rgba(255,255,255,.65) !important;
+    font-size: .875rem;
+    font-weight: 500;
+    padding: .55rem .75rem !important;
+    border-radius: 8px !important;
+    transition: background var(--vx-transition), color var(--vx-transition);
+    margin-bottom: 2px;
+    position: relative;
+}
+
+    .vx-sidebar-link i {
+        width: 18px;
+        text-align: center;
+        font-size: .85rem;
+        flex-shrink: 0;
+    }
+
+    .vx-sidebar-link:hover {
+        background: rgba(255,255,255,.08) !important;
+        color: #fff !important;
+    }
+
+    .vx-sidebar-link.active {
+        background: rgba(245,166,35,.15) !important;
+        color: var(--vx-accent) !important;
+        font-weight: 600;
+    }
+
+        /* Active left bar */
+        .vx-sidebar-link.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 25%;
+            height: 50%;
+            width: 3px;
+            border-radius: 0 3px 3px 0;
+            background: var(--vx-accent);
+        }
+
+/* Collapsed sidebar (toggled by JS) */
+.vx-sidebar.collapsed {
+    width: 64px;
+}
+
+    .vx-sidebar.collapsed .vx-sidebar-brand-text,
+    .vx-sidebar.collapsed .vx-sidebar-user-info,
+    .vx-sidebar.collapsed .vx-nav-section-label,
+    .vx-sidebar.collapsed .vx-sidebar-link span {
+        display: none;
+    }
+
+    .vx-sidebar.collapsed .vx-sidebar-brand {
+        justify-content: center;
+    }
+
+    .vx-sidebar.collapsed .vx-sidebar-user {
+        justify-content: center;
+    }
+
+    .vx-sidebar.collapsed .vx-sidebar-link {
+        justify-content: center;
+    }
+
+    /* Adjust main column when sidebar collapses */
+    .vx-sidebar.collapsed ~ .vx-admin-main {
+        margin-left: 0;
+    }
+
+
+/* ── ADMIN MAIN COLUMN ── */
+.vx-admin-main {
+    min-height: 100vh;
+    overflow-y: auto;
+    transition: margin-left var(--vx-transition);
+}
+
+/* Admin topbar */
+.vx-admin-topbar {
+    height: var(--vx-topbar-h);
+    background: #fff;
+    border-bottom: 1px solid #e8eaf0;
+    box-shadow: 0 1px 4px rgba(0,0,0,.05);
+    position: sticky;
+    top: 0;
+    z-index: 90;
+}
+
+.vx-sidebar-toggle {
+    color: #555 !important;
+    transition: color var(--vx-transition);
+}
+
+    .vx-sidebar-toggle:hover {
+        color: var(--vx-navy) !important;
+    }
+
+/* Notification button */
+.vx-notif-btn {
+    color: #555;
+    transition: color var(--vx-transition);
+}
+
+    .vx-notif-btn:hover {
+        color: var(--vx-navy);
+    }
+
+/* Admin dropdown */
+.vx-admin-dd {
+    min-width: 200px;
+    border-radius: var(--vx-radius) !important;
+}
+
+/* Page content area */
+.vx-admin-content {
+    min-height: calc(100vh - var(--vx-topbar-h));
+    background: #f0f2f8;
+}
+
+
+/* ════════════════════════════════════════════════
+   FOOTER
+   ════════════════════════════════════════════════ */
+.vx-footer {
+    background: var(--vx-navy-dark);
+    color: rgba(255,255,255,.7);
+}
+
+.vx-footer-brand {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.vx-footer-link {
+    transition: color var(--vx-transition);
+}
+
+    .vx-footer-link:hover {
+        color: var(--vx-accent) !important;
+    }
+
+/* Pulsing live dot */
+.vx-pulse-dot {
+    animation: pulse 1.8s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: .3;
+    }
+}
+
+
+/* ════════════════════════════════════════════════
+   MOBILE SIDEBAR OVERLAY
+   ════════════════════════════════════════════════ */
+.vx-sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,.5);
+    z-index: 99;
+}
+
+    .vx-sidebar-overlay.show {
+        display: block;
+    }
+
+/* On small screens sidebar slides in as a drawer */
+@media (max-width: 991.98px) {
+    .vx-admin-shell {
+        display: block;
+        height: auto;
+    }
+
+    .vx-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 100vh;
+        transform: translateX(-100%);
+        z-index: 200;
+        transition: transform var(--vx-transition);
+    }
+
+        .vx-sidebar.mobile-open {
+            transform: translateX(0);
+        }
+
+    .vx-admin-main {
+        min-height: 100vh;
+    }
+
+    .vx-admin-topbar {
+        position: sticky;
+        top: 0;
+    }
+}
+
+/* Notification badge font size */
+.vx-notif-badge {
+    font-size: .6rem;
+}

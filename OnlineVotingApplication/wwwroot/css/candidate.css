@@ -1,0 +1,445 @@
+﻿/* ===== CANDIDATE LAYOUT - PROFESSIONAL & MODERN ===== */
+/* Color: Orange #FF6B35 + Dark Blue #004E89 */
+
+:root {
+    --primary: #FF6B35;
+    --secondary: #004E89;
+    --accent: #1B9CFC;
+    --light-bg: #F7F9FC;
+    --white: #FFFFFF;
+    --text-dark: #1A1A1A;
+    --text-light: #666666;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html, body {
+    height: 100%;
+}
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--light-bg);
+    color: var(--text-dark);
+    display: flex;
+    flex-direction: column;
+}
+
+/* ===== NAVBAR ===== */
+.candidate-navbar {
+    background: linear-gradient(135deg, var(--secondary) 0%, var(--primary) 100%);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    border-bottom: 3px solid var(--accent);
+}
+
+/* Changed height: 70px to min-height so it can expand on mobile screens */
+.navbar-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 10px 20px;
+    min-height: 70px;
+}
+
+.navbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: white;
+    text-decoration: none;
+}
+
+/* RESPONSIVE LAYOUT LOGIC */
+
+/* Desktop Rules: When screen is wide, lay items out side-by-side */
+@media (min-width: 992px) {
+    .navbar-menu {
+        display: flex;
+        align-items: center;
+        gap: 30px;
+        list-style: none;
+        margin: 0 auto; /* Centers the links perfectly in desktop view */
+        padding: 0;
+    }
+
+    .navbar-user {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        color: white;
+        font-weight: 500;
+    }
+}
+
+/* Mobile Rules: When screen is small, stack items cleanly */
+@media (max-width: 991px) {
+    .navbar-menu {
+        display: flex;
+        flex-direction: column; /* Stack links vertically */
+        align-items: flex-start;
+        gap: 15px;
+        list-style: none;
+        padding: 20px 0 10px 0;
+        width: 100%;
+    }
+
+        .navbar-menu w, .navbar-menu li {
+            width: 100%;
+        }
+
+        .navbar-menu a {
+            display: block;
+            width: 100%;
+        }
+
+    .navbar-user {
+        display: flex;
+        flex-direction: column; /* Stack name and logout button */
+        align-items: flex-start;
+        gap: 10px;
+        padding-top: 15px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        margin-top: 10px;
+        width: 100%;
+    }
+
+    .btn-logout {
+        width: 100%;
+        text-align: center;
+    }
+}
+
+/* Shared link styling options */
+.navbar-menu a {
+    color: rgba(255, 255, 255, 0.9);
+    text-decoration: none;
+    font-weight: 500;
+    transition: all 0.3s ease;
+    padding: 8px 12px;
+    border-radius: 4px;
+}
+
+    .navbar-menu a:hover {
+        color: white;
+        background: rgba(255, 255, 255, 0.2);
+        transform: translateY(-2px);
+    }
+
+.btn-logout {
+    background: rgba(255, 255, 255, 0.25);
+    color: white;
+    border: 1px solid white;
+    padding: 6px 15px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 0.9rem;
+}
+
+    .btn-logout:hover {
+        background: white;
+        color: var(--secondary);
+    }
+/* ===== MAIN CONTENT ===== */
+.candidate-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.content-wrapper {
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 30px 20px;
+}
+
+/* ===== FOOTER ===== */
+.candidate-footer {
+    background: linear-gradient(135deg, var(--secondary), var(--primary));
+    color: white;
+    text-align: center;
+    padding: 20px;
+    margin-top: auto;
+    font-weight: 500;
+    border-top: 3px solid var(--accent);
+}
+
+    .candidate-footer p {
+        margin: 0;
+    }
+
+/* ===== CARDS ===== */
+.card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+    margin-bottom: 20px;
+}
+
+    .card:hover {
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+        transform: translateY(-4px);
+    }
+
+.card-header {
+    background: linear-gradient(135deg, var(--secondary), var(--primary));
+    color: white;
+    border: none;
+    font-weight: 600;
+    padding: 15px 20px;
+}
+
+.card-body {
+    padding: 20px;
+}
+
+/* ===== BUTTONS ===== */
+.btn {
+    border-radius: 4px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary);
+    border-color: var(--primary);
+    color: white;
+}
+
+    .btn-primary:hover {
+        background-color: #e55a24;
+        border-color: #e55a24;
+    }
+
+.btn-secondary {
+    background-color: var(--secondary);
+    border-color: var(--secondary);
+    color: white;
+}
+
+    .btn-secondary:hover {
+        background-color: #003366;
+        border-color: #003366;
+    }
+
+.btn-success {
+    background-color: #2ECC71;
+    border-color: #2ECC71;
+    color: white;
+}
+
+.btn-danger {
+    background-color: #E74C3C;
+    border-color: #E74C3C;
+    color: white;
+}
+
+.btn-info {
+    background-color: var(--accent);
+    border-color: var(--accent);
+    color: white;
+}
+
+/* ===== FORMS ===== */
+.form-label {
+    color: var(--text-dark);
+    font-weight: 600;
+    margin-bottom: 8px;
+}
+
+.form-control,
+.form-select {
+    border: 1px solid #DDD;
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-size: 1rem;
+}
+
+    .form-control:focus,
+    .form-select:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 0.2rem rgba(255, 107, 53, 0.25);
+    }
+
+/* ===== ALERTS ===== */
+.alert {
+    border-radius: 6px;
+    border: none;
+    padding: 15px 20px;
+}
+
+.alert-success {
+    background-color: #D5F4E6;
+    color: #1E8449;
+}
+
+.alert-danger {
+    background-color: #FADBD8;
+    color: #922B21;
+}
+
+.alert-info {
+    background-color: #D6EAF8;
+    color: #154360;
+}
+
+.alert-warning {
+    background-color: #FCF3CF;
+    color: #7D6608;
+}
+
+/* ===== TABLES ===== */
+.table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+    .table thead {
+        background: var(--secondary);
+        color: white;
+    }
+
+        .table thead th {
+            border: none;
+            font-weight: 600;
+        }
+
+    .table tbody tr:hover {
+        background-color: #F9F9F9;
+    }
+
+    .table tbody td {
+        border-color: #E8EAED;
+    }
+
+/* ===== BADGES ===== */
+.badge {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.badge-primary {
+    background-color: var(--primary);
+    color: white;
+}
+
+.badge-secondary {
+    background-color: var(--secondary);
+    color: white;
+}
+
+.badge-success {
+    background-color: #2ECC71;
+    color: white;
+}
+
+.badge-danger {
+    background-color: #E74C3C;
+    color: white;
+}
+
+.badge-info {
+    background-color: var(--accent);
+    color: white;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.card {
+    animation: fadeIn 0.3s ease;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 1024px) {
+    .content-wrapper {
+        padding: 20px 15px;
+    }
+
+    .navbar-menu {
+        gap: 20px;
+        font-size: 0.95rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .navbar-container {
+        padding: 0 10px;
+        flex-wrap: wrap;
+    }
+
+    .navbar-brand {
+        font-size: 1.2rem;
+    }
+
+        .navbar-brand span {
+            display: none;
+        }
+
+    .navbar-menu {
+        order: 3;
+        width: 100%;
+        gap: 10px;
+        padding: 10px 0;
+        font-size: 0.85rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.2);
+        margin-top: 10px;
+    }
+
+    .navbar-user {
+        gap: 10px;
+        font-size: 0.9rem;
+    }
+
+        .navbar-user span {
+            display: none;
+        }
+
+    .btn-logout {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+
+    .content-wrapper {
+        padding: 15px 10px;
+    }
+}
+
+@media (max-width: 480px) {
+    .navbar-menu a {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+
+    .card-body {
+        padding: 15px;
+    }
+
+    .content-wrapper {
+        padding: 10px 5px;
+    }
+}

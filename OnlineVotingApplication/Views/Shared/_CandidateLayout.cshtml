@@ -1,0 +1,73 @@
+﻿
+@using Microsoft.AspNetCore.Identity;
+@using OnlineVotingApplication.Areas;
+@using OnlineVotingApplication.Areas.Identity.Data
+@using OnlineVotingApplication.Models;
+@inject SignInManager<ApplicationUser> _signinManager;
+@inject UserManager<ApplicationUser> userManager;
+@{
+    bool isAuth = User?.Identity?.IsAuthenticated ?? false;
+
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewBag.Title - Candidate Portal</title>
+
+    <!-- Bootstrap & Font Awesome -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
+
+    <!-- Candidate CSS -->
+    <link href="~/css/candidate.css" rel="stylesheet" />
+    @RenderSection("Styles", required: false)
+</head>
+<body >
+    <!-- NAVBAR -->
+    <nav class="candidate-navbar navbar navbar-expand-lg navbar-dark">
+        <div class="navbar-container container-fluid">
+            <a href="/Candidate/Dashboard" class="navbar-brand">
+                <i class="fas fa-user-tie"></i>
+                <span>Candidate Portal</span>
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#candidateNavbarMenu" aria-controls="candidateNavbarMenu" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="candidateNavbarMenu">
+                <ul class="navbar-menu me-auto mb-2 mb-lg-0">
+                    <li><a href="/Candidate/Dashboard">Dashboard</a></li>
+                    <li><a href="/Candidate/Profile">My Profile</a></li>
+                    <li><a href="/Candidate/Manifesto">Manifesto</a></li>
+                    <li><a href="/Candidate/VoteCount">Vote Count</a></li>
+                    <li><a href="/Candidate/Results">Results</a></li>
+                </ul>
+
+                <div class="navbar-user d-flex align-items-center">
+                    <span class="me-3"><i class="fas fa-user"></i> @(User?.Identity?.Name ?? "Candidate")</span>
+                    <a href="/Account/Logout" class="btn-logout">Logout</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- PAGE CONTENT -->
+    <main class="candidate-main">
+        <div class="content-wrapper">
+            @RenderBody()
+        </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="candidate-footer">
+        <p>&copy; @DateTime.Now.Year Online Voting System. All rights reserved.</p>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/Scripts/layouts/candidate.js"></script>
+    @RenderSection("Scripts", required: false)
+</body>
+</html>

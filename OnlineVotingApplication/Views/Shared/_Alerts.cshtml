@@ -1,0 +1,29 @@
+﻿@{
+    bool isBlocked = ViewData["IsBlocked"] as bool? ?? false;
+}
+
+@if (isBlocked)
+{
+    <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
+        <i class="fas fa-triangle-exclamation flex-shrink-0"></i>
+        <span>Your account is pending role assignment. Please contact the administrator.</span>
+    </div>
+}
+
+@if (TempData["SuccessMessage"] != null)
+{
+    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+        <i class="fas fa-circle-check flex-shrink-0"></i>
+        <span>@TempData["SuccessMessage"]</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}
+
+@if (TempData["ErrorMessage"] != null)
+{
+    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2" role="alert">
+        <i class="fas fa-circle-exclamation flex-shrink-0"></i>
+        <span>@TempData["ErrorMessage"]</span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+}

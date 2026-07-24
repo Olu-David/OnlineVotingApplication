@@ -1,0 +1,37 @@
+﻿/* ======================================================
+   navbar.css  –  minimal overrides for public navbar
+   ====================================================== */
+
+/* brand colour */
+.navbar-brand {
+    font-weight: 800;
+    color: #fff !important;
+}
+
+/* active link styling (Bootstrap's .active is already there) */
+.navbar .nav-link.active {
+    background: rgba(255,255,255,0.12) !important;
+    color: #fff !important;
+    border-radius: 6px;
+}
+
+/* vote link - make it green */
+.vote-link {
+    color: #4ade80 !important;
+    font-weight: 700;
+}
+
+    .vote-link:hover,
+    .vote-link.active {
+        background: rgba(74,222,128,0.15) !important;
+    }
+
+/* dashboard link - accent */
+.dash-link {
+    color: #f5a623 !important;
+}
+
+    .dash-link:hover,
+    .dash-link.active {
+        background: rgba(245,166,35,0.15) !important;
+    }

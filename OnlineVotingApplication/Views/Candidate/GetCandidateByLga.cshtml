@@ -3,7 +3,7 @@
 
 @{
     TempData["Title"] = "GetAllCandidateByPosition";
-    Layout = "_Layout";
+    Layout = "_SuperAdminSidebar";
     int startItem = ((Model.PageNumber - 1) * Model.PageSize) + 1;
     int endItem = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems);
     if (Model.TotalItems == 0) { startItem = 0; endItem = 0; }
@@ -28,10 +28,10 @@
     <div class="card shadow-sm mb-3 rounded-3 border-0">
         <div class="card-body p-4">
             <form class="row g-3 align-items-center" asp-action="/" method="get">
-                <input type="hidden" name="PageNumber" value="1" />
+                <input type="hidden" name="PageNumber" value="1" />     
                 <input type="hidden" name="Pagesize" value="@Model.PageSize" />
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold text-secondary small text-uppercase tracking-wider">List Of All Candidate By Position</label>
+                    <label class="form-label fw-semibold text-secondary small text-uppercase tracking-wider">List Of All Candidate By LGA</label>
                     <select name="stateId" asp-items="ViewBag.Lga" class="form-select border-2" style="border-color: #cbd5e1;">
                        
                         <option value="">-- Select Target Location --</option>

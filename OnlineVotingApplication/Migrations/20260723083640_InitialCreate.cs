@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialPoliticalDbMigration : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -225,10 +225,10 @@ namespace OnlineVotingApplication.Migrations
                     VoteCastTime = table.Column<DateTime>(type: "datetime2", nullable: true),
                     OfficialStaffId = table.Column<string>(type: "nvarchar(max)", nullable: false),
                     DepartmentorAgency = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    StateId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StateId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     HasVoted = table.Column<bool>(type: "bit", nullable: false),
                     isVoter = table.Column<bool>(type: "bit", nullable: false),
-                    profileImage = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    profileImage = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     UserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
@@ -353,10 +353,10 @@ namespace OnlineVotingApplication.Migrations
                     DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     isApproved = table.Column<bool>(type: "bit", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    StateId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    StateId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     UserId = table.Column<string>(type: "nvarchar(450)", nullable: false),
-                    PartyId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    PartyId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    PositionId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
                     LgaId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
                 },
                 constraints: table =>
@@ -384,8 +384,7 @@ namespace OnlineVotingApplication.Migrations
                         name: "FK_Candidate_States_StateId",
                         column: x => x.StateId,
                         principalTable: "States",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Candidate_Users_UserId",
                         column: x => x.UserId,

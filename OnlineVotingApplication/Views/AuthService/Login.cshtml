@@ -1,9 +1,7 @@
-﻿@using OnlineVotingApplication.DataTransferView;
-@model RegistrationViewModel
-
+﻿@model OnlineVotingApplication.DataTransferView.LoginViewModel
 
 @{
-    ViewData["Title"] = "Voter Registration";
+    ViewData["Title"] = "Sign In";
 }
 
 <div class="container my-5">
@@ -11,8 +9,8 @@
         <div class="col-md-6 col-lg-5">
             <div class="card shadow-lg border-0 rounded-3">
                 <div class="card-header bg-primary text-white text-center py-4 rounded-top-3">
-                    <h3 class="fw-bold mb-0">Create Voter Account</h3>
-                    <p class="small text-white-50 mb-0">Secure Online Voting System</p>
+                    <h3 class="fw-bold mb-0">Voter Sign In</h3>
+                    <p class="small text-white-50 mb-0">Access Your Secure Voting Portal</p>
                 </div>
                 <div class="card-body p-4 position-relative">
 
@@ -20,24 +18,11 @@
                         <div class="spinner-border text-primary mb-2" role="status" style="width: 3rem; height: 3rem;">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <span class="fw-semibold text-primary">Processing registration...</span>
+                        <span class="fw-semibold text-primary">Authenticating...</span>
                     </div>
 
-                    <form id="registrationForm" asp-action="Register" method="post">
+                    <form id="loginForm" asp-action="Login" method="post">
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>
-
-                        <div class="row g-3 mb-3">
-                            <div class="col-sm-6">
-                                <label asp-for="FirstName" class="form-label small fw-bold">First Name</label>
-                                <input asp-for="FirstName" class="form-control shadow-sm" placeholder="John" required />
-                                <span asp-validation-for="FirstName" class="text-danger small"></span>
-                            </div>
-                            <div class="col-sm-6">
-                                <label asp-for="LastName" class="form-label small fw-bold">Last Name</label>
-                                <input asp-for="LastName" class="form-control shadow-sm" placeholder="Doe" required />
-                                <span asp-validation-for="LastName" class="text-danger small"></span>
-                            </div>
-                        </div>
 
                         <div class="mb-3">
                             <label asp-for="EmailAddress" class="form-label small fw-bold">Email Address</label>
@@ -51,22 +36,21 @@
                             <span asp-validation-for="Password" class="text-danger small"></span>
                         </div>
 
-                        <div class="mb-4">
-                            <label asp-for="ConfirmPassword" class="form-label small fw-bold">Confirm Password</label>
-                            <input asp-for="ConfirmPassword" type="password" class="form-control shadow-sm" placeholder="••••••••" required />
-                            <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
+                        <div class="form-check mb-4">
+                            <input asp-for="RememberMe" type="checkbox" class="form-check-input" />
+                            <label asp-for="RememberMe" class="form-check-label small text-muted">Remember this device</label>
                         </div>
 
                         <div class="d-grid">
                             <button type="submit" id="submitBtn" class="btn btn-primary btn-lg fs-6 fw-bold shadow">
-                                Register as Voter
+                                Sign In
                             </button>
                         </div>
                     </form>
                 </div>
             </div>
             <div class="text-center mt-3">
-                <p class="text-muted small">Already have an account? <a asp-action="Login" class="text-decoration-none fw-bold">Sign In</a></p>
+                <p class="text-muted small">New voter? <a asp-action="Register" class="text-decoration-none fw-bold">Create an Account</a></p>
             </div>
         </div>
     </div>
@@ -74,14 +58,13 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-
     <script>
         document.addEventListener("DOMContentLoaded", function () {
-            const form = document.getElementById("registrationForm");
+            const form = document.getElementById("loginForm");
             const overlay = document.getElementById("loadingOverlay");
             const submitBtn = document.getElementById("submitBtn");
 
-            form.addEventListener("submit", function (event) {
+            form.addEventListener("submit", function () {
                 if ($(form).valid()) {
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");

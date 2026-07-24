@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using AspNetCoreGeneratedDocument;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
@@ -151,17 +152,17 @@ namespace OnlineVotingApplication.Controllers
                 var user = await _userManager.FindByEmailAsync(model.EmailAddress ?? "");
                 if (user != null)
                 {
-                    //if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
-                    //    return RedirectToAction("Index", "SuperAdmin", new { area = "Admin" });
+                    if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
+                        return RedirectToAction("CreateCandidate", nameof(CandidateController));
 
-                    //if (await _userManager.IsInRoleAsync(user, "Admin"))
-                    //    return RedirectToAction("Index", "AdminDashboard");
+                    if (await _userManager.IsInRoleAsync(user, "Admin"))
+                        return RedirectToAction("Index", "AdminDashboard");
 
-                    //if (await _userManager.IsInRoleAsync(user, "Merchant"))
-                    //    return RedirectToAction("Dashboard", "Merchant");
+                    if (await _userManager.IsInRoleAsync(user, "Merchant"))
+                        return RedirectToAction("Dashboard", "Merchant");
 
-                    //if (await _userManager.IsInRoleAsync(user, "Vendor"))
-                    //    return RedirectToAction("Dashboard", "Vendor");
+                    if (await _userManager.IsInRoleAsync(user, "Vendor"))
+                        return RedirectToAction("Dashboard", "Vendor");
                 }
 
                 return RedirectToAction("Index", "Home");

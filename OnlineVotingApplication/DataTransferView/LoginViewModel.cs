@@ -6,11 +6,11 @@ namespace OnlineVotingApplication.DataTransferView
     {
         [EmailAddress]
         [Required(ErrorMessage = "Enter your EmailAddress ")]
-        public string? EmailAddress { get; set; }
+        public string EmailAddress { get; set; } = null!;
 
         [DataType(DataType.Password)]
         [Display(Name = "Password")]
         public string Password { get; set; } = null!;
-        public bool RememberMe { get; internal set; }
+        public bool RememberMe { get;  set; }
     }
 }

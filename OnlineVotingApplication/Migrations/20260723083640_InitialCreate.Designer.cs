@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260721135110_InitialPoliticalDbMigration")]
-    partial class InitialPoliticalDbMigration
+    [Migration("20260723083640_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -224,7 +224,7 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
-                    b.Property<Guid>("StateId")
+                    b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("TwoFactorEnabled")
@@ -244,7 +244,6 @@ namespace OnlineVotingApplication.Migrations
                         .HasColumnType("bit");
 
                     b.Property<string>("profileImage")
-                        .IsRequired()
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
@@ -312,13 +311,13 @@ namespace OnlineVotingApplication.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
-                    b.Property<Guid>("PartyId")
+                    b.Property<Guid?>("PartyId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PositionId")
+                    b.Property<Guid?>("PositionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("StateId")
+                    b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("UserId")
@@ -688,8 +687,7 @@ namespace OnlineVotingApplication.Migrations
                     b.HasOne("OnlineVotingApplication.Models.States", "State")
                         .WithMany("Users")
                         .HasForeignKey("StateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("State");
                 });
@@ -704,20 +702,16 @@ namespace OnlineVotingApplication.Migrations
                     b.HasOne("OnlineVotingApplication.Models.Party", "Party")
                         .WithMany("Candidates")
                         .HasForeignKey("PartyId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("OnlineVotingApplication.Models.Positions", "Position")
                         .WithMany("Candidates")
                         .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("OnlineVotingApplication.Models.States", "State")
                         .WithMany("Candidates")
-                        .HasForeignKey("StateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("StateId");
 
                     b.HasOne("OnlineVotingApplication.Areas.Identity.Data.ApplicationUser", "User")
                         .WithMany()

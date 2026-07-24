@@ -1,0 +1,28 @@
+﻿@{
+    ViewData["Title"] = "Account Verified";
+}
+
+<div class="container my-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5">
+            <div class="card shadow-lg border-0 rounded-3 text-center">
+                <div class="card-body p-5">
+                    <div class="mb-4">
+                        <div class="d-inline-flex align-items-center justify-content-center bg-success bg-opacity-10 text-success rounded-circle" style="width: 80px; height: 80px;">
+                            <svg xmlns="http://w3.org" width="40" height="40" fill="currentColor" class="bi bi-patch-check-fill" viewBox="0 0 16 16">
+                                <path d="M10.067.87a2.89 2.89 0 0 0-4.134 0l-.622.638-.89-.011a2.89 2.89 0 0 0-2.924 2.924l.01.89-.636.622a2.89 2.89 0 0 0 0 4.134l.637.622-.011.89a2.89 2.89 0 0 0 2.924 2.924l.89-.01.622.636a2.89 2.89 0 0 0 4.134 0l.622-.637.89.011a2.89 2.89 0 0 0 2.924-2.924l-.01-.89.636-.622a2.89 2.89 0 0 0 0-4.134l-.637-.622.011-.89a2.89 2.89 0 0 0-2.924-2.924l-.89.01zm.244 5.144L7.38 10.185a.5.5 0 0 1-.708 0L5.146 8.654a.5.5 0 0 1 .708-.708l1.176 1.177 2.612-2.612a.5.5 0 1 1 .707.708" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <h3 class="fw-bold text-dark mb-2">Verification Successful!</h3>
+                    <p class="text-muted mb-4">Your email address has been successfully verified. Your account is now fully active within the voting platform.</p>
+
+                    <div class="d-grid">
+                        <a asp-action="Login" class="btn btn-success btn-lg fs-6 fw-bold shadow">Login to Account</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

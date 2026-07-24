@@ -50,7 +50,7 @@ namespace OnlineVotingApplication.Repository.Services
 
                 var newState = new States
                 {
-                    Id = state.Id,
+                    Id = state.Id??Guid.Empty,
                     Name = state.Name ?? ""
                 };
                 // 4. Create state

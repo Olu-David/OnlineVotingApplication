@@ -6,7 +6,7 @@ namespace OnlineVotingApplication.Models
 {
     public class States
     {
-        public Guid? Id { get; set; }
+        public Guid Id { get; set; } = Guid.NewGuid();
         public string Name { get; set; } = null!;
         public ICollection<LGA> Lgas { get; set; } = new List<LGA>();
         public ICollection<ApplicationUser> Users { get; set; } = new List<ApplicationUser>();

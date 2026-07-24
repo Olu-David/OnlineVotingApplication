@@ -3,7 +3,7 @@
 
 @{
     TempData["Title"] = "GetAllCandidateByPosition";
-    Layout = "_Layout";
+    Layout = "_SuperAdminSidebar";
     int startItem = ((Model.PageNumber - 1) * Model.PageSize) + 1;
     int endItem = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems);
     if (Model.TotalItems == 0) { startItem = 0; endItem = 0; };

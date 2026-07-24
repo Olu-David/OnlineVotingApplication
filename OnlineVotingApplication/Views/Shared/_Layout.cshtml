@@ -5,6 +5,7 @@
 @inject UserManager<ApplicationUser> UserManager
 
 @{
+    // ─── ROLE & AUTH STATE ──────────────────────────────────────────
     bool isAuth = User?.Identity?.IsAuthenticated ?? false;
     bool isSuperAdmin = isAuth && User!.IsInRole("SuperAdmin");
     bool isOfficial = isAuth && User!.IsInRole("Official");
@@ -13,6 +14,9 @@
     bool isVoter = isAuth && User!.IsInRole("Voter");
     bool isBlocked = isAuth && !(isSuperAdmin || isOfficial || isAuditor || isCandidate || isVoter);
 
+    string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
+    string action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
+
     string dashCtrl = isVoter ? "Voter"
                     : isOfficial ? "Official"
                     : isAuditor ? "Auditor"
@@ -20,505 +24,107 @@
                     : isCandidate ? "Candidate"
                     : "Home";
 
-    string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
-    string action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
-
     string nameInitial = (isAuth && !string.IsNullOrEmpty(User?.Identity?.Name))
-                       ? User!.Identity!.Name![0].ToString().ToUpper() : "?";
+                       ? User!.Identity!.Name![0].ToString().ToUpper()
+                       : "?";
 
     string roleBadge = isSuperAdmin ? "SuperAdmin"
                      : isOfficial ? "Official"
                      : isAuditor ? "Auditor"
                      : isCandidate ? "Candidate"
-                     : isVoter ? "Voter" : "";
+                     : isVoter ? "Voter"
+                     : "";
 
     string roleColor = isSuperAdmin ? "danger"
                      : isOfficial ? "primary"
                      : isAuditor ? "warning"
                      : isCandidate ? "info"
-                     : isVoter ? "success" : "secondary";
+                     : isVoter ? "success"
+                     : "secondary";
+
+    ViewData["IsAuth"] = isAuth;
+    ViewData["IsSuperAdmin"] = isSuperAdmin;
+    ViewData["IsOfficial"] = isOfficial;
+    ViewData["IsAuditor"] = isAuditor;
+    ViewData["IsCandidate"] = isCandidate;
+    ViewData["IsVoter"] = isVoter;
+    ViewData["IsBlocked"] = isBlocked;
+    ViewData["DashCtrl"] = dashCtrl;
+    ViewData["Ctrl"] = ctrl;
+    ViewData["Action"] = action;
+    ViewData["NameInitial"] = nameInitial;
+    ViewData["RoleBadge"] = roleBadge;
+    ViewData["RoleColor"] = roleColor;
+    ViewData["User"] = User;
 }
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>@ViewData["Title"] — VoteX</title>
-    <link rel="icon" type="image/x-icon" href="~/favicon.ico" />
+
+    <link rel="icon" type="image/svg+xml" href="/vote-yea-119581-3b82f6.svg" asp-append-version="true" />
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
+
+    <!-- Custom styles (only what Bootstrap doesn't cover) -->
+    <link rel="stylesheet" href="/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/navbar.css" asp-append-version="true" />
+
     @await RenderSectionAsync("Styles", required: false)
 </head>
+
 <body class="@(isSuperAdmin ? "vx-admin-body" : "vx-public-body")">
 
-    @* ══════════════════════════════════════════
-   SUPERADMIN — SIDEBAR LAYOUT
-   ══════════════════════════════════════════ *@
     @if (isSuperAdmin)
     {
-        <div class="d-flex">
+        <div class="admin-shell d-flex">
 
             <!-- SIDEBAR -->
-            <nav class="bg-dark text-white d-flex flex-column p-3" style="width:260px; min-height:100vh;">
+            <partial name="_SuperAdminSidebar" />
 
-                <!-- Brand -->
-                <a asp-controller="SuperAdmin" asp-action="Dashboard"
-                   class="text-white text-decoration-none mb-4 d-flex align-items-center">
-                    <i class="fas fa-crown me-2"></i>
-                    <div>
-                        <strong>VoteX</strong><br />
-                        <small class="text-muted">Super Admin</small>
-                    </div>
-                </a>
+            <!-- MAIN COLUMN -->
+            <div class="d-flex flex-column flex-grow-1">
 
-                <!-- User -->
-                <div class="mb-3">
-                    <div class="fw-semibold">@User?.Identity?.Name</div>
-                    <small class="text-muted">Super Administrator</small>
-                </div>
-
-                <hr />
-
-                <!-- NAV -->
-                <ul class="nav nav-pills flex-column mb-auto">
-
-                    <li class="text-uppercase small text-muted mb-2">Overview</li>
-
-                    <li class="nav-item">
-                        <a asp-action="Dashboard" class="nav-link text-white">Dashboard</a>
-                    </li>
-
-                    @* <li class="text-uppercase small text-muted mt-3 mb-2">Election</li> *@
-
-                    <li class="nav-item">
-                        <a href="#" class="nav-link text-white justify-content-between align-items-center text-decoration-none " data-bs-toggle="collapse" data-bs-target="#ElectionMenu" aria-expanded="false" role="button">
-
-                          <span><i class="fas fa-calendar"> 
-                              Elections
-                          </i></span>
-                          <i class="fas fa-chevron-down small"></i>
-
-                          <div class="collapse" id="ElectionMenu">
-                                <ul class="nav flex-column ms-3 mt-2">
-
-                                    <li class="nav-item">
-                                        <a asp-controller="Election" asp-action="Elections" class="nav-link text-white">
-                                            All Elections
-                                        </a>
-                                    </li>
-
-                                    <li class="nav-item">
-                                        <a asp-controller="Candidate"  asp-action="CreateElection" class="nav-link text-white">
-                                            Start Election
-                                        </a>
-                                    </li>
-
-                                    <li class="nav-item">
-                                        <a asp-controller="Candidate" asp-action="Candidates" class="nav-link text-white">
-                                            Candidates 
-                                        </a>
-                                    </li>
-                                 </ul>
-
-                          </div>
-
-
-                           </a>
-                       
-                    </li>
-                  
-                    <li class="nav-item">
-                        <a asp-action="Candidates" class="nav-link text-white">Candidates</a>
-                    </li>
-
-                    <li class="text-uppercase small text-muted mt-3 mb-2">Users</li>
-
-                    <li class="nav-item">
-                        <a asp-action="Voters" class="nav-link text-white">Voters</a>
-                    </li>
-
-                    <li class="text-uppercase small text-muted mt-3 mb-2">Reports</li>
-
-                    <li class="nav-item">
-                        <a asp-action="Reports" class="nav-link text-white">Reports</a>
-                    </li>
-
-                </ul>
-
-                <!-- Logout -->
-                <div class="mt-auto pt-3 border-top">
-                    <form asp-area="Identity" asp-page="/Account/Logout" method="post">
-                        <button class="btn btn-outline-light w-100">
-                            Logout
-                        </button>
-                    </form>
-                </div>
-
-            </nav>
-
-            <!-- MAIN -->
-            <div class="flex-grow-1 d-flex flex-column">
-
-                <!-- TOPBAR -->
-                <nav class="navbar navbar-light bg-light px-3">
-
-                    <span class="navbar-brand mb-0 h6">
-                        @ViewData["Title"]
-                    </span>
-
-                    <div class="dropdown ms-auto">
-                        <button class="btn btn-light dropdown-toggle"
-                                data-bs-toggle="dropdown">
-                            @nameInitial
-                        </button>
-
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <span class="dropdown-item-text">
-                                    @User?.Identity?.Name
-                                </span>
-                            </li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li>
-                                <form asp-area="Identity" asp-page="/Account/Logout" method="post">
-                                    <button class="dropdown-item text-danger">Logout</button>
-                                </form>
-                            </li>
-                        </ul>
-                    </div>
-
-                </nav>
+                @* <!-- TOPBAR -->
+                <partial name="_AdminTopbar" /> *@
 
                 <!-- CONTENT -->
-                <main class="p-4">
-
-                    <!-- 🔔 BLOCKED USER -->
-                    @if (isBlocked)
-                    {
-                        <div class="alert alert-warning">
-                            Your account is pending role assignment.
-                        </div>
-                    }
-
-                    <!-- ✅ SUCCESS -->
-                    @if (TempData["SuccessMessage"] != null)
-                    {
-                        <div class="alert alert-success alert-dismissible fade show">
-                            @TempData["SuccessMessage"]
-                            <button class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    }
-
-                    <!-- ❌ ERROR -->
-                    @if (TempData["ErrorMessage"] != null)
-                    {
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            @TempData["ErrorMessage"]
-                            <button class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    }
-
-                    <!-- PAGE -->
+                <main class="admin-content p-4">
+                    <partial name="_Alerts" />
                     @if (!isBlocked)
                     {
                         @RenderBody()
                     }
-
                 </main>
 
             </div>
-
         </div>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
     }
-
-
-    @* ══════════════════════════════════════════
-   ALL OTHER ROLES — TOPBAR LAYOUT
-   ══════════════════════════════════════════ *@
     else
     {
-        @* ── NAVBAR ── *@
-        <nav class="navbar navbar-expand-lg vx-navbar sticky-top">
-            <div class="container">
-
-                <a asp-controller="Home" asp-action="Index" class="navbar-brand vx-nav-brand">
-                    <i class="fas fa-vote-yea me-2"></i>VoteX
-                </a>
-
-                <button class="navbar-toggler border-0" type="button"
-                        data-bs-toggle="collapse" data-bs-target="#mainNavMenu"
-                        aria-controls="mainNavMenu" aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-
-                <div class="collapse navbar-collapse" id="mainNavMenu">
-
-                    <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-
-                        <li class="nav-item">
-                            <a asp-controller="Home" asp-action="Index"
-                               class="nav-link @(ctrl == "Home" && action == "Index" ? "active" : "")">
-                                <i class="fas fa-home me-1"></i> Home
-                            </a>
-                        </li>
-
-                        @if (isAuth && !isBlocked)
-                        {
-                            <li class="nav-item">
-                                <a asp-controller="@dashCtrl" asp-action="Index"
-                                   class="nav-link fw-semibold vx-dash-link @(ctrl == dashCtrl ? "active" : "")">
-                                    <i class="fas fa-tachometer-alt me-1"></i> Dashboard
-                                </a>
-                            </li>
-
-                            @if (isVoter)
-                            {
-                                <li class="nav-item">
-                                    <a asp-controller="Ballot" asp-action="CastVote"
-                                       class="nav-link vx-vote-link @(ctrl == "Ballot" ? "active" : "")">
-                                        <i class="fas fa-vote-yea me-1"></i> Vote
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <a asp-controller="Voter" asp-action="MyVotes"
-                                       class="nav-link @(ctrl == "Voter" && action == "MyVotes" ? "active" : "")">
-                                        My Votes
-                                    </a>
-                                </li>
-                            }
-
-                            @if (isCandidate)
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle @(ctrl == "Candidate" ? "active" : "")"
-                                       role="button" data-bs-toggle="dropdown">
-                                        <i class="fas fa-user-tie me-1"></i> Campaign
-                                    </a>
-                                    <ul class="dropdown-menu border-0 shadow-sm">
-                                        <li>
-                                            <a asp-controller="Candidate" asp-action="Profile"
-                                               class="dropdown-item">
-                                                <i class="fas fa-id-card me-2"></i> My Profile
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a asp-controller="Candidate" asp-action="Manifesto"
-                                               class="dropdown-item">
-                                                <i class="fas fa-scroll me-2"></i> Manifesto
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a asp-controller="Candidate" asp-action="VoteCount"
-                                               class="dropdown-item">
-                                                <i class="fas fa-chart-bar me-2"></i> Vote Count
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-
-                            @if (isOfficial)
-                            {
-                                <li class="nav-item dropdown">
-                                    <a class="nav-link dropdown-toggle @(ctrl == "Official" ? "active" : "")"
-                                       role="button" data-bs-toggle="dropdown">
-                                        <i class="fas fa-clipboard-list me-1"></i> Manage
-                                    </a>
-                                    <ul class="dropdown-menu border-0 shadow-sm">
-                                        <li>
-                                            <a asp-controller="Official" asp-action="Elections"
-                                               class="dropdown-item">
-                                                <i class="fas fa-calendar-alt me-2"></i> Elections
-                                            </a>
-                                        </li>
-                                        <li>
-                                            <a asp-controller="Official" asp-action="Candidates"
-                                               class="dropdown-item">
-                                                <i class="fas fa-user-tie me-2"></i> Candidates
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </li>
-                            }
-
-                            @if (isAuditor)
-                            {
-                                <li class="nav-item">
-                                    <a asp-controller="Auditor" asp-action="Logs"
-                                       class="nav-link @(ctrl == "Auditor" ? "active" : "")">
-                                        <i class="fas fa-file-alt me-1"></i> Audit Logs
-                                    </a>
-                                </li>
-                            }
-
-                            <li class="nav-item">
-                                <a asp-controller="Results" asp-action="LiveCount"
-                                   class="nav-link @(ctrl == "Results" ? "active" : "")">
-                                    <i class="fas fa-chart-line me-1"></i> Live Results
-                                </a>
-                            </li>
-                        }
-
-                        <li class="nav-item">
-                            <a asp-controller="Home" asp-action="Privacy"
-                               class="nav-link @(ctrl == "Home" && action == "Privacy" ? "active" : "")">
-                                Privacy
-                            </a>
-                        </li>
-
-                    </ul>
-
-                    @* ── RIGHT SIDE ── *@
-                    <div class="d-flex align-items-center gap-2">
-
-                        @if (isAuth && SignInManager.IsSignedIn(User!))
-                        {
-                            @* Role badge *@
-                            <span class="badge bg-@roleColor vx-role-pill">@roleBadge</span>
-
-                            @* User dropdown *@
-                            <div class="dropdown">
-                                <button class="btn vx-user-btn d-flex align-items-center gap-2"
-                                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                    <span class="vx-avatar-sm">@nameInitial</span>
-                                    <span class="d-none d-lg-inline small">@User?.Identity?.Name</span>
-                                    <i class="fas fa-chevron-down small opacity-50"></i>
-                                </button>
-                                <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm">
-                                    <li>
-                                        <div class="dropdown-item-text">
-                                            <div class="fw-semibold small">@User?.Identity?.Name</div>
-                                            <small class="text-muted">@roleBadge</small>
-                                        </div>
-                                    </li>
-                                    <li><hr class="dropdown-divider" /></li>
-                                    <li>
-                                        <a asp-controller="@dashCtrl" asp-action="Index"
-                                           class="dropdown-item">
-                                            <i class="fas fa-tachometer-alt me-2"></i> Dashboard
-                                        </a>
-                                    </li>
-                                    <li>
-                                        <form asp-area="Identity" asp-page="/Account/Logout" method="post">
-                                            <button type="submit" class="dropdown-item text-danger">
-                                                <i class="fas fa-sign-out-alt me-2"></i> Sign Out
-                                            </button>
-                                        </form>
-                                    </li>
-                                </ul>
-                            </div>
-                        }
-                        else
-                        {
-                            <a asp-page="/Account/Login"
-                               class="btn btn-outline-light btn-sm">Sign In</a>
-                            <a asp-page="/Account/Register"
-                               class="btn btn-warning btn-sm fw-semibold text-dark">Register</a>
-                        }
-
-                    </div>
-
-                </div>
-            </div>
-        </nav>
-
-        @* ── MAIN CONTENT ── *@
+        <partial name="_Navbar" />
         <main class="flex-grow-1">
             <div class="container py-4">
-
-                @if (isBlocked)
-                {
-                    <div class="alert alert-warning d-flex align-items-center gap-2" role="alert">
-                        <i class="fas fa-triangle-exclamation flex-shrink-0"></i>
-                        <span>Your account is pending role assignment. Please contact the administrator.</span>
-                    </div>
-                }
-
-                @if (TempData["SuccessMessage"] != null)
-                {
-                    <div class="alert alert-success alert-dismissible fade show d-flex align-items-center gap-2"
-                         role="alert">
-                        <i class="fas fa-circle-check flex-shrink-0"></i>
-                        <span>@TempData["SuccessMessage"]</span>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                }
-                @if (TempData["ErrorMessage"] != null)
-                {
-                    <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center gap-2"
-                         role="alert">
-                        <i class="fas fa-circle-exclamation flex-shrink-0"></i>
-                        <span>@TempData["ErrorMessage"]</span>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                }
-
+                <partial name="_Alerts" />
                 @if (!isBlocked)
                 {
                     @RenderBody()
                 }
-
             </div>
         </main>
-
-        @* ── FOOTER ── *@
-        <footer class="vx-footer text-white mt-auto">
-            <div class="container">
-                <div class="row g-4 py-5">
-
-                    <div class="col-md-4">
-                        <div class="vx-footer-brand mb-3">
-                            <i class="fas fa-vote-yea me-2"></i> VoteX
-                        </div>
-                        <p class="text-muted small mb-0 text-white">
-                            Secure, transparent and real-time digital voting platform built for trust and integrity.
-                        </p>
-                    </div>
-
-                    <div class="col-md-4">
-                        <h6 class="fw-bold text-white mb-3">Quick Links</h6>
-                        <ul class="list-unstyled mb-0 text-white">
-                            <li class="mb-2">
-                                <a asp-controller="Home" asp-action="Index"
-                                   class="text-muted text-decoration-none vx-footer-link">Home</a>
-                            </li>
-                            <li class="mb-2 text-white">
-                                <a asp-controller="Results" asp-action="LiveCount"
-                                   class="text-muted text-decoration-none vx-footer-link">Live Results</a>
-                            </li>
-                            <li>
-                                <a asp-controller="Home" asp-action="Privacy"
-                                   class="text-muted text-decoration-none vx-footer-link">Privacy Policy</a>
-                            </li>
-                        </ul>
-                    </div>
-
-                    <div class="col-md-4 text-white">
-                        <h6 class="fw-bold text-white mb-3">Support</h6>
-                        <ul class="list-unstyled mb-0 text-muted small text-white">
-                            <li class="mb-2"><i class="fas fa-envelope me-2"></i> support@@votex.ng</li>
-                            <li class="mb-2"><i class="fas fa-phone me-2"></i> 08056517525</li>
-                            <li><i class="fas fa-circle-dot me-2 text-success vx-pulse-dot"></i> 24/7 Monitoring</li>
-                        </ul>
-                    </div>
-
-                </div>
-
-                <hr class="border-white border-opacity-10 my-0" />
-
-                <div class="d-flex flex-column flex-md-row justify-content-between
-                                align-items-center py-3 text-muted small text-white">
-                    <span>&copy; @DateTime.UtcNow.Year VoteX. All rights reserved.</span>
-                    <span>Built for secure digital democracy ⚡</span>
-                </div>
-
-            </div>
-        </footer>
+        <partial name="_Footer" />
     }
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="/js/site.js" asp-append-version="true"></script>
+    <script src="/js/navbar.js" asp-append-version="true"></script>
+    <script src="/js/sidebar.js" asp-append-version="true"></script>
+    <script src="/js/alerts.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

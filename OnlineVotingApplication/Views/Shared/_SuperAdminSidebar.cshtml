@@ -1,0 +1,135 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using OnlineVotingApplication.Areas.Identity.Data
+@inject SignInManager<ApplicationUser> SignInManager
+
+<nav class="admin-sidebar bg-dark text-white d-flex flex-column p-3" id="adminSidebar">
+
+    <!-- Brand -->
+    <div class="sidebar-brand d-flex align-items-center gap-2 mb-4">
+        <div class="brand-icon"><i class="fas fa-vote-yea"></i></div>
+        <div class="brand-text">
+            <span class="d-block fw-bold">VoteX</span>
+            <small class="text-white-50">Super Admin</small>
+        </div>
+    </div>
+
+    <!-- User chip -->
+    <div class="sidebar-user d-flex align-items-center gap-2 p-2 rounded mb-3">
+        <span class="avatar-sm">@ViewData["NameInitial"]</span>
+        <div class="sidebar-user-info small">
+            <div class="fw-semibold">@User?.Identity?.Name</div>
+            <div class="sidebar-role-badge">Administrator</div>
+        </div>
+    </div>
+
+    <hr class="border-secondary opacity-25" />
+
+    <!-- Navigation -->
+    <ul class="nav flex-column flex-grow-1">
+
+        <li class="sidebar-section-label">Overview</li>
+        <li class="nav-item">
+            <a asp-controller="SuperAdmin" asp-action="Dashboard"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Dashboard" ? "active" : "")">
+                <i class="fas fa-tachometer-alt me-2"></i><span>Dashboard</span>
+            </a>
+        </li>
+
+        <li class="sidebar-section-label">Election Management</li>
+
+        <!-- Collapsible Elections -->
+        <li class="nav-item">
+            <a href="#electionMenu" class="nav-link text-white d-flex justify-content-between"
+               data-bs-toggle="collapse" aria-expanded="false">
+                <span><i class="fas fa-calendar-alt me-2"></i> Elections</span>
+                <i class="fas fa-chevron-down small"></i>
+            </a>
+            <div class="collapse" id="electionMenu">
+                <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                        <a asp-controller="Election" asp-action="Index"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                            <i class="fas fa-list me-2"></i><span>All Elections</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Election" asp-action="Create"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Election" asp-action="SoftDeleted"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "SoftDeleted" ? "active" : "")">
+                            <i class="fas fa-trash-alt me-2"></i><span>Deleted</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+
+        <li class="nav-item">
+            <a asp-controller="Candidate" asp-action="Index"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")">
+                <i class="fas fa-user-tie me-2"></i><span>Candidates</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a asp-controller="Position" asp-action="Index"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")">
+                <i class="fas fa-bullseye me-2"></i><span>Positions</span>
+            </a>
+        </li>
+
+        <li class="sidebar-section-label">Geography</li>
+        <li class="nav-item">
+            <a asp-controller="State" asp-action="Index"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "State" ? "active" : "")">
+                <i class="fas fa-map-marker-alt me-2"></i><span>States</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a asp-controller="Lga" asp-action="Index"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Lga" ? "active" : "")">
+                <i class="fas fa-city me-2"></i><span>LGAs</span>
+            </a>
+        </li>
+
+        <li class="sidebar-section-label">Users</li>
+        <li class="nav-item">
+            <a asp-controller="SuperAdmin" asp-action="Voters"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Voters" ? "active" : "")">
+                <i class="fas fa-users me-2"></i><span>Voters</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a asp-controller="SuperAdmin" asp-action="Officials"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Officials" ? "active" : "")">
+                <i class="fas fa-user-shield me-2"></i><span>Officials</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a asp-controller="SuperAdmin" asp-action="Auditors"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Auditors" ? "active" : "")">
+                <i class="fas fa-user-check me-2"></i><span>Auditors</span>
+            </a>
+        </li>
+
+        <li class="sidebar-section-label">Reports</li>
+        <li class="nav-item">
+            <a asp-controller="SuperAdmin" asp-action="Reports"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Reports" ? "active" : "")">
+                <i class="fas fa-chart-pie me-2"></i><span>Reports</span>
+            </a>
+        </li>
+    </ul>
+
+    <!-- Logout -->
+    <div class="mt-auto pt-3 border-top border-secondary border-opacity-25">
+        <form asp-area="Identity" asp-page="/Account/Logout" method="post">
+            <button class="btn btn-outline-light w-100 d-flex align-items-center justify-content-center gap-2">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </form>
+    </div>
+</nav>

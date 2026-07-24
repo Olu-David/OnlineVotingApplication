@@ -1,0 +1,159 @@
+﻿@using Microsoft.AspNetCore.Identity
+@using OnlineVotingApplication.Areas.Identity.Data
+@inject SignInManager<ApplicationUser> SignInManager
+
+@{
+    bool isAuth = ViewData["IsAuth"] as bool? ?? false;
+    bool isBlocked = ViewData["IsBlocked"] as bool? ?? false;
+    string dashCtrl = ViewData["DashCtrl"]?.ToString() ?? "Home";
+    string ctrl = ViewData["Ctrl"]?.ToString() ?? "";
+    string action = ViewData["Action"]?.ToString() ?? "";
+    string roleBadge = ViewData["RoleBadge"]?.ToString() ?? "";
+    string roleColor = ViewData["RoleColor"]?.ToString() ?? "secondary";
+    string nameInitial = ViewData["NameInitial"]?.ToString() ?? "?";
+}
+
+<nav class="navbar navbar-expand-lg navbar-dark" style="background:#1a2e5a; border-bottom:3px solid #f5a623;">
+    <div class="container">
+
+        <a asp-controller="Home" asp-action="Index" class="navbar-brand fw-bold">
+            <i class="fas fa-vote-yea me-2"></i>VoteX
+        </a>
+
+        <button class="navbar-toggler border-0" type="button"
+                data-bs-toggle="collapse" data-bs-target="#mainNavMenu"
+                aria-controls="mainNavMenu" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse" id="mainNavMenu">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+
+                <li class="nav-item">
+                    <a asp-controller="Home" asp-action="Index"
+                       class="nav-link @(ctrl == "Home" && action == "Index" ? "active" : "")">
+                        <i class="fas fa-home me-1"></i> Home
+                    </a>
+                </li>
+
+                @if (isAuth && !isBlocked)
+                {
+                    <li class="nav-item">
+                        <a asp-controller="@dashCtrl" asp-action="Index"
+                           class="nav-link dash-link @(ctrl == dashCtrl ? "active" : "")">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+
+                    @if (ViewData["IsVoter"] as bool? == true)
+                    {
+                        <li class="nav-item">
+                            <a asp-controller="Ballot" asp-action="CastVote"
+                               class="nav-link vote-link @(ctrl == "Ballot" ? "active" : "")">
+                                <i class="fas fa-vote-yea me-1"></i> Vote
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a asp-controller="Voter" asp-action="MyVotes"
+                               class="nav-link @(ctrl == "Voter" && action == "MyVotes" ? "active" : "")">
+                                My Votes
+                            </a>
+                        </li>
+                    }
+
+                    @if (ViewData["IsCandidate"] as bool? == true)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle @(ctrl == "Candidate" ? "active" : "")"
+                               role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-user-tie me-1"></i> Campaign
+                            </a>
+                            <ul class="dropdown-menu border-0 shadow-sm">
+                                <li><a asp-controller="Candidate" asp-action="Profile" class="dropdown-item"><i class="fas fa-id-card me-2"></i> My Profile</a></li>
+                                <li><a asp-controller="Candidate" asp-action="Manifesto" class="dropdown-item"><i class="fas fa-scroll me-2"></i> Manifesto</a></li>
+                                <li><a asp-controller="Candidate" asp-action="VoteCount" class="dropdown-item"><i class="fas fa-chart-bar me-2"></i> Vote Count</a></li>
+                            </ul>
+                        </li>
+                    }
+
+                    @if (ViewData["IsOfficial"] as bool? == true)
+                    {
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle @(ctrl == "Official" ? "active" : "")"
+                               role="button" data-bs-toggle="dropdown">
+                                <i class="fas fa-clipboard-list me-1"></i> Manage
+                            </a>
+                            <ul class="dropdown-menu border-0 shadow-sm">
+                                <li><a asp-controller="Official" asp-action="Elections" class="dropdown-item"><i class="fas fa-calendar-alt me-2"></i> Elections</a></li>
+                                <li><a asp-controller="Official" asp-action="Candidates" class="dropdown-item"><i class="fas fa-user-tie me-2"></i> Candidates</a></li>
+                            </ul>
+                        </li>
+                    }
+
+                    @if (ViewData["IsAuditor"] as bool? == true)
+                    {
+                        <li class="nav-item">
+                            <a asp-controller="Auditor" asp-action="Logs"
+                               class="nav-link @(ctrl == "Auditor" ? "active" : "")">
+                                <i class="fas fa-file-alt me-1"></i> Audit Logs
+                            </a>
+                        </li>
+                    }
+
+                    <li class="nav-item">
+                        <a asp-controller="Results" asp-action="LiveCount"
+                           class="nav-link @(ctrl == "Results" ? "active" : "")">
+                            <i class="fas fa-chart-line me-1"></i> Live Results
+                        </a>
+                    </li>
+                }
+
+                <li class="nav-item">
+                    <a asp-controller="Home" asp-action="Privacy"
+                       class="nav-link @(ctrl == "Home" && action == "Privacy" ? "active" : "")">
+                        Privacy
+                    </a>
+                </li>
+            </ul>
+
+            <!-- Right side -->
+            <div class="d-flex align-items-center gap-2">
+                @if (isAuth && SignInManager.IsSignedIn(User))
+                {
+                    <span class="badge bg-@roleColor">@roleBadge</span>
+
+                    <div class="dropdown">
+                        <button class="btn btn-outline-light d-flex align-items-center gap-2"
+                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <span class="avatar-sm">@nameInitial</span>
+                            <span class="d-none d-lg-inline small">@User?.Identity?.Name</span>
+                            <i class="fas fa-chevron-down small"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-sm">
+                            <li>
+                                <div class="dropdown-item-text">
+                                    <div class="fw-semibold small">@User?.Identity?.Name</div>
+                                    <small class="text-muted">@roleBadge</small>
+                                </div>
+                            </li>
+                            <li><hr class="dropdown-divider" /></li>
+                            <li><a asp-controller="@dashCtrl" asp-action="Index" class="dropdown-item"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a></li>
+                            <li>
+                                <form asp-area="Identity" asp-page="/Account/Logout" method="post">
+                                    <button type="submit" class="dropdown-item text-danger">
+                                        <i class="fas fa-sign-out-alt me-2"></i> Sign Out
+                                    </button>
+                                </form>
+                            </li>
+                        </ul>
+                    </div>
+                }
+                else
+                {
+                    <a asp-page="/Account/Login" class="btn btn-outline-light btn-sm">Sign In</a>
+                    <a asp-page="/Account/Register" class="btn btn-warning btn-sm fw-semibold text-dark">Register</a>
+                }
+            </div>
+        </div>
+    </div>
+</nav>

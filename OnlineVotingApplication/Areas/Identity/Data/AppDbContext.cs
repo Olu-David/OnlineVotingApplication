@@ -89,7 +89,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasOne(u => u.State)
             .WithMany(s => s.Users)
             .HasForeignKey(u => u.StateId)
+            .IsRequired(false) 
             .OnDelete(DeleteBehavior.Restrict);
+
 
         builder.Entity<Vote>()
             .HasOne(v => v.Positions)
@@ -108,15 +110,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(v => v.VoterId)
             .OnDelete(DeleteBehavior.Restrict);
-    
 
 
-
-    builder.Entity<ApplicationUser>(x =>
+        builder.Entity<ApplicationUser>(x =>
         {
             x.ToTable("Users");
             x.Property(m => m.FullName).HasMaxLength(200).IsRequired();
         });
+
+
     }
 
     public DbSet<Election> Election { get; set; }

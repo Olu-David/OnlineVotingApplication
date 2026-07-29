@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Build.Tasks;
 using OnlineVotingApplication.Areas.Identity.Data;
+using Microsoft.Diagnostics.Runtime.AbstractDac;
+using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -25,24 +27,45 @@ namespace OnlineVotingApplication.Repository.Services
             _cache = cache;
         }
 
-        public async Task<List<PositonDTO>> GetAllPositionsAsync()
+        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(string id, int pageNumber = 1, int pageSize = 10)
         {
-            string cachekey = "ref:All_Position";
-            if (!_cache.TryGetValue(cachekey, out List<PositonDTO>? position))
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
+            // 1. Get the total count from DB
+            int totalItems = await _context.Position.AsNoTracking().CountAsync();
+
+            string cacheKey = $"ref:Positions_Page_{pageNumber}_Size_{pageSize}";
+
+            if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? positions))
             {
-                position = await _context.Position.Select(m => new PositonDTO
-                {
-                    Id = m.Id,
-                    Name = m.Name,
+                // 2. Fetch only the requested page slice
+                positions = await _context.Position
+                    .AsNoTracking()
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(m => new PositionDTO
+                    {
+                        Id = m.Id,
+                        Name = m.Name,
+                    })
+                    .ToListAsync();
 
-                }).ToListAsync();
-
-
-               _cache.Set(cachekey, position, TimeSpan.FromMinutes(30));
-
+                _cache.Set(cacheKey, positions, TimeSpan.FromMinutes(30));
             }
-            return position!;
+
+            // 3. Return the unified model
+            return new PaginatedListViewModel<PositionDTO>
+            {
+                Items = positions ?? new List<PositionDTO>(),
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalItems = totalItems
+            };
         }
+
+
+
 
         public async Task<bool> GetPositionByIdAsync(Guid id)
         {
@@ -54,7 +77,7 @@ namespace OnlineVotingApplication.Repository.Services
             return true;
         }
 
-        public async Task<ServiceResponse<string>> CreatePositionAsync(PositonDTO model, string userId)
+        public async Task<ServiceResponse<string>> CreatePositionAsync(PositionDTO model, string userId)
         {
             var response = new ServiceResponse<string>();
 
@@ -162,7 +185,7 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
 
-        public async Task<ServiceResponse<string>> UpdatePosition(PositonDTO model,string ID)
+        public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model,string ID)
         {
             var response = new ServiceResponse<string>();
             var user = await _userManager.FindByIdAsync(ID);

@@ -5,6 +5,7 @@ using OnlineVotingApplication.Models;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.Areas.Identity.Data;
+using Microsoft.AspNetCore.Identity;
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -16,37 +17,37 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IHttpContextAccessor _contextAccessor;
         private readonly IMemoryCache _cache;
         private readonly ILogger<StateService> _logger;
+        private readonly UserManager<ApplicationUser> _userManager;
 
-        public StateService(AppDbContext context, IHttpContextAccessor contextAccessor, IMemoryCache cache, ILogger<StateService> logger)
+        public StateService(AppDbContext context, IHttpContextAccessor contextAccessor, IMemoryCache cache, ILogger<StateService> logger, UserManager<ApplicationUser> userManager)
         {
             _context = context;
             _contextAccessor = contextAccessor;
             _cache = cache;
             _logger = logger;
+            _userManager = userManager;
         }
 
-        public async Task<bool> CreateStateAsync(StateDTO state)
+        public async Task<bool> CreateStateAsync(StateDTO state, string Id)
         {
             var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                var user = _contextAccessor?.HttpContext?.User;
-
-                // 1. Check authentication
-                if (user?.Identity?.IsAuthenticated != true)
+                //Check Authentication
+                var user = await _userManager.FindByEmailAsync(Id);
+                if (user == null)
+                {
+                    return false;
+                }
+                bool IsSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+                bool IsOfficial = await _userManager.IsInRoleAsync(user, "Official");
+                if(!IsSuperAdmin  && !IsOfficial)
                 {
                     return false;
                 }
 
-                // 2. Check roles
-                bool isAdmin = user.IsInRole("SuperAdmin");
-                bool isOfficial = user.IsInRole("Official");
 
-                // 3. Block if NOT authorized
-                if (!isAdmin && !isOfficial)
-                {
-                    return false!;
-                }
+              
 
                 var newState = new States
                 {
@@ -68,7 +69,36 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
         }
+        public async Task<bool> UpdateStateAsync(UpdateStateDto model, string Id)
+        {
+            //Check Authentication
+            var user = await _userManager.FindByEmailAsync(Id);
+            if (user == null)
+            {
+                return false;
+            }
+            bool IsSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool IsOfficial = await _userManager.IsInRoleAsync(user, "Official");
+            if (!IsSuperAdmin && !IsOfficial)
+            {
+                return false;
+            }
 
+            var findState = await _context.States.FirstOrDefaultAsync(m => m.Id == model.Id);
+
+            if(findState==null)
+            {
+                return false;
+            }
+            //Send data for editing
+
+      
+            findState.Name = model.Name??"";
+            _context.Update(findState);
+           await _context.SaveChangesAsync();
+            return true;
+                
+        }
         public async Task<List<StateDTO>> GetAllStatesAsync()
         {
             string cachekey = "ref_ALL-State";
@@ -115,7 +145,7 @@ namespace OnlineVotingApplication.Repository.Services
             if(state==null)
             {
                 return false;
-            }
+            }   
             _context.States.Remove(state);
                 await _context.SaveChangesAsync();
                 return true;

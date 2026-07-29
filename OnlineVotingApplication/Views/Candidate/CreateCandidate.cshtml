@@ -3,7 +3,7 @@
 
 @{
     ViewBag.Title = "Create New Candidate";
-    Layout = "_SuperAdminSidebar"; // Admins/Officials only
+    Layout = "_Layout"; // Admins/Officials only
 }
 
 <div class="container mt-5">
@@ -22,7 +22,10 @@
                 <!-- Pass the route id parameter down if it exists in your URL -->
                 <input type="hidden" name="id" value="@Context.Request.RouteValues["id"]" />
 
-                <!-- VALIDATION ERRORS -->
+                <!-- GLOBAL VALIDATION SUMMARY BOX -->
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+              @*   <!-- VALIDATION ERRORS -->
                 @if (!ViewData.ModelState.IsValid)
                 {
                     <div class="alert alert-danger mb-4">
@@ -37,7 +40,7 @@
                             }
                         </ul>
                     </div>
-                }
+                } *@
 
                 <!-- CANDIDATE NAME -->
                 <div class="mb-3">

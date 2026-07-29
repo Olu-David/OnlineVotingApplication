@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace OnlineVotingApplication.DataTransferView
 {
-    public class PositonDTO
+    public class PositionDTO
     {
         public Guid Id { get; set; }
         public string? Name { get; set; }

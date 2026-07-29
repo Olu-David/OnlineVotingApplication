@@ -42,6 +42,7 @@
                      : isVoter ? "success"
                      : "secondary";
 
+    // ─── PASS DATA TO PARTIALS ─────────────────────────────────────
     ViewData["IsAuth"] = isAuth;
     ViewData["IsSuperAdmin"] = isSuperAdmin;
     ViewData["IsOfficial"] = isOfficial;
@@ -69,7 +70,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet" />
 
-    <!-- Custom styles (only what Bootstrap doesn't cover) -->
     <link rel="stylesheet" href="/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="/css/navbar.css" asp-append-version="true" />
 
@@ -83,17 +83,17 @@
         <div class="admin-shell d-flex">
 
             <!-- SIDEBAR -->
-            <partial name="_SuperAdminSidebar" />
+            @await Html.PartialAsync("_SuperAdminSidebar")
 
             <!-- MAIN COLUMN -->
             <div class="d-flex flex-column flex-grow-1">
 
-                @* <!-- TOPBAR -->
-                <partial name="_AdminTopbar" /> *@
+                <!-- TOPBAR -->
+                @await Html.PartialAsync("_AdminTopbar")
 
                 <!-- CONTENT -->
                 <main class="admin-content p-4">
-                    <partial name="_Alerts" />
+                    @await Html.PartialAsync("_Alerts")
                     @if (!isBlocked)
                     {
                         @RenderBody()
@@ -104,20 +104,24 @@
         </div>
 
         <div class="sidebar-overlay" id="sidebarOverlay"></div>
-    }
+    }   
     else
     {
-        <partial name="_Navbar" />
+        <!-- PUBLIC NAVBAR -->
+        @await Html.PartialAsync("_Navbar")
+
         <main class="flex-grow-1">
             <div class="container py-4">
-                <partial name="_Alerts" />
+                @await Html.PartialAsync("_Alerts")
                 @if (!isBlocked)
                 {
                     @RenderBody()
                 }
             </div>
         </main>
-        <partial name="_Footer" />
+
+        <!-- FOOTER -->
+        @await Html.PartialAsync("_Footer")
     }
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

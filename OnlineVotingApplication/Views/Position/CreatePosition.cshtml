@@ -1,0 +1,41 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model PositionDTO;
+@{
+    ViewData["Title"] = "Create_Position";
+    Layout = "_Layout";
+}
+<div class="container mt-4">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="fw-bold text-muted mb-4">Create Position</h1>
+        </div>
+        <form action="CreatePosition" method="post" class="card p-4 shadow-sm border-0 rounded-3">
+        @Html.AntiForgeryToken()
+        <div asp-validation-summary="ModelOnly" class="alert alert-warning"></div>
+        
+            <!-- Pass the route id parameter down if it exists in your URL -->
+            <input type="hidden" name="id" value="@Context.Request.RouteValues["id"]" />
+
+        <div class="mb-3">
+            <label class="form-label" asp-for="Name">Position Name</label>
+            <input asp-for="Name" class="form-control" placeholder="Enter Position Name">
+            <span asp-validation-for="Name" class="text-danger small"></span>
+        </div>
+
+            <!-- FORM ACTION BUTTONS -->
+            <div class="d-flex gap-2 mt-4">
+                <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                    <i class="fas fa-save"></i> Create Position
+                </button>
+                <a asp-action="Index" asp-controller="Position" class="btn btn-outline-secondary btn-lg">
+                    <i class="fas fa-times"></i> Cancel
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@3.2.12/jquery.validate.unobtrusive.min.js"></script>
+}

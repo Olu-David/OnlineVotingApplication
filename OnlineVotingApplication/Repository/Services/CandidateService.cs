@@ -9,6 +9,7 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using System;
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -37,12 +38,27 @@ namespace OnlineVotingApplication.Repository.Services
         {
             var response = new ServiceResponse<string>();
 
-            var user = await _UserManager.FindByIdAsync(userId);
+            // 1. Guard Clauses & Input Validation
+            if (model == null)
+            {
+                response.Success = false;
+                response.Message = "Invalid candidate data provided.";
+                return response;
+            }
 
+            if (model.Manifesto?.Length >= 1000)
+            {
+                response.Success = false;
+                response.Message = "Total Manifesto text has exceeded 1000 characters.";
+                return response;
+            }
+
+            // 2. Identity & Access Validation
+            var user = await _UserManager.FindByIdAsync(userId);
             if (user == null)
             {
                 response.Success = false;
-                response.Message = "User doesn't exist";
+                response.Message = "User doesn't exist.";
                 return response;
             }
 
@@ -52,10 +68,11 @@ namespace OnlineVotingApplication.Repository.Services
             if (!isAdmin && !isOfficial)
             {
                 response.Success = false;
-                response.Message = "Only authorized users have access to this feature";
+                response.Message = "Only authorized users have access to this feature.";
                 return response;
             }
 
+            // 3. Database Constraints Validation
             var officialUser = await _appDbContext.Users
                 .FirstOrDefaultAsync(x => x.OfficialStaffId == model.OfficialStaffId);
 
@@ -76,6 +93,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // 4. Execution Transaction
             await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
 
             try
@@ -84,24 +102,22 @@ namespace OnlineVotingApplication.Repository.Services
 
                 if (model.CandidateImageUrl != null)
                 {
-                    // 1. Generate the name layout you want
-                    fileName = $"{Guid.NewGuid()}_{Path.GetFileName(model.CandidateImageUrl.FileName)}";
-
-                    // 2. Pass it down to your service alongside CancellationToken.None to clear the syntax error
-                    await _fileService.RegisterAndQueueUploadAsync(
-                        model.CandidateImageUrl,
-                        Enums.FileType.Image,
-                        CancellationToken.None
+                    fileName = await _fileService.RegisterAndQueueUploadAsync(
+                        file: model.CandidateImageUrl,
+                        fileType: Enums.FileType.Image,
+                        uploadFolder: "Candidate_Profiles",
+                        cancellationToken: CancellationToken.None // The token will map perfectly now
                     );
                 }
 
+
                 var newCandidate = new Candidate
                 {
-                    Name = model.Name,
-                    Manifesto = model.Manifesto,
-                    CandidateImg = fileName, // This matches what the file service saved!
+                    Name = model.Name ?? "",
+                    Manifesto = model.Manifesto ?? "",
+                    CandidateImg = fileName,
                     PartyId = model.PartyId,
-                    PositionId = model.PositonId,
+                    PositionId = model.PositionId,
                     StateId = model.StateId,
                     LgaId = model.LgaId,
                     CreatedAt = DateTime.UtcNow,
@@ -117,15 +133,17 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Message = "Candidate created successfully.";
                 return response;
             }
-            catch (Exception)
+            catch (Exception )
             {
                 await transaction.RollbackAsync();
 
+                // Log 'ex' here using a logger (e.g., _logger.LogError(ex, "Error creating candidate"))
                 response.Success = false;
-                response.Message = "An unexpected error occurred.";
+                response.Message = "An unexpected error occurred while saving.";
                 return response;
             }
         }
+
         public void ClearCandidateCache(int pageNumber, int pageSize)
         {
             string cacheKey = $"ref_All_Candidates_P{pageNumber}_S{pageSize}";
@@ -136,7 +154,7 @@ namespace OnlineVotingApplication.Repository.Services
         {
             int skip = (PageNumber - 1) * PageSize;
 
-            // Fix: Dynamic cache key uniquely identifies the requested page footprint
+            // Dynamic cache key uniquely identifies the requested page footprint
             string cachekey = $"ref_All_Candidate_P{PageNumber}_S{PageSize}";
 
             if (!_cache.TryGetValue(cachekey, out List<CandidateViewModel>? dto))
@@ -261,11 +279,12 @@ public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidate
         try
         {
             _logger.LogInformation("Fetching candidates for Position ID: {PositionId}", positionId);
-
-            if (!_cache.TryGetValue(cacheKey, out List<CandidateViewModel>? cachedList))
+                var baseQuery = _appDbContext.Candidate.Where(m => !m.isDeleted && m.PositionId == positionId);
+                response.TotalCount = await baseQuery.CountAsync();
+                if (!_cache.TryGetValue(cacheKey, out List<CandidateViewModel>? cachedList))
             {
-                cachedList = await _appDbContext.Candidate
-                    .Where(m => !m.isDeleted && m.Position.Id == positionId)
+                cachedList = await baseQuery
+                    .OrderBy(m => m.Name)
                     .Select(m => new CandidateViewModel
                     {
                         CandidateID = m.Id,
@@ -321,10 +340,13 @@ public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidate
 
             try
             {
+                var baseQuery = _appDbContext.Candidate.Where(m => !m.isDeleted && m.StateId == stateId);
+                response.TotalCount = await baseQuery.CountAsync();
                 if (!_cache.TryGetValue(cacheKey, out List<CandidateViewModel>? cachedList))
                 {
-                    cachedList = await _appDbContext.Candidate
-                        .Where(m => !m.isDeleted && m.StateId == stateId)
+                    
+                    cachedList = await baseQuery
+                        .OrderBy(m=>m.Name)
                         .Select(m => new CandidateViewModel
                         {
                             CandidateID = m.Id,
@@ -668,11 +690,8 @@ public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidate
                 string newFileName = $"{Guid.NewGuid()}_{Path.GetFileName(model.CandidateImageUrl.FileName)}";
 
                 // 3. Upload new image using your custom optional override parameter
-                await _fileService.RegisterAndQueueUploadAsync(
-                    model.CandidateImageUrl,
-                    Enums.FileType.Image,
-                    token
-                );
+                await _fileService.RegisterAndQueueUploadAsync( file: model.CandidateImageUrl,fileType: Enums.FileType.Image, uploadFolder: "Candidate_Profiles", cancellationToken: CancellationToken.None
+                 );
 
                 // 4. Update the database property with the computed name
                 existingCandidate.CandidateImg = newFileName;

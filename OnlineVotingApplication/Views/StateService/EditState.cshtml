@@ -1,0 +1,51 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model StateDTO;
+
+@{
+    ViewData["Title"] = "Edit State";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <h1 class="fw-bold text-muted mb-4">Edit State Details</h1>
+
+            <!-- The Form submits back to the Update C# Controller method -->
+            <form asp-action="UpdateState" method="post" class="card p-4 shadow-sm border-0 rounded-3">
+                @Html.AntiForgeryToken()
+
+                <!-- CRITICAL HIDDEN ID: Tells the DB which row to update without showing it to the user -->
+                <input type="hidden" asp-for="Id" />
+
+                <!-- GLOBAL VALIDATION SUMMARY BOX -->
+                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                <!-- STATE NAME INPUT FIELD -->
+                <div class="mb-3">
+                    <label asp-for="Name" class="form-label fw-semibold">
+                        <i class="fas fa-map-marker-alt me-1"></i> State Name <span class="text-danger">*</span>
+                    </label>
+
+                    <!-- asp-for="Name" automatically reads the current name from the DB and types it inside this box -->
+                    <input asp-for="Name" class="form-control" placeholder="Enter state name" required />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+
+                <!-- FORM BUTTONS -->
+                <div class="d-flex gap-2 mt-4">
+                    <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                        <i class="fas fa-save me-1"></i> Save Changes
+                    </button>
+                    <a asp-action="Index" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-times me-1"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <partial name="_ValidationScriptsPartial" />
+}

@@ -1,6 +1,9 @@
 ﻿@{
     bool isBlocked = ViewData["IsBlocked"] as bool? ?? false;
 }
+@{
+    Layout = null;
+}
 
 @if (isBlocked)
 {

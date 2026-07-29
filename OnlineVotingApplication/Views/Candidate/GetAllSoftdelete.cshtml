@@ -1,0 +1,126 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model PaginatedListViewModel<CandidateViewModel>
+
+@{
+    ViewData["Title"] = "Get_All_Soft_Delete";
+    Layout = "_Layout";
+    int startitem = (Model.PageNumber - 1) * Model.PageSize + 1 ;
+    int enditem = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems);
+    if (Model.TotalItems == 0) { startitem = 0; enditem = 0; }
+}
+<div class="container mt-4">
+    @await Html.PartialAsync("_Alerts")
+
+  
+    <div class="card shadow-sm rounded-3 border-0">
+        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2"></i> Soft Deleted Candidates </h5>
+        </div>
+        <div class="card-body p-0">
+            @if (Model.Items == null || !Model.Items.Any())
+            {
+                <div class="p-5 text-center text-muted">
+                    <i class="bi bi-folder-x display-5 d-block mb-2"></i>
+                    <span>No active records found for this page window index.</span>
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light border-bottom">
+                            <tr>
+                                <th scope="col" class="ps-3" style="width: 70px;">Profile</th>
+                                <th scope="col">Candidate Info</th>
+                                <th scope="col">Party affiliation</th>
+                                <th scope="col">Running Office</th>
+                                <th scope="col">Region State</th>
+                                <th scope="col" class="text-center" style="width: 240px;">Action Operations</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <!-- Image Avatar -->
+                                    <td class="ps-3">
+                                        <img src="@(string.IsNullOrEmpty(item.image) ? "/images/default-avatar.png" : item.image)"
+                                             alt="@item.Name"
+                                             class="rounded-circle border shadow-sm"
+                                             style="width: 38px; height: 38px; object-fit: cover;" />
+                                    </td>
+
+                                    <!-- Details -->
+                                    <td>
+                                        <div class="fw-bold text-dark">@item.Name</div>
+                                        <small class="text-muted d-block text-truncate" style="max-width: 260px;">@item.Manifesto</small>
+                                    </td>
+                                    <td><span class="badge bg-light text-dark border">@item.PartyName</span></td>
+                                    <td><span class="text-secondary fw-semibold">@item.Position</span></td>
+                                    <td><i class="bi bi-geo-alt text-muted"></i> @item.StateName</td>
+
+                                    <!-- Action Operations Column with Side-by-Side Flex Layout -->
+                                    <td class="pe-3">
+                                        <div class="d-flex justify-content-center align-items-center gap-2">
+
+                                            <!-- EDIT ACTION BUTTON -->
+                                            <a asp-action="Edit" asp-route-id="@item.CandidateID"
+                                               class="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center gap-1 flex-grow-1">
+                                                <i class="bi bi-pencil-square"></i> Edit
+                                            </a>
+
+                                            <!-- SOFT-DELETE ACTION FORM -->
+                                            <form asp-action="ConfirmSoftDelete" method="post" class="m-0 flex-grow-1"
+                                                  onsubmit="return confirm('⚠️ RESTORE-DELETE CONFIRMATION:\n\nAre you sure you want to Restore Canidate @item.Name ?\n\nYou will able to see it after confirmation.');">
+                                                @Html.AntiForgeryToken()
+
+                                                <!-- Hidden configuration mappings directly tied to pagination properties -->
+                                                <input type="hidden" name="candidateId" value="@item.CandidateID" />
+                                                <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
+                                                <input type="hidden" name="pageSize" value="@Model.PageSize" />
+
+                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
+                                                    <i class="bi bi-trash3-fill"></i> Delete
+                                                </button>
+                                            </form>
+
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+
+        <!-- STABLE FOOTER ROUTING NAVIGATION -->
+        <div class="card-footer bg-white p-3 d-flex justify-content-between align-items-center">
+            <span class="text-muted small">Viewing Page <strong>@Model.PageNumber</strong></span>
+            <nav aria-label="Candidates page navigation">
+                <ul class="pagination pagination-sm mb-0">
+
+                    <!-- Previous Page Link Button -->
+                    <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                        <a class="page-link" asp-action="AllCandidate"
+                           asp-route-pageNumber="@(Model.PageNumber - 1)"
+                           asp-route-pageSize="@Model.PageSize">Previous</a>
+                    </li>
+
+                    <!-- Current Status Indicator -->
+                    <li class="page-item active">
+                        <span class="page-link">@Model.PageNumber</span>
+                    </li>
+
+                    <!-- Next Page Link Button -->
+                    <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                        <a class="page-link" asp-action="GetAllSoftdelete"
+                           asp-route-pageNumber="@(Model.PageNumber + 1)"
+                           asp-route-pageSize="@Model.PageSize">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>
+

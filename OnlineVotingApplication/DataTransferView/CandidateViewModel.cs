@@ -29,6 +29,6 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid PartyId { get; set; }
         public Guid PositonId { get; set; }
         public Guid LgaId { get; set; }
-
+        public Guid PositionId { get; internal set; }
     }
 }

@@ -32,23 +32,36 @@ namespace OnlineVotingApplication.Repository.Services
             if (!Directory.Exists(_privateStorageRoot)) Directory.CreateDirectory(_privateStorageRoot);
         }
 
-        public async Task RegisterAndQueueUploadAsync(IFormFile file, FileType fileType, CancellationToken cancellationToken = default)
+        public async Task<string> RegisterAndQueueUploadAsync(
+            IFormFile file,
+            FileType fileType,
+            string uploadFolder, // Added parameter
+            CancellationToken cancellationToken = default)
         {
             if (file == null || file.Length == 0)
                 throw new ArgumentNullException(nameof(file), "Uploaded file stream is empty or null.");
-         
 
+            if (string.IsNullOrWhiteSpace(uploadFolder))
+                throw new ArgumentException("Upload folder name cannot be null or empty.", nameof(uploadFolder));
+
+            // 1. Resolve base directory using the passed-in folder parameter
+            string baseDirectory = fileType == FileType.Image
+                ? Path.Combine(_env.WebRootPath, uploadFolder)
+                : Path.Combine(_privateStorageRoot, uploadFolder);
+
+            // 2. Ensure target directory exists before running file IO operations
+            if (!Directory.Exists(baseDirectory))
+            {
+                Directory.CreateDirectory(baseDirectory);
+            }
+
+            // 3. Generate clean filenames and paths
             var secureFileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
-            var targetPath = fileType == FileType.Image
-                ? Path.Combine(_env.WebRootPath, "Optimized_Images", secureFileName)
-                : Path.Combine(_privateStorageRoot, secureFileName);
+            var targetPath = Path.Combine(baseDirectory, secureFileName);
 
+            // 4. File Write Execution Block
             try
             {
-                var directory = Path.GetDirectoryName(targetPath);
-                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
-                    Directory.CreateDirectory(directory);
-
                 using (var stream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
                 {
                     await file.CopyToAsync(stream, cancellationToken);
@@ -60,11 +73,11 @@ namespace OnlineVotingApplication.Repository.Services
                 throw;
             }
 
-            // Create tracking row in your database table
+            // 5. Database Tracking Row Persistence
             var pendingFile = new PendingFile
             {
                 FileName = secureFileName,
-                FolderName = fileType == FileType.Image ? "Optimized_Images" : "Private_Storage",
+                FolderName = uploadFolder, // Saved dynamically to DB
                 Status = FileProcessingStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
@@ -72,7 +85,7 @@ namespace OnlineVotingApplication.Repository.Services
             _db.PendingFiles.Add(pendingFile);
             await _db.SaveChangesAsync(cancellationToken);
 
-            // Dispatch using your exact record definitions and the full targetPath strings
+            // 6. Background Queue Dispatch Channel
             if (fileType == FileType.Image)
             {
                 var imageJob = new ProcessImageJob(pendingFile.Id, targetPath, cancellationToken);
@@ -84,6 +97,8 @@ namespace OnlineVotingApplication.Repository.Services
                 var videoJob = new ChunkVideoJob(pendingFile.Id, targetPath, chunkFolder, cancellationToken);
                 await _channel.Writer.WriteAsync(videoJob);
             }
+
+            return secureFileName;
         }
 
         public async Task RunImageOptimizationAsync(long fileId, string filePath, CancellationToken cancellationToken = default)

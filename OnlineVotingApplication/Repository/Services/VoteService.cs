@@ -166,7 +166,7 @@ namespace OnlineVotingApplication.Repository.Services
                     .ToListAsync();
 
                 var result = votes
-                    .GroupBy(v => v.Voter?.State.Name)
+                    .GroupBy(v => v.Voter?.State!.Name)
                     .Select(stateGroup => new StateResult_Dto
                     {
                         StateName = stateGroup.Key ?? "",

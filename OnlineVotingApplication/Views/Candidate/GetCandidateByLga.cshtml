@@ -3,27 +3,13 @@
 
 @{
     TempData["Title"] = "GetAllCandidateByPosition";
-    Layout = "_SuperAdminSidebar";
+    Layout = "_Layout";
     int startItem = ((Model.PageNumber - 1) * Model.PageSize) + 1;
     int endItem = Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems);
     if (Model.TotalItems == 0) { startItem = 0; endItem = 0; }
     ;
 }
-
-@if (TempData["SucessMessage"] != null)
-{
-    <div class="alert alert-success alert-dismissible fade show shadow-sm mb-2" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i> @TempData["SuccessMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
-@if (TempData["ErrorMessage"] != null)
-{
-    <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-2" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i> @TempData["ErrorMessage"]
-        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-    </div>
-}
+@await Html.PartialAsync("_Alerts");
 <div class="container mt-4">
     <div class="card shadow-sm mb-3 rounded-3 border-0">
         <div class="card-body p-4">
@@ -84,6 +70,7 @@
                                 <th scope="col" class="text-center" style="width: 240px;">Action Operations</th>
                             </tr>
                         </thead>
+
                         <tbody>
                             @foreach (var item in Model.Items)
                             {
@@ -173,7 +160,7 @@
                     <!-- 3. NEXT PAGE LINK BUTTON -->
                     <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
                         <a class="page-link px-3 fw-medium"
-                           asp-action="GetCandidateByState"
+                           asp-action="GetCandidateByLga"
                            asp-route-stateId="@ViewBag.SelectedPositionId"
                            asp-route-pageNumber="@(Model.PageNumber + 1)"
                            asp-route-pageSize="@Model.PageSize">

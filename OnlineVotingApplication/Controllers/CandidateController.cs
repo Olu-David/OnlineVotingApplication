@@ -37,7 +37,6 @@ namespace OnlineVotingApplication.Controllers
         }
         [Authorize(Roles = "SuperAdmin")]
         [HttpGet]
-        [HttpGet]
         public async Task<IActionResult> CreateCandidate()
         {
             // Clean, distinct ViewBag assignments
@@ -47,7 +46,7 @@ namespace OnlineVotingApplication.Controllers
 
             return View();
         }
-
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string id, string formAction)
         {
@@ -137,7 +136,7 @@ namespace OnlineVotingApplication.Controllers
             var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if(user==null)
             {
-                return RedirectToAction("Home", "Controller");
+                return RedirectToAction("Index", "Home");
             }
             if (PageNumber < 1) PageNumber = 1;
             if(PageSize<1) PageSize = 10;
@@ -291,7 +290,7 @@ namespace OnlineVotingApplication.Controllers
                 if (result.Success && result.Data != null)
                 {
                     ViewModel.Items = result.Data;
-                    ViewModel.TotalItems = result.TotalCount; // This now works because we added TotalCount to ServiceResponse
+                    ViewModel.TotalItems = result.TotalCount; // 
 
                     // Set additional view info
                     var selectedLga = LgaList.FirstOrDefault(m => m.Id == Lgaid.Value);
@@ -315,12 +314,12 @@ namespace OnlineVotingApplication.Controllers
             //Fetch Needed Data
             var PartyList = await _context.Party.AsNoTracking().ToListAsync();
             ViewBag.Party = new SelectList(PartyList, "id", "Name", PartyId);
-            int totalcount = await _context.Candidate.Where(m => !m.isDeleted).CountAsync();
+            //int totalcount = await _context.Candidate.Where(m => !m.isDeleted ).CountAsync();
             var ViewModel = new PaginatedListViewModel<CandidateViewModel>
             {
                 PageNumber = PageNumber,
                 PageSize = PageSize,
-                TotalItems = totalcount
+                TotalItems = 0
 
             };
             if (PartyId.HasValue && PartyId.Value != Guid.Empty)
@@ -387,7 +386,7 @@ namespace OnlineVotingApplication.Controllers
             }
 
             TempData["SuccessMessage"] = result.Message;
-            return RedirectToAction(nameof(AllCandidate));
+            return RedirectToAction(nameof(AllCandidate), new {model.CandidateID});
         }
 
         // 3. PRIVATE HELPER METHOD: Keeps your code DRY (Don't Repeat Yourself)

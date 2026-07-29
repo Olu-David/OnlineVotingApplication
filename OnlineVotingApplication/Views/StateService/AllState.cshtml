@@ -1,0 +1,91 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model List< StateDTO> ;
+@{
+    TempData["Title"] = "All_State";
+    Layout = "_Layout";
+
+}
+<div class="container mt-4">
+    <div class="card shadow-sm border-0 rounded-3">
+
+        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
+            <h5 class="fw-bold mb-0 ">
+                <i class="fas fa-map-marker-alt me-1"></i>
+                All state List
+            </h5>
+
+            <span class="me-auto d-flex bg-black text-light">@ViewBag.StateCount</span>
+        </div>
+        <div class="card-body p-0 ">
+            @if(Model==null|| Model.Count==0)
+            {
+                <p class="p-4 text-muted text-center">
+                    <i class="bi bi-folder-x display-5 d-block mb-2"></i>
+                    <span>No active records found for this page window index.</span>
+                </p>
+            }
+            else
+            {
+                
+            
+                <div class="table-responsive">
+                    <!-- Added standard table classes 'table' to make it look professional -->
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light border-bottom">
+                            <tr>
+                                <th scope="col" class="ps-3" style="width: 70px;">Profile</th>
+                                <th scope="col">State Name</th>
+                            </tr>
+                        </thead>
+
+                        <tbody>
+                            @foreach (var item in Model)
+                            {
+                              
+                                <tr>
+                
+                                    <td class="ps-3">
+                                        <i class="bi bi-geo-fill text-primary fs-5"></i>
+                                    </td>
+
+                                    <!-- The data column matches the State Name header perfectly -->
+                                    <td>
+                                        <span class="fw-medium text-dark">@item.Name</span>
+                                    </td>
+
+                                    <td class="pe-3">
+                                        <div class="d-flex justify-content-center align-items-center gap-2">
+
+                                            <!-- EDIT ACTION BUTTON -->
+                                            <a asp-action="EditState" asp-route-id="@item.Id"
+                                               class="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center gap-1 flex-grow-1">
+                                                <i class="bi bi-pencil-square"></i> Edit
+                                            </a>
+
+                                            <!-- SOFT-DELETE ACTION FORM -->
+                                            <form asp-action="ConfirmSoftDelete" method="post" class="m-0 flex-grow-1"
+                                                  onsubmit="return confirm('⚠️ SOFT-DELETE CONFIRMATION:\n\nAre you sure you want to move @item.Name to the Trash Bin?\n\nYou will have 30 days to restore this profile before it is automatically destroyed.');">
+                                                @Html.AntiForgeryToken()
+
+                                                <!-- Hidden configuration mappings directly tied to pagination properties -->
+                                                <input type="hidden" name="candidateId" value="@item.Id" />
+                                              
+
+                                                <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
+                                                    <i class="bi bi-trash3-fill"></i> Delete
+                                                </button>
+                                            </form>
+
+                                        </div>
+
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+            }
+        </div>
+    </div>
+</div>

@@ -1,0 +1,51 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model LgaDTO;
+
+@{
+    ViewData["Title"]="Create LGA";
+    Layout = "_Layout";
+}
+
+<div class="container mt-4">
+    <div class="row mb-0 p-2 justify-content-center">
+        <div class="col-md-8">
+            <form action="CreateLga"  method="post" class="card shadow-sm rounded-3 border-0">
+                @Html.AntiForgeryToken();
+                <div asp-validation-summary="ModelOnly" class="text-danger "></div>
+                <div class="mb-3">
+                    <label asp-for="StateId" class="form-label fw-medium">State</label>
+                    <select class="form-select ">
+                    <option  value="">Select State</option>
+                        @if (ViewBag.State != null)
+                        {
+                            foreach (var state in ViewBag.State)
+                            {
+                                <option value="@state.Id">@state.Name</option>
+                            }
+                        }
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label asp-for="Name" class="form-label fw-medium">Lga Name</label>
+                    <input type="type" asp-for="Name" name="Name"  />
+                    <span asp-validation-for="Name" class="text-danger small"></span>
+                </div>
+               
+                <!-- FORM ACTION BUTTONS -->
+                <div class="d-flex gap-2 mt-3">
+                    <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                        <i class="fas fa-save"></i> Create Lga
+                    </button>
+                    <a asp-action="Index" asp-controller="Lga" class="btn btn-outline-secondary btn-lg">
+                        <i class="fas fa-times"></i> Cancel
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@3.2.12/jquery.validate.unobtrusive.min.js"></script>
+}

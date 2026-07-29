@@ -55,6 +55,8 @@ namespace OnlineVotingApplication
             builder.Services.AddScoped<IEmailService, EmailService>();
             builder.Services.AddScoped<IElectionService, ElectionService>();
             builder.Services.AddScoped<IVoteService, VoteService>();
+            builder.Services.AddScoped<iPositionService,PositionService>();
+            builder.Services.AddScoped<iStateService, StateService>();
 
             // ==========================================
             // 3. RATE LIMITING

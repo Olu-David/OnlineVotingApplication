@@ -1,4 +1,7 @@
-﻿@using Microsoft.AspNetCore.Identity
+﻿@{
+    Layout = null;
+}
+@using Microsoft.AspNetCore.Identity
 @using OnlineVotingApplication.Areas.Identity.Data
 @inject SignInManager<ApplicationUser> SignInManager
 
@@ -150,8 +153,8 @@
                 }
                 else
                 {
-                    <a asp-page="/Account/Login" class="btn btn-outline-light btn-sm">Sign In</a>
-                    <a asp-page="/Account/Register" class="btn btn-warning btn-sm fw-semibold text-dark">Register</a>
+                    <a asp-action="Login" asp-controller="AuthService" class="btn btn-outline-light btn-sm">Sign In</a>
+                    <a asp-action="UserRegistration" asp-controller="AuthService" class="btn btn-warning btn-sm fw-semibold text-dark">Register</a>
                 }
             </div>
         </div>

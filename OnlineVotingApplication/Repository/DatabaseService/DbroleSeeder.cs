@@ -14,7 +14,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
     {
         public static async Task SeedRolesAndUsersAsync(IServiceProvider serviceProvider)
         {
-            using var scope = serviceProvider.CreateScope();
+            var logger = serviceProvider.GetRequiredService<ILogger<DbroleSeeder>>();
 
             var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();

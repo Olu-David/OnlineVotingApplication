@@ -1,41 +1,94 @@
-﻿@using OnlineVotingApplication.DataTransferView;
-@model PositionDTO;
+﻿@model OnlineVotingApplication.DataTransferView.PositionDTO;
+
 @{
-    ViewData["Title"] = "Create_Position";
+    ViewData["Title"] = "Create Position";
     Layout = "_Layout";
 }
-<div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8">
-            <h1 class="fw-bold text-muted mb-4">Create Position</h1>
-        </div>
-        <form action="CreatePosition" method="post" class="card p-4 shadow-sm border-0 rounded-3">
-        @Html.AntiForgeryToken()
-        <div asp-validation-summary="ModelOnly" class="alert alert-warning"></div>
-        
-            <!-- Pass the route id parameter down if it exists in your URL -->
-            <input type="hidden" name="id" value="@Context.Request.RouteValues["id"]" />
 
-        <div class="mb-3">
-            <label class="form-label" asp-for="Name">Position Name</label>
-            <input asp-for="Name" class="form-control" placeholder="Enter Position Name">
-            <span asp-validation-for="Name" class="text-danger small"></span>
+<div class="container-fluid px-4 py-5">
+    <!-- Breadcrumb & Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800 fw-bold">Create New Position</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb small mb-0">
+                    <li class="breadcrumb-item"><a asp-controller="SuperAdmin" asp-action="Dashboard">Dashboard</a></li>
+                    <li class="breadcrumb-item"><a asp-controller="Position" asp-action="AllPosition">Positions</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Create</li>
+                </ol>
+            </nav>
         </div>
+        <a asp-controller="Position" asp-action="AllPosition" class="btn btn-outline-secondary btn-sm">
+            <i class="fas fa-arrow-left me-1"></i> Back to List
+        </a>
+    </div>
 
-            <!-- FORM ACTION BUTTONS -->
-            <div class="d-flex gap-2 mt-4">
-                <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
-                    <i class="fas fa-save"></i> Create Position
-                </button>
-                <a asp-action="Index" asp-controller="Position" class="btn btn-outline-secondary btn-lg">
-                    <i class="fas fa-times"></i> Cancel
-                </a>
+    <div class="row">
+        <div class="col-xl-6 col-lg-8">
+            <!-- Form Card -->
+            <div class="card shadow-sm border-0 rounded-3">
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="card-title mb-0 small text-uppercase tracking-wider fw-semibold">
+                        <i class="fas fa-bullseye me-2"></i>Position Details
+                    </h5>
+                </div>
+                <div class="card-body p-4">
+
+                    <!-- TempData Server Message Notification -->
+                    @if (TempData["ErrorMessage"] != null)
+                    {
+                        <div class="alert alert-danger alert-dismissible fade show d-flex align-items-center mb-4" role="alert">
+                            <i class="fas fa-exclamation-circle me-2 flex-shrink-0"></i>
+                            <div>@TempData["ErrorMessage"]</div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    }
+
+                    <form asp-controller="Position" asp-action="CreatePosition" method="post" id="createPositionForm">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Model Global Errors Summary -->
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-3 fw-medium"></div>
+
+                        <!-- Position Name Text Field -->
+                        <div class="mb-4">
+                            <label asp-for="Name" class="form-label fw-semibold small text-muted">Position Name</label>
+                            <div class="input-group">
+                                <span class="input-group-text bg-light text-muted"><i class="fas fa-id-card"></i></span>
+                                <input asp-for="Name" class="form-control" placeholder="e.g., PRESIDENT, GOVERNOR, CHAIRMAN" autocomplete="off" />
+                            </div>
+                            <span asp-validation-for="Name" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <hr class="my-4 border-light" />
+
+                        <!-- Submission Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a asp-controller="Position" asp-action="AllPosition" class="btn btn-light border px-4">Cancel</a>
+                            <button type="submit" class="btn btn-dark px-4" id="submitBtn">
+                                <i class="fas fa-save me-1"></i> Save Position
+                            </button>
+                        </div>
+                    </form>
+
+                </div>
             </div>
-        </form>
+        </div>
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@3.2.12/jquery.validate.unobtrusive.min.js"></script>
+    <!-- Enable Client-Side Form Validation -->
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        // Optional UI enhancement: Disable submit button on click to prevent multi-submit bugs
+        document.getElementById('createPositionForm').addEventListener('submit', function (e) {
+            if ($(this).valid()) {
+                const btn = document.getElementById('submitBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+            }
+        });
+    </script>
 }

@@ -1,126 +1,182 @@
-﻿/**
- * votex.js — VoteX Layout Scripts
- *
- * 1. Sidebar toggle (collapse ↔ expand) for SuperAdmin desktop
- * 2. Mobile sidebar drawer (slide in/out + overlay)
- * 3. Active nav-link highlighting (backup for server-side active class)
- * 4. Notification badge clear on click
- * 5. Auto-dismiss Bootstrap alerts after 5 s
- */
+﻿/* ======================================================
+   site.js
+   Single shared script for the whole app.
+
+   Section 1 – Admin sidebar (Views/Shared/_AdminSidebar.cshtml):
+     - .admin-sidebar.mobile-open   -> drawer visible (medium/small/very small)
+     - .sidebar-overlay.show        -> dark backdrop behind drawer
+     - .admin-sidebar.collapsed     -> icon-only sidebar (large screens)
+
+   Section 2 – Public navbar (Views/Shared/_Navbar.cshtml):
+     - uses Bootstrap's own collapse for the hamburger, this just adds
+       auto-close-on-link-tap for small / very small screens.
+   ====================================================== */
 (function () {
     'use strict';
 
-    /* ── HELPERS ── */
-    function $(sel, ctx) { return (ctx || document).querySelector(sel); }
-    function $$(sel, ctx) { return Array.from((ctx || document).querySelectorAll(sel)); }
+    document.addEventListener('DOMContentLoaded', function () {
+        initAdminSidebar();
+        initPublicNavbar();
+    });
 
-    /* ══════════════════════════════════════════════════════
-       1 & 2.  SIDEBAR — desktop collapse + mobile drawer
-       ══════════════════════════════════════════════════════ */
-    var sidebar = document.getElementById('adminSidebar');
-    var toggle = document.getElementById('sidebarToggle');
+    /* ---------------------------------------------------
+       Section 1: Admin sidebar
+    --------------------------------------------------- */
+    function initAdminSidebar() {
+        const sidebar = document.getElementById('adminSidebar');
+        if (!sidebar) {
+            return; // not an admin page, nothing to wire up
+        }
 
-    if (sidebar && toggle) {
+        const overlay = document.getElementById('sidebarOverlay');
+        const mobileToggleBtn = document.getElementById('sidebarMobileToggle');
+        const collapseToggleBtn = document.getElementById('sidebarCollapseToggle');
 
-        /* Create overlay for mobile */
-        var overlay = document.createElement('div');
-        overlay.className = 'vx-sidebar-overlay';
-        document.body.appendChild(overlay);
+        // Matches the CSS breakpoint where the sidebar switches to a fixed drawer
+        const MOBILE_QUERY = window.matchMedia('(max-width: 991.98px)');
 
-        var isMobile = function () { return window.innerWidth < 992; };
+        function isMobileView() {
+            return MOBILE_QUERY.matches;
+        }
 
-        toggle.addEventListener('click', function () {
-            if (isMobile()) {
-                /* Mobile: slide-in drawer */
-                var open = sidebar.classList.toggle('mobile-open');
-                overlay.classList.toggle('show', open);
-                toggle.setAttribute('aria-expanded', String(open));
-            } else {
-                /* Desktop: collapse to icon-only */
-                sidebar.classList.toggle('collapsed');
-                var isCollapsed = sidebar.classList.contains('collapsed');
-                toggle.setAttribute('aria-expanded', String(!isCollapsed));
-                /* Persist preference */
-                try { localStorage.setItem('vx_sidebar_collapsed', isCollapsed ? '1' : '0'); }
-                catch (e) { }
-            }
-        });
+        function openMobileSidebar() {
+            sidebar.classList.add('mobile-open');
+            if (overlay) overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+            if (mobileToggleBtn) mobileToggleBtn.setAttribute('aria-expanded', 'true');
+        }
 
-        /* Close drawer when overlay is clicked */
-        overlay.addEventListener('click', function () {
+        function closeMobileSidebar() {
             sidebar.classList.remove('mobile-open');
-            overlay.classList.remove('show');
-            toggle.setAttribute('aria-expanded', 'false');
-        });
+            if (overlay) overlay.classList.remove('show');
+            document.body.style.overflow = '';
+            if (mobileToggleBtn) mobileToggleBtn.setAttribute('aria-expanded', 'false');
+        }
 
-        /* Restore desktop preference on page load */
-        try {
-            if (!isMobile() && localStorage.getItem('vx_sidebar_collapsed') === '1') {
-                sidebar.classList.add('collapsed');
-            }
-        } catch (e) { }
-
-        /* Re-evaluate on resize */
-        window.addEventListener('resize', function () {
-            if (!isMobile()) {
-                sidebar.classList.remove('mobile-open');
-                overlay.classList.remove('show');
-            }
-        });
-    }
-
-
-    /* ══════════════════════════════════════════════════════
-       3.  ACTIVE LINK HIGHLIGHTING (client-side backup)
-           The server-side Razor already sets .active on
-           the correct link. This script adds it to any
-           exact-path match in case a page is reached via
-           redirect without the active class.
-       ══════════════════════════════════════════════════════ */
-    var currentPath = window.location.pathname.toLowerCase();
-
-    $$('.vx-sidebar-link, .vx-navbar .nav-link').forEach(function (link) {
-        if (!link.href) return;
-        try {
-            var linkPath = new URL(link.href).pathname.toLowerCase();
-            /* Match exact path or child paths of the same section */
-            if (linkPath !== '/' && currentPath.startsWith(linkPath)) {
-                link.classList.add('active');
-            }
-        } catch (e) { }
-    });
-
-
-    /* ══════════════════════════════════════════════════════
-       4.  NOTIFICATION BADGE
-       ══════════════════════════════════════════════════════ */
-    var notifBtn = document.getElementById('notifBtn');
-    var notifBadge = document.getElementById('notifBadge');
-
-    if (notifBtn && notifBadge) {
-        notifBtn.addEventListener('click', function () {
-            /* Clear badge when panel is opened (replace with real API call) */
-            notifBadge.textContent = '0';
-            notifBadge.classList.add('d-none');
-        });
-    }
-
-
-    /* ══════════════════════════════════════════════════════
-       5.  AUTO-DISMISS ALERTS (5 seconds)
-           Bootstrap's dismiss button already works via
-           data-bs-dismiss. This adds automatic timing.
-       ══════════════════════════════════════════════════════ */
-    $$('.alert.alert-dismissible').forEach(function (alert) {
-        setTimeout(function () {
-            /* Use Bootstrap's Alert API if available */
-            if (window.bootstrap && window.bootstrap.Alert) {
-                var bsAlert = window.bootstrap.Alert.getOrCreateInstance(alert);
-                bsAlert.close();
+        function toggleMobileSidebar() {
+            if (sidebar.classList.contains('mobile-open')) {
+                closeMobileSidebar();
             } else {
-                alert.remove();
+                openMobileSidebar();
             }
-        }, 5000);
-    });
+        }
 
+        function toggleDesktopCollapse() {
+            sidebar.classList.toggle('collapsed');
+            try {
+                localStorage.setItem('adminSidebarCollapsed', sidebar.classList.contains('collapsed') ? '1' : '0');
+            } catch (e) {
+                /* localStorage unavailable (e.g. private mode) - ignore */
+            }
+        }
+
+        // Restore the user's collapsed preference on large screens only
+        if (!isMobileView()) {
+            try {
+                if (localStorage.getItem('adminSidebarCollapsed') === '1') {
+                    sidebar.classList.add('collapsed');
+                }
+            } catch (e) {
+                /* ignore */
+            }
+        }
+
+        if (mobileToggleBtn) {
+            mobileToggleBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (isMobileView()) {
+                    toggleMobileSidebar();
+                } else {
+                    toggleDesktopCollapse();
+                }
+            });
+        }
+
+        if (collapseToggleBtn) {
+            collapseToggleBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                toggleDesktopCollapse();
+            });
+        }
+
+        if (overlay) {
+            overlay.addEventListener('click', closeMobileSidebar);
+        }
+
+        // Auto-close the drawer after picking a real nav link on small screens
+        // (ignores links that only toggle a Bootstrap collapse submenu)
+        sidebar.addEventListener('click', function (e) {
+            const link = e.target.closest('a.nav-link');
+            if (!link) return;
+            const opensSubmenu = link.getAttribute('data-bs-toggle') === 'collapse';
+            if (!opensSubmenu && isMobileView()) {
+                closeMobileSidebar();
+            }
+        });
+
+        // Keep state sane when crossing the breakpoint (e.g. rotating a phone/tablet)
+        let sidebarResizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(sidebarResizeTimer);
+            sidebarResizeTimer = setTimeout(function () {
+                if (!isMobileView()) {
+                    closeMobileSidebar();
+                }
+            }, 150);
+        });
+
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && sidebar.classList.contains('mobile-open')) {
+                closeMobileSidebar();
+            }
+        });
+    }
+
+    /* ---------------------------------------------------
+       Section 2: Public navbar
+    --------------------------------------------------- */
+    function initPublicNavbar() {
+        const navCollapse = document.getElementById('mainNavMenu');
+        if (!navCollapse) {
+            return; // this page doesn't use the public navbar
+        }
+
+        const NAVBAR_MOBILE_QUERY = window.matchMedia('(max-width: 991.98px)');
+
+        function closeNavCollapse() {
+            if (!navCollapse.classList.contains('show')) return;
+
+            // Prefer Bootstrap's own Collapse API if it's loaded, so the
+            // slide animation and aria attributes stay correct.
+            if (window.bootstrap && window.bootstrap.Collapse) {
+                const instance = window.bootstrap.Collapse.getOrCreateInstance(navCollapse, { toggle: false });
+                instance.hide();
+            } else {
+                navCollapse.classList.remove('show');
+            }
+        }
+
+        // Close the mobile menu once a real nav/dropdown-item link is tapped
+        // (ignores the dropdown-toggle links, which only open a submenu)
+        navCollapse.addEventListener('click', function (e) {
+            const link = e.target.closest('a.nav-link, a.dropdown-item');
+            if (!link) return;
+            const opensDropdown = link.classList.contains('dropdown-toggle');
+            if (!opensDropdown && NAVBAR_MOBILE_QUERY.matches) {
+                closeNavCollapse();
+            }
+        });
+
+        // If the viewport is resized back up to desktop width, make sure the
+        // collapse isn't left stuck open/closed in a stale state
+        let navResizeTimer;
+        window.addEventListener('resize', function () {
+            clearTimeout(navResizeTimer);
+            navResizeTimer = setTimeout(function () {
+                if (!NAVBAR_MOBILE_QUERY.matches) {
+                    closeNavCollapse();
+                }
+            }, 150);
+        });
+    }
 })();

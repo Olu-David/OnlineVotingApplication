@@ -153,7 +153,7 @@ namespace OnlineVotingApplication.Controllers
                 if (user != null)
                 {
                     if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
-                        return RedirectToAction("CreateCandidate", nameof(CandidateController));
+                        return RedirectToAction("CreateCandidate", nameof(Candidate));
 
                     if (await _userManager.IsInRoleAsync(user, "Admin"))
                         return RedirectToAction("Index", "AdminDashboard");

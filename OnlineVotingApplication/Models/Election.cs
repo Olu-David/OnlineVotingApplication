@@ -5,7 +5,7 @@ namespace OnlineVotingApplication.Models
     public class Election
     {
         public Guid Id { get; set; }
-        public string? TItle { get; set; }
+        public string? Title { get; set; }
         public int ElectionYear { get; set; }
         public DateTime StartDate { get; set; }
         public DateTime EndDate { get; set; }

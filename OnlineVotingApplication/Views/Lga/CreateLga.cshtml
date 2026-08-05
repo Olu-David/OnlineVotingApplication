@@ -2,50 +2,79 @@
 @model LgaDTO;
 
 @{
-    ViewData["Title"]="Create LGA";
+    ViewData["Title"] = "Create LGA";
     Layout = "_Layout";
 }
 
-<div class="container mt-4">
-    <div class="row mb-0 p-2 justify-content-center">
-        <div class="col-md-8">
-            <form action="CreateLga"  method="post" class="card shadow-sm rounded-3 border-0">
-                @Html.AntiForgeryToken();
-                <div asp-validation-summary="ModelOnly" class="text-danger "></div>
-                <div class="mb-3">
-                    <label asp-for="StateId" class="form-label fw-medium">State</label>
-                    <select class="form-select ">
-                    <option  value="">Select State</option>
-                        @if (ViewBag.State != null)
-                        {
-                            foreach (var state in ViewBag.State)
-                            {
-                                <option value="@state.Id">@state.Name</option>
-                            }
-                        }
-                    </select>
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+            <!-- Correctly Wrapped Bootstrap Card Container Block -->
+            <div class="card shadow border-0 rounded-3">
+
+                <!-- Explicit Header Banner Block -->
+                <div class="card-header bg-dark text-white py-3">
+                    <h5 class="card-title mb-0 fw-semibold text-uppercase small tracking-wider">
+                        <i class="fas fa-map-marker-alt me-2"></i>Create Local Government Area
+                    </h5>
                 </div>
-                <div class="mb-3">
-                    <label asp-for="Name" class="form-label fw-medium">Lga Name</label>
-                    <input type="type" asp-for="Name" name="Name"  />
-                    <span asp-validation-for="Name" class="text-danger small"></span>
+
+                <!-- Card Body Form Padding Wrapper -->
+                <div class="card-body p-4">
+
+                    <form asp-controller="Lga" asp-action="CreateLga" method="post" id="createLgaForm">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Model Validation Container Wrapper -->
+                        <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
+                        <!-- Optimized State Dropdown Form Field -->
+                        <div class="mb-4">
+                            <label asp-for="StateId" class="form-label fw-semibold small text-muted text-uppercase">State Context</label>
+                            <select asp-for="StateId" class="form-select py-2" asp-items="ViewBag.State">
+                                <option value="">-- Select State --</option>
+                            </select>
+                            <span asp-validation-for="StateId" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <!-- Polished LGA Text Field Box -->
+                        <div class="mb-4">
+                            <label asp-for="Name" class="form-label fw-semibold small text-muted text-uppercase">LGA Title Name</label>
+                            <input type="text" asp-for="Name" class="form-control py-2" placeholder="e.g., Ikeja, Gwale, AMAC" autocomplete="off" />
+                            <span asp-validation-for="Name" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <hr class="my-4 border-light" />
+
+                        <!-- Perfectly Blocked Action Buttons -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a asp-action="Index" asp-controller="Lga" class="btn btn-light border px-4 py-2">
+                                <i class="fas fa-times me-1"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary px-4 py-2" id="submitBtn">
+                                <i class="fas fa-save me-1"></i> Create LGA
+                            </button>
+                        </div>
+                    </form>
+
                 </div>
-               
-                <!-- FORM ACTION BUTTONS -->
-                <div class="d-flex gap-2 mt-3">
-                    <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
-                        <i class="fas fa-save"></i> Create Lga
-                    </button>
-                    <a asp-action="Index" asp-controller="Lga" class="btn btn-outline-secondary btn-lg">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@3.2.12/jquery.validate.unobtrusive.min.js"></script>
+    <!-- Replaced CDNs with standard local app partial scripts for faster offline compilation -->
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        // UX Enhancement: Prevent duplicate submissions on slow connections
+        document.getElementById('createLgaForm').addEventListener('submit', function (e) {
+            if ($(this).valid()) {
+                const btn = document.getElementById('submitBtn');
+                btn.disabled = true;
+                btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Saving...';
+            }
+        });
+    </script>
 }

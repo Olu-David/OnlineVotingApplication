@@ -35,7 +35,7 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<string> RegisterAndQueueUploadAsync(
             IFormFile file,
             FileType fileType,
-            string uploadFolder, // Added parameter
+            string uploadFolder,
             CancellationToken cancellationToken = default)
         {
             if (file == null || file.Length == 0)
@@ -44,24 +44,22 @@ namespace OnlineVotingApplication.Repository.Services
             if (string.IsNullOrWhiteSpace(uploadFolder))
                 throw new ArgumentException("Upload folder name cannot be null or empty.", nameof(uploadFolder));
 
-            // 1. Resolve base directory using the passed-in folder parameter
             string baseDirectory = fileType == FileType.Image
                 ? Path.Combine(_env.WebRootPath, uploadFolder)
                 : Path.Combine(_privateStorageRoot, uploadFolder);
 
-            // 2. Ensure target directory exists before running file IO operations
             if (!Directory.Exists(baseDirectory))
             {
                 Directory.CreateDirectory(baseDirectory);
             }
 
-            // 3. Generate clean filenames and paths
             var secureFileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
             var targetPath = Path.Combine(baseDirectory, secureFileName);
 
-            // 4. File Write Execution Block
+            // Physically persist file chunks to server storage instantly
             try
             {
+                // Explicitly wrapping in a using block ensures the file lock is released instantly when writing finishes
                 using (var stream = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
                 {
                     await file.CopyToAsync(stream, cancellationToken);
@@ -73,19 +71,28 @@ namespace OnlineVotingApplication.Repository.Services
                 throw;
             }
 
-            // 5. Database Tracking Row Persistence
+            // Write safe tracking recovery row into DB logs
             var pendingFile = new PendingFile
             {
                 FileName = secureFileName,
-                FolderName = uploadFolder, // Saved dynamically to DB
+                FolderName = uploadFolder,
                 Status = FileProcessingStatus.Pending,
                 CreatedAt = DateTime.UtcNow
             };
 
-            _db.PendingFiles.Add(pendingFile);
-            await _db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                _db.PendingFiles.Add(pendingFile);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            catch (Exception dbEx)
+            {
+                // CRUCIAL RECOVERY LAYER: If saving the record to your DB fails, clean up the disk file safely first
+                DeleteFile(targetPath);
+                throw new Exception($"File service failed to register file row in database. Inner: {dbEx.Message}", dbEx);
+            }
 
-            // 6. Background Queue Dispatch Channel
+            // Pass safe system file metrics directly down the pipeline channels
             if (fileType == FileType.Image)
             {
                 var imageJob = new ProcessImageJob(pendingFile.Id, targetPath, cancellationToken);
@@ -103,32 +110,33 @@ namespace OnlineVotingApplication.Repository.Services
 
         public async Task RunImageOptimizationAsync(long fileId, string filePath, CancellationToken cancellationToken = default)
         {
-            using (Image image = await Image.LoadAsync(filePath, cancellationToken))
+            string ext = Path.GetExtension(filePath).ToLowerInvariant();
+
+            if (ext == ".jpeg" || ext == ".jpg" || ext == ".png" || ext == ".webp")
             {
-                image.Mutate(x => x.Resize(1200, 0)); // Maintain aspect ratio with 0
-                await image.SaveAsync(filePath, cancellationToken);
+                using (Image image = await Image.LoadAsync(filePath, cancellationToken))
+                {
+                    image.Mutate(x => x.Resize(1200, 0));
+                    await image.SaveAsync(filePath, cancellationToken);
+                }
             }
         }
 
         public async Task RunVideoChunkingAsync(long fileId, string filePath, string outputFolder, CancellationToken cancellationToken = default)
         {
             if (!Directory.Exists(outputFolder)) Directory.CreateDirectory(outputFolder);
-            //We Need the Video upload to be broken down into bytes of 5mb. So we create an Interger that reeads 5mb
+
             const int FiveMegaByte = 5 * 1024 * 1024;
-            //Converts it to byte
             byte[] streamingBuffer = new byte[FiveMegaByte];
-            //We then Read the uploaaded file into that 5mb.
 
             using (var srcstream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, useAsync: true))
             {
                 int step = 0;
                 int readlength;
-                //This is the actual codes that Run those Videos intoo Chunkss. so it reads the video by cut them into fragments of 5mb
                 while ((readlength = await srcstream.ReadAsync(streamingBuffer, 0, streamingBuffer.Length, cancellationToken)) > 0)
                 {
-
                     cancellationToken.ThrowIfCancellationRequested();
-                    //We need a Path Where the Chunked Vidoes are Deposited into. So we create a fodder
+
                     string segmentPath = Path.Combine(outputFolder, $"Fragment_{step:D4}.dat");
                     using (var targetChunk = new FileStream(segmentPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
                     {
@@ -142,183 +150,36 @@ namespace OnlineVotingApplication.Repository.Services
             if (File.Exists(filePath)) File.Delete(filePath);
         }
 
+        // 🛠️ FIX IMPLEMENTATION: Added defensive polling loop to handle active stream blocks
         public bool DeleteFile(string path)
         {
             if (string.IsNullOrWhiteSpace(path)) return false;
-            if (File.Exists(path))
+            if (!File.Exists(path)) return false;
+
+            int maxRetries = 5;
+            int delayMs = 200;
+
+            for (int i = 0; i < maxRetries; i++)
             {
-                File.Delete(path);
-                return true;
+                try
+                {
+                    File.Delete(path);
+                    return true;
+                }
+                catch (IOException ex)
+                {
+                    // Check exception runtime signatures for a file sharing violation lock code (32 / 33)
+                    int hrCode = System.Runtime.InteropServices.Marshal.GetHRForException(ex) & 0xFFFF;
+                    if (hrCode == 32 || hrCode == 33)
+                    {
+                        // Sleep thread briefly to give concurrent memory processes room to complete and unlock
+                        Thread.Sleep(delayMs);
+                        continue;
+                    }
+                    throw;
+                }
             }
             return false;
         }
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//      public async Task<PendingFile> SaveFileAsync(IFormFile file, string folderName, FileType type, CancellationToken cancellationToken)
-//        {
-//            if (file == null) throw new ArgumentNullException(nameof(file));
-//            if (string.IsNullOrWhiteSpace(folderName)) throw new ArgumentNullException(nameof(folderName));
-//            if (string.IsNullOrWhiteSpace(_env.WebRootPath)) throw new InvalidOperationException("WebRootPath configuration missing.");
-
-//            //We have too look for a file or folder
-//            var uploadFolder = Path.Combine(_env.WebRootPath, folderName);
-//            //if the file or folder doesnt exist 
-//            if (!Directory.Exists(uploadFolder))
-//                //We Create a new Folder
-//                Directory.CreateDirectory(uploadFolder);
-//            //After Creating a folder, we give it a unique file name
-//            var uniqueFileName = Guid.NewGuid().ToString() + Path.GetExtension(file.FileName);
-//            //every File should have a path, in which can be found later
-//            var fullPhysicalPath = Path.Combine(uploadFolder, uniqueFileName);
-
-//            using (var stream = new FileStream(fullPhysicalPath, FileMode.Create, FileAccess.Write, FileShare.None, 4096, useAsync: true))
-//            {
-//                try
-//                {
-//                    await file.CopyToAsync(stream, cancellationToken);
-//                }
-//                catch (OperationCanceledException)
-//                {
-//                    if (File.Exists(fullPhysicalPath)) File.Delete(fullPhysicalPath);
-//                    throw;
-//                }
-//            }
-
-//            return new PendingFile
-//            {
-//                Id = Guid.NewGuid(),
-//                FileName = uniqueFileName,
-//                FolderName = folderName,
-//                Type = type,
-//                Status = FileProcessingStatus.Pending
-//            };
-//        }
-
-//        public async Task<PendingFile?> ProcessChunkAsync(IFormFile chunk, string uniqueFileId, int chunkIndex, int totalChunks, string folderName, FileType type)
-//        {
-//            if (chunk == null) throw new ArgumentNullException(nameof(chunk));
-//            if (string.IsNullOrWhiteSpace(_env.WebRootPath)) throw new InvalidOperationException("WebRootPath missing.");
-
-//            var targetFolder = Path.Combine(_env.WebRootPath, folderName);
-//            if (!Directory.Exists(targetFolder)) Directory.CreateDirectory(targetFolder);
-
-//            var tempFileName = $"{uniqueFileId}.tmp";
-//            var fullPhysicalPath = Path.Combine(targetFolder, tempFileName);
-
-//            using (var stream = new FileStream(fullPhysicalPath, FileMode.Append, FileAccess.Write, FileShare.None, 4096, useAsync: true))
-//            {
-//                await chunk.CopyToAsync(stream);
-//            }
-
-//            if (chunkIndex == totalChunks - 1)
-//            {
-//                return new PendingFile
-//                {
-//                    Id = Guid.Parse(uniqueFileId),
-//                    FileName = tempFileName,
-//                    FolderName = folderName,
-//                    Type = type,
-//                    Status = FileProcessingStatus.Pending
-//                };
-//            }
-
-//            return null;
-//        }
-
-//        // =========================================================================
-//        // 🚀 EXPLICIT PARSING SERVICES (Called by the Background Worker)
-//        // =========================================================================
-
-//        public async Task ParseVoterManifestAsync(string path, AppDbContext db, CancellationToken ct)
-//        {
-//            using var reader = new StreamReader(path);
-//            int lineCounter = 0;
-//            while (!reader.EndOfStream)
-//            {
-//                ct.ThrowIfCancellationRequested();
-//                var line = await reader.ReadLineAsync(ct);
-//                if (string.IsNullOrWhiteSpace(line)) continue;
-
-//                var values = line.Split(',');
-//                // db.Voters.Add(new Voter { FullName = values[0] });
-
-//                lineCounter++;
-//                if (lineCounter % 1000 == 0)
-//                {
-//                    await db.SaveChangesAsync(ct);
-//                    db.ChangeTracker.Clear();
-//                }
-//            }
-//            await db.SaveChangesAsync(ct);
-//            db.ChangeTracker.Clear();
-//        }
-
-//        public async Task ParseCandidateListAsync(string path, AppDbContext db, CancellationToken ct)
-//        {
-//            using var reader = new StreamReader(path);
-//            int lineCounter = 0;
-//            while (!reader.EndOfStream)
-//            {
-//                ct.ThrowIfCancellationRequested();
-//                var line = await reader.ReadLineAsync(ct);
-//                if (string.IsNullOrWhiteSpace(line)) continue;
-
-//                var values = line.Split(',');
-//                // db.Candidates.Add(new Candidate { Name = values[0] });
-
-//                lineCounter++;
-//                if (lineCounter % 1000 == 0)
-//                {
-//                    await db.SaveChangesAsync(ct);
-//                    db.ChangeTracker.Clear();
-//                }
-//            }
-//            await db.SaveChangesAsync(ct);
-//            db.ChangeTracker.Clear();
-//        }
-
-//        public async Task ParsePollingStationListAsync(string path, AppDbContext db, CancellationToken ct)
-//        {
-//            using var reader = new StreamReader(path);
-//            int lineCounter = 0;
-//            while (!reader.EndOfStream)
-//            {
-//                ct.ThrowIfCancellationRequested();
-//                var line = await reader.ReadLineAsync(ct);
-//                if (string.IsNullOrWhiteSpace(line)) continue;
-
-//                var values = line.Split(',');
-//                // db.PollingStations.Add(new PollingStation { StationName = values[0] });
-
-//                lineCounter++;
-//                if (lineCounter % 1000 == 0)
-//                {
-//                    await db.SaveChangesAsync(ct);
-//                    db.ChangeTracker.Clear();
-//                }
-//            }
-//            await db.SaveChangesAsync(ct);
-//            db.ChangeTracker.Clear();
-//        }
-//    }
-//}

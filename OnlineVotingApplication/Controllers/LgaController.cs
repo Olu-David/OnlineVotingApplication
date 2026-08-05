@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -7,21 +8,20 @@ using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
 using Org.BouncyCastle.Bcpg.OpenPgp;
 using System.Security.Claims;
-
 namespace OnlineVotingApplication.Controllers
 {
+    [Authorize(Roles = "SuperAdmin")]
     public class LgaController : Controller
     {
+
         private readonly UserManager<ApplicationUser> _UserManager;
         private readonly AppDbContext _context;
-        private  readonly Logger<LgaController> _logger;
         private readonly iLgaService _Lga;
 
-        public LgaController(UserManager<ApplicationUser> userManager, AppDbContext context, Logger<LgaController> logger, iLgaService lga)
+        public LgaController(UserManager<ApplicationUser> userManager, AppDbContext context, iLgaService lga)
         {
             _UserManager = userManager;
             _context = context;
-            _logger = logger;
             _Lga = lga;
         }
 
@@ -29,35 +29,49 @@ namespace OnlineVotingApplication.Controllers
         {
             return View();
         }
-    
-         [HttpGet]
-        public IActionResult CreateLga()
+
+
+        [HttpGet]
+        public async Task<IActionResult> CreateLga()
         {
-            return View();
+            // 1. Fetch data from your database context
+            var allStateList = await _context.States
+                                           .AsNoTracking()
+                                           .OrderBy(s => s.Name)
+                                           .ToListAsync();
+
+            // 2. Wrap it into a SelectList matching the exact casing "State" in ViewBag
+            ViewBag.State = new SelectList(allStateList, "Id", "Name");
+
+            // 3. Send a clean, empty model to the view
+            return View(new LgaDTO());
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult>CreateLga(LgaDTO model, string Id)
+        public async Task<IActionResult> CreateLga(LgaDTO model)
         {
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
+            var allStateList = await _context.States.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
+            ViewBag.State = new SelectList(allStateList, "Id", "Name", model.StateId);
             var AllStateList = await _context.States.AsNoTracking().ToListAsync();
-            ViewBag.State = new SelectList(AllStateList, "Id", "Name");
-            var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if(user==null|| string.IsNullOrEmpty(user))
+            ViewBag.State = new SelectList(AllStateList, "Id", "Name", model.Id);
+            var user = _UserManager.GetUserId(User);
+            if (user == null || string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User is unauthorized to perform this function";
                 return RedirectToAction("Index", "Home");
             }
-            var result= await _Lga.CreateLgaAsync(model, Id );
-            if(!result.Success)
+            var result = await _Lga.CreateLgaAsync(model, user);
+            if (!result.Success)
             {
                 TempData["ErrorMessage"] = "Lga Creation was unsuccessful";
                 return RedirectToAction(nameof(Index));
             }
-            return RedirectToAction(nameof(AllLga), new { Id });
+            return RedirectToAction(nameof(AllLga), new { model.Id });
 
         }
         [HttpGet]
@@ -77,7 +91,7 @@ namespace OnlineVotingApplication.Controllers
             {
                 TempData["ErrorMessage"] = "Nothing was found. Try again or contact the administrator.";
                 return NotFound();
-             
+
             }
 
             // Map data to the view model
@@ -91,28 +105,58 @@ namespace OnlineVotingApplication.Controllers
 
             return View(sendView);
         }
-
         [HttpGet]
-        public IActionResult ConfirmDelete()
+        public async Task<IActionResult> ConfirmDelete(Guid id)
         {
-            return View();  
+           
+            var lgaRecord = await _context.Lgas
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.Id == id);
+
+            if (lgaRecord == null)
+            {
+                TempData["ErrorMessage"] = "The requested LGA could not be found.";
+                return RedirectToAction(nameof(AllLga));
+            }
+
+            // Map the database entity values over to your tracking DTO
+            var model = new LgaDTO
+            {
+                Id = lgaRecord.Id,
+                Name = lgaRecord.Name,
+                StateId = lgaRecord.StateId
+            };
+
+            // Explicitly target the custom path to bypass folder directory bugs
+            return View("~/Views/Lga/ConfirmDelete.cshtml", model);
         }
+
         [HttpPost]
-        public async Task<IActionResult> ConfirmDelete(LgaDTO model, string ID)
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmDelete(LgaDTO model)
         {
-            var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if(string.IsNullOrEmpty(user))
+            var user = _UserManager.GetUserId(User);
+            if (string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User cannot Perform the Function, Authorized User only";
                 return RedirectToAction("Index", "Home");
             }
-            var result = await _Lga.DeleteLgaAsync(model, ID);
-            if(!result.Success)
+
+            var result = await _Lga.DeleteLgaAsync(model, user);
+            if (!result.Success)
             {
-                TempData["ErrorMessage"] = "Item Deleted Unsuccesful"; 
+                TempData["ErrorMessage"] = "Item Deleted Unsuccessful";
                 return RedirectToAction(nameof(AllLga));
             }
-            return View();
+
+            return RedirectToAction(nameof(DeletedSuccessfully));
+        }
+
+        // 3. SUCCESS SCREEN: Unchanged (Kept your working path redirect)
+        [HttpGet]
+        public IActionResult DeletedSuccessfully()
+        {
+            return View("~/Views/Lga/DeletedSuccessfully.cshtml");
         }
     }
 }

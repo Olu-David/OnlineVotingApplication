@@ -1,0 +1,69 @@
+﻿@model OnlineVotingApplication.DataTransferView.PartyViewModel;
+
+@{
+    ViewData["Title"] = "Create Party";
+    Layout = "_Layout";
+}
+
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card shadow-sm rounded-3 border-0">
+                <div class="card-header p-3 bg-primary text-white rounded-top">
+                    <h5 class="fw-bold mb-0">
+                        <i class="bi bi-flag-fill me-2"></i>
+                        <span>Create Party</span>
+                    </h5>
+                </div>
+
+                <div asp-validation-summary="ModelOnly" class="text-danger p-2"></div>
+
+                <div class="card-body p-4">
+                 
+                    <form asp-action="CreateParty" asp-controller="Party" enctype="multipart/form-data" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <div class="mb-3">
+                            <label asp-for="Name" class="form-label fw-bold">
+                                Party Name
+                            </label>
+                            <input asp-for="Name" class="form-control" placeholder="e.g., Democratic Alliance" />
+                            <span asp-validation-for="Name" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                      
+                        <div class="mb-3">
+                            <label asp-for="Description" class="form-label fw-bold">
+                                Description
+                            </label>
+                            <textarea asp-for="Description" class="form-control" rows="3" placeholder="Brief party description..."></textarea>
+                            <span asp-validation-for="Description" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <!-- Fixed: Formatted File Input -->
+                        <div class="mb-3">
+                            <label asp-for="PartyLogo" class="form-label fw-bold">Upload Photo/Logo</label>
+                            <input type="file" asp-for="PartyLogo" class="form-control" accept="image/*" />
+                            <span asp-validation-for="PartyLogo" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <div class="d-flex gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="bi bi-check-circle me-1"></i> Submit
+                            </button>
+                            <a asp-action="AllParty" asp-controller="Party" class="btn btn-outline-danger" onclick="return confirm('Are you sure you want to cancel?')">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

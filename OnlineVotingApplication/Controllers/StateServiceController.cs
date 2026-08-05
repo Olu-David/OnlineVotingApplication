@@ -1,10 +1,12 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Diagnostics.Tracing.Parsers.FrameworkEventSource;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
+using StackExchange.Redis;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -29,47 +31,68 @@ namespace OnlineVotingApplication.Controllers
         {
             return View();
         }
+        [Authorize(Roles = "SuperAdmin")]
         [HttpGet]
-        public IActionResult CreateStateAsync ()=> View();
+        public IActionResult CreateState()
+        {
+            return View();
+        }
+
+        [Authorize(Roles = "SuperAdmin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateStateAsync(StateDTO model, string Id)
+        public async Task<IActionResult> CreateState(StateDTO model)
         {
-            var user= User.FindFirstValue(ClaimTypes.NameIdentifier);
-            if(user==null)
+            // 1. Get the raw String User ID from the logged-in ClaimsPrincipal
+            string? userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
             {
+                TempData["ErrorMessage"] = "User not found or session expired.";
                 return RedirectToAction("Index", "Home");
             }
-            if(!ModelState.IsValid)
+
+            // 2. Validate incoming ModelState bindings
+            if (!ModelState.IsValid)
             {
-                TempData["ErrorMessage"] = "Unable to create state";
-                foreach(var item in ModelState)
+                TempData["ErrorMessage"] = "Unable to create state due to validation errors.";
+
+                foreach (var item in ModelState)
                 {
-                    var fieldname= item.Key;
+                    var fieldname = item.Key;
                     var errors = item.Value.Errors;
 
-                    foreach(var error in errors)
+                    foreach (var error in errors)
                     {
-                        // Use error.ErrorMessage to read the validation failure text
                         System.Diagnostics.Debug.WriteLine($"Field: {fieldname} - Error: {error.ErrorMessage}");
                     }
-
                 }
                 return View(model);
             }
-            var result= await _StateService.CreateStateAsync( model, Id);
-            if(result==false)
+
+            // 3. Generate the ID here if it doesn't exist so your redirect route works!
+            if (model.Id == null)
             {
-                TempData["ErrorMessage"] = "Unable to create state detail";
-                return RedirectToAction(nameof(Index), "Home");
+                model.Id = Guid.NewGuid();
             }
-            return View(result);
+
+            // 4. Call your State Service passing the safe parameters
+            var result = await _StateService.CreateStateAsync(model, userId);
+            if (result == false)
+            {
+                TempData["ErrorMessage"] = "Unable to create state details database record.";
+                return View(model); // Return the view with the model so the user doesn't lose their typed input!
+            }
+
+            // 5. Safely redirect to your tracking action now that model.Id is guaranteed to exist
+            TempData["SuccessMessage"] = "State created successfully!";
+            return RedirectToAction(nameof(AllState), new { id = model.Id });
         }
+
         [HttpGet]
         public async Task<IActionResult> EditState(Guid id)
         {
             // 1. Audit check for logged-in user
-            var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var user = _userManager.GetUserId(User);
             if (user == null)
             {
                 TempData["ErrorMessage"] = "User Unauthorized to perform this task. Only Admins or Officials can.";

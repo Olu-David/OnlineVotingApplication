@@ -33,23 +33,15 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _env = env;
         }
-
         public async Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId)
         {
             var response = new ServiceResponse<string>();
 
-            // 1. Guard Clauses & Input Validation
+            // 1. Guard Clause
             if (model == null)
             {
                 response.Success = false;
                 response.Message = "Invalid candidate data provided.";
-                return response;
-            }
-
-            if (model.Manifesto?.Length >= 1000)
-            {
-                response.Success = false;
-                response.Message = "Total Manifesto text has exceeded 1000 characters.";
                 return response;
             }
 
@@ -72,17 +64,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 3. Database Constraints Validation
-            var officialUser = await _appDbContext.Users
-                .FirstOrDefaultAsync(x => x.OfficialStaffId == model.OfficialStaffId);
-
-            if (officialUser == null)
-            {
-                response.Success = false;
-                response.Message = "Access denied. Invalid official credentials.";
-                return response;
-            }
-
+            // 3. Database Constraints Validation (Name uniqueness)
             var candidateExists = await _appDbContext.Candidate
                 .AnyAsync(x => x.Name == model.Name);
 
@@ -93,35 +75,50 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 4. Execution Transaction
+            // ---MOVE FILE HANDLING OUTSIDE AND BEFORE THE TRANSACTION BLOCK ---
+            string targetDatabasePathUrl = "/images/default-candidate.png"; // Set a clean web-ready fallback path
+            string folderPathSegment = "Candidate_Profiles";
+
+            try
+            {
+                if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
+                {
+                    // Streams file to disk, logs to PendingFiles, and wakes up background thread safely
+                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
+                        file: model.CandidateImageUrl,
+                        fileType: Enums.FileType.Image,
+                        uploadFolder: folderPathSegment,
+                        cancellationToken: CancellationToken.None
+                    );
+
+                   // Store the full relative web root folder path string for your HTML img tags
+                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
+                }
+            }
+            catch (Exception fileEx)
+            {
+                response.Success = false;
+                response.Message = $"File upload preprocessing engine failed: {fileEx.Message}";
+                return response;
+            }
+
+            // 4. Execution Transaction (Handles candidate entity generation only)
             await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
 
             try
             {
-                string fileName = "default-candidate.png";
-
-                if (model.CandidateImageUrl != null)
-                {
-                    fileName = await _fileService.RegisterAndQueueUploadAsync(
-                        file: model.CandidateImageUrl,
-                        fileType: Enums.FileType.Image,
-                        uploadFolder: "Candidate_Profiles",
-                        cancellationToken: CancellationToken.None // The token will map perfectly now
-                    );
-                }
-
-
                 var newCandidate = new Candidate
                 {
                     Name = model.Name ?? "",
                     Manifesto = model.Manifesto ?? "",
-                    CandidateImg = fileName,
+                    CandidateImg = targetDatabasePathUrl, // Now cleanly saves the complete path string format
                     PartyId = model.PartyId,
                     PositionId = model.PositionId,
                     StateId = model.StateId,
                     LgaId = model.LgaId,
                     CreatedAt = DateTime.UtcNow,
-                    isApproved = false
+                    isApproved = false,
+                    CandidateID= $"CAN-{Guid.NewGuid().ToString().Substring(0, 6).ToUpperInvariant()}"
                 };
 
                 await _appDbContext.Candidate.AddAsync(newCandidate);
@@ -133,16 +130,26 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Message = "Candidate created successfully.";
                 return response;
             }
-            catch (Exception )
+            catch (Exception ex)
             {
                 await transaction.RollbackAsync();
 
-                // Log 'ex' here using a logger (e.g., _logger.LogError(ex, "Error creating candidate"))
+                // If the database insert completely fails, delete the stray file off the disk to avoid storage leaks
+                if (targetDatabasePathUrl != "/images/default-candidate.png")
+                {
+                    string physicalFileCleanupPath = Path.Combine(_env.WebRootPath, folderPathSegment, Path.GetFileName(targetDatabasePathUrl));
+                    _fileService.DeleteFile(physicalFileCleanupPath);
+                }
+
+
+                // THIS IS THE CRUCIAL CHANGE: Expose everything to see what is failing
                 response.Success = false;
-                response.Message = "An unexpected error occurred while saving.";
+                response.Message = $"CRITICAL ERROR: {ex.Message} -> INNER: {ex.InnerException?.Message} -> STACK TRACE: {ex.StackTrace}";
                 return response;
             }
+
         }
+        
 
         public void ClearCandidateCache(int pageNumber, int pageSize)
         {
@@ -206,8 +213,42 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
 
         }
+        public async Task<PaginatedListViewModel<PartyViewModel>> GetAllCandidateViaParty(Guid PartyId, int PageNumber = 1, int PageSize = 10)
+        {
+            PageNumber = Math.Max(1, PageNumber);
+            PageSize = Math.Max(1, PageSize);
 
-public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByPartyAsync(Guid partyId, int pageNumber = 1, int pageSize = 10)
+            int skip = (PageNumber - 1) * PageSize;
+
+            var Query = _appDbContext.Party.Where(m => m.Id == PartyId);
+            var dbCount = Query.Count();
+
+            string CacheKey = $"ref_All_Party_{PartyId}_{PageNumber}_{PageSize}";
+
+
+            if (!_cache.TryGetValue(CacheKey, out List<PartyViewModel>? Party))
+            {
+                Party = await Query.OrderBy(m => m.Name).Select(m => new PartyViewModel
+                {
+                    Name = m.Name,
+                    Description = m.Description,
+                    LogoUrl = m.LogoUrl
+
+                }).ToListAsync();
+                _cache.Set(CacheKey, Party, TimeSpan.FromMinutes(5));
+
+            }
+            return new PaginatedListViewModel<PartyViewModel>
+            {
+                TotalItems = dbCount,
+                Items = Party ?? Enumerable.Empty<PartyViewModel>(),
+                PageNumber = PageNumber,
+                PageSize = PageSize
+
+            };
+
+        }
+        public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByPartyAsync(Guid partyId, int pageNumber = 1, int pageSize = 10)
     {
         var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
 
@@ -676,25 +717,37 @@ public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidate
 
             if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
             {
-                // 1. Delete old image physically from disk if it's not the default
-                if (!string.IsNullOrEmpty(existingCandidate.CandidateImg)
-                    && existingCandidate.CandidateImg != "default-candidate.png"
-                    && existingCandidate.CandidateImg != "default.png")
+                // 1. Let the service handle uploading the NEW image and return the actual file name
+                string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
+                    file: model.CandidateImageUrl,
+                    fileType: Enums.FileType.Image,
+                    uploadFolder: "Candidate_Profiles", // Matches your creation folder exactly
+                    cancellationToken: CancellationToken.None
+                );
+
+                // 2. Temporarily hold onto the OLD path string before overwriting it
+                string oldPathFromDb = existingCandidate.CandidateImg??"";
+
+                // 3. Update the database property with the clean web URL matching the creation pattern
+                existingCandidate.CandidateImg = $"/Candidate_Profiles/{allocatedFileName}";
+
+                // 4. NOW safely clean up the old physical file from disk
+                if (!string.IsNullOrEmpty(oldPathFromDb)
+                    && !oldPathFromDb.Contains("default-candidate.png")
+                    && !oldPathFromDb.Contains("default.png"))
                 {
-                    // Reconstruct the full physical file path so your DeleteFile method can find it
-                    string oldFilePath = Path.Combine(_env.WebRootPath, "Optimized_Images", existingCandidate.CandidateImg);
+                    // Trim leading slash to safely combine paths on any operating system
+                    string relativePath = oldPathFromDb.TrimStart('/');
+
+                    // Reconstruct the exact physical file path on the server disk
+                    string oldFilePath = Path.Combine(_env.WebRootPath, relativePath);
+
+                    // Delete the old file from storage
                     _fileService.DeleteFile(oldFilePath);
-                }
+                }         
+            
 
-                // 2. Generate the unique synchronized name
-                string newFileName = $"{Guid.NewGuid()}_{Path.GetFileName(model.CandidateImageUrl.FileName)}";
-
-                // 3. Upload new image using your custom optional override parameter
-                await _fileService.RegisterAndQueueUploadAsync( file: model.CandidateImageUrl,fileType: Enums.FileType.Image, uploadFolder: "Candidate_Profiles", cancellationToken: CancellationToken.None
-                 );
-
-                // 4. Update the database property with the computed name
-                existingCandidate.CandidateImg = newFileName;
+       
             }
 
             // 3. UPDATE OTHER FIELDS

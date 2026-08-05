@@ -1,164 +1,122 @@
-﻿@using OnlineVotingApplication.DataTransferView;
-@model CandidateViewModel;
+﻿@model OnlineVotingApplication.DataTransferView.CandidateViewModel
 
 @{
-    ViewBag.Title = "Create New Candidate";
-    Layout = "_Layout"; // Admins/Officials only
+    ViewData["Title"] = "Create Candidate";
 }
 
-<div class="container mt-5">
+<div class="container mt-4">
     <div class="row justify-content-center">
-        <div class="col-md-8">
-            <!-- PAGE HEADER -->
-            <h1 class="mb-4">
-                <i class="fas fa-user-plus"></i> Create New Candidate
-            </h1>
-
-            <!-- FORM -->
-            <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data" class="card p-4">
-                <!-- SECURITY TOKEN -->
-                @Html.AntiForgeryToken()
-
-                <!-- Pass the route id parameter down if it exists in your URL -->
-                <input type="hidden" name="id" value="@Context.Request.RouteValues["id"]" />
-
-                <!-- GLOBAL VALIDATION SUMMARY BOX -->
-                <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-              @*   <!-- VALIDATION ERRORS -->
-                @if (!ViewData.ModelState.IsValid)
-                {
-                    <div class="alert alert-danger mb-4">
-                        <h6>Please fix the following errors:</h6>
-                        <ul>
-                            @foreach (var modelState in ViewData.ModelState.Values)
-                            {
-                                @foreach (var error in modelState.Errors)
-                                {
-                                    <li>@error.ErrorMessage</li>
-                                }
-                            }
-                        </ul>
-                    </div>
-                } *@
-
-                <!-- CANDIDATE NAME -->
-                <div class="mb-3">
-                    <label asp-for="Name" class="form-label">
-                        <i class="fas fa-user"></i> Full Name<span class="text-danger">*</span>
-                    </label>
-                    <input asp-for="Name" class="form-control" placeholder="Enter candidate's full name">
-                    <span asp-validation-for="Name" class="text-danger small"></span>
+        <div class="col-md-8 col-lg-6">
+            <!-- Form Wrapped in a Bootstrap Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Create New Candidate</h4>
                 </div>
+                
+                    <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+                        <div asp-validation-summary="ModelOnly" class="text-danger align-middle"></div>
 
-                <!-- CANDIDATE IMAGE -->
-                <div class="mb-3">
-                    <label asp-for="CandidateImageUrl" class="form-label">
-                        <i class="fas fa-image"></i> Candidate Photo
-                    </label>
-                    <input asp-for="CandidateImageUrl" type="file" class="form-control" accept="image/*">
-                    <small class="text-muted">Upload a PNG or JPG image</small>
-                </div>
+                        <!-- Name -->
+                        <div class="mb-3">
+                            <label asp-for="Name" class="form-label fw-bold">Candidate Name</label>
+                            <input asp-for="Name" class="form-control" placeholder="Enter full name" />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
 
-                <!-- MANIFESTO (Campaign Message) -->
-                <div class="mb-3">
-                    <label asp-for="Manifesto" class="form-label">
-                        <i class="fas fa-scroll"></i> Manifesto <span class="text-danger">*</span>
-                    </label>
-                    <textarea asp-for="Manifesto"
-                              class="form-control"
-                              rows="5"
-                              placeholder="Enter the candidate's campaign message/manifesto"></textarea>
-                    <span asp-validation-for="Manifesto" class="text-danger small"></span>
-                </div>
+                        <!-- Position Dropdown -->
+                        <div class="mb-3">
+                            <label asp-for="PositionId" class="form-label fw-bold">Position</label>
+                            <select asp-for="PositionId" class="form-select" asp-items="ViewBag.PositionView">
+                                <option value="">-- Select Position --</option>
+                            </select>
+                            <span asp-validation-for="PositionId" class="text-danger"></span>
+                        </div>
 
-                <!-- PARTY -->
-                <div class="mb-3">
-                    <label asp-for="PartyId" class="form-label">
-                        <i class="fas fa-flag"></i> Political Party <span class="text-danger">*</span>
-                    </label>
-                    <select asp-for="PartyId" class="form-select">
-                        <option value="">-- Select Party --</option>
-                        @if (ViewBag.Party != null)
-                        {
-                            @foreach (var party in ViewBag.Party)
-                            {
-                                <option value="@party.Id">@party.Name</option>
-                            }
-                        }
-                    </select>
-                    <span asp-validation-for="PartyId" class="text-danger small"></span>
-                </div>
+                        <!-- State Dropdown -->
+                        <div class="mb-3">
+                            <label asp-for="StateId" class="form-label fw-bold">State</label>
+                            <select asp-for="StateId" id="stateDropdown" class="form-select" asp-items="ViewBag.StateView">
+                                <option value="">-- Select State --</option>
+                            </select>
+                            <span asp-validation-for="StateId" class="text-danger"></span>
+                        </div>
 
-                <!-- POSITION -->
-                <div class="mb-3">
-                    <label asp-for="PositonId" class="form-label">Contested Position</label>
-                    <select asp-for="PositonId" class="form-select">
-                        <option value="">-- Select Position --</option>
-                        @if (ViewBag.PositionView != null)
-                        {
-                            foreach (var pos in ViewBag.PositionView)
-                            {
-                                <option value="@pos.Id">@pos.Name</option>
-                            }
-                        }
-                    </select>
-                    <span asp-validation-for="PositonId" class="text-danger small"></span>
-                </div>
+                        <!-- LGA Dropdown -->
+                        <div class="mb-3">
+                            <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
+                            <select asp-for="LgaId" id="lgaDropdown" class="form-select" asp-items="ViewBag.Lga">
+                                <option value="">-- Select LGA --</option>
+                            </select>
+                            <span asp-validation-for="LgaId" class="text-danger"></span>
+                        </div>
 
-                <!-- STATE WITH NO-JS RELOAD BUTTON -->
-                <div class="mb-3">
-                    <label asp-for="StateId" class="form-label">State</label>
-                    <div class="input-group">
-                        <select id="stateDropdown" asp-for="StateId" class="form-select">
-                            <option value="">-- Select State --</option>
-                            @if (ViewBag.StateView != null)
-                            {
-                                foreach (var state in ViewBag.StateView)
-                                {
-                                    <option value="@state.Id">@state.Name</option>
-                                }
-                            }
-                        </select>
-                        <button type="submit" name="formAction" value="loadLgas" class="btn btn-secondary">
-                            Load LGAs
-                        </button>
-                    </div>
-                    <span asp-validation-for="StateId" class="text-danger small"></span>
-                </div>
+                        <!-- Manifesto -->
+                        <div class="mb-3">
+                            <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
+                            <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's manifesto..."></textarea>
+                            <span asp-validation-for="Manifesto" class="text-danger"></span>
+                        </div>
 
-                <!-- LGA -->
-                <div class="mb-3">
-                    <label asp-for="LgaId" class="form-label">LGA</label>
-                    <select id="lgaDropdown" asp-for="LgaId" class="form-select">
-                        <option value="">-- Select LGA --</option>
-                        @if (ViewBag.Lga != null)
-                        {
-                            foreach (var lga in ViewBag.Lga)
-                            {
-                                <option value="@lga.Id">@lga.Name</option>
-                            }
-                        }
-                    </select>
-                    <span asp-validation-for="LgaId" class="text-danger small"></span>
-                </div>
+                        <!-- Party Dropdown Menu -->
+                        <div class="mb-3">
+                            <label asp-for="PartyId" class="form-label fw-bold">Political Party</label>
+                            <select asp-for="PartyId" class="form-select" asp-items="ViewBag.PartyView">
+                                <option value="">-- Select Political Party --</option>
+                            </select>
+                            <span asp-validation-for="PartyId" class="text-danger"></span>
+                        </div>
 
-                <!-- FORM BUTTONS -->
-                <div class="d-flex gap-2 mt-4">
-                    <button type="submit" name="formAction" value="save" class="btn btn-primary btn-lg flex-grow-1">
-                        <i class="fas fa-save"></i> Create Candidate
-                    </button>
-                    <a href="/Candidate" class="btn btn-outline-secondary btn-lg">
-                        <i class="fas fa-times"></i> Cancel
-                    </a>
+
+                        <!-- Candidate Image Upload -->
+                        <div class="mb-4">
+                            <label asp-for="CandidateImageUrl" class="form-label fw-bold">Candidate Photo</label>
+                            <input asp-for="CandidateImageUrl" type="file" class="form-control" />
+                            <span asp-validation-for="CandidateImageUrl" class="text-danger"></span>
+                        </div>
+
+                        <!-- Action Buttons Inside Card Footer Area -->
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end border-top pt-3">
+                            <a asp-action="Index" class="btn btn-light me-md-2">Cancel</a>
+                            <button type="submit" class="btn btn-primary">Create Candidate</button>
+                        </div>
+                    </form>
                 </div>
-            </form>
+            </div>
         </div>
-    </div>
 </div>
 
-<!-- CLIENT-SIDE VALIDATION SCRIPTS -->
+
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation@1.19.5/dist/jquery.validate.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jquery-validation-unobtrusive@3.2.12/jquery.validate.unobtrusive.min.js"></script>
+    <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        document.getElementById('stateDropdown').addEventListener('change', function () {
+            var stateId = this.value;
+            var lgaDropdown = document.getElementById('lgaDropdown');
+
+            lgaDropdown.innerHTML = '<option value="">-- Select LGA --</option>';
+
+            if (!stateId) return;
+
+            var url = '@Url.Action("GetLgasByState", "Candidate")?stateId=' + stateId;
+
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    data.forEach(lga => {
+                        var option = document.createElement('option');
+                        option.value = lga.id;
+                        option.textContent = lga.name;
+                        lgaDropdown.appendChild(option);
+                    });
+                })
+                .catch(error => console.error('Error loading LGAs:', error));
+        });
+    </script>
 }

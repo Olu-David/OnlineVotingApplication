@@ -5,6 +5,7 @@ namespace OnlineVotingApplication.Repository.iServices
 {
     public interface iCandidateService
     {
+        Task<PaginatedListViewModel<PartyViewModel>> GetAllCandidateViaParty(Guid PartyId, int PageNumber = 1, int PageSize = 10);
         Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetAllSoftDeletedCandidate(string UserId, int pageNumber = 1, int pageSize = 10);
         Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId);
         Task<ServiceResponse<string>> UpdateCandidateAsync(UpdateCandidateViewModel model, string Id, CancellationToken token);

@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260723083640_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260801180512_InitialApplicationRebuilds")]
+    partial class InitialApplicationRebuilds
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -363,7 +363,7 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("TItle")
+                    b.Property<string>("Title")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");

@@ -177,7 +177,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
 
             }
-            var LGA = await _context.Lgas.FirstOrDefaultAsync(m => m.Id == dto.Id && m.Name == dto.Name);
+            string cleanedDtoName = dto.Name?.Trim() ?? string.Empty;
+            var LGA = await _context.Lgas.FirstOrDefaultAsync(m => m.Id == dto.Id && m.Name==cleanedDtoName);
             if (LGA == null)
             {
                 response.Success = false;
@@ -197,3 +198,55 @@ namespace OnlineVotingApplication.Repository.Services
     }
 }
 
+
+
+
+
+
+//var users = new List<(ApplicationUser User, string Password, string Role)>
+//                {
+//                    (new ApplicationUser {
+//                        FullName = "Olusanya David Victor",
+//                        UserName = "superadmin@election.com", // Changed to Email layout for seamless identity token parsing
+//                        Email = "superadmin@election.com",
+//                        EmailConfirmed = true,
+//                        profileImage = "",
+//                        StateId = null
+//                    }, "SecureP@ss123!", "SuperAdmin"),
+
+//                    (new ApplicationUser {
+//                        FullName = "Election Official",
+//                        UserName = "official@election.com",
+//                        Email = "official@election.com",
+//                        EmailConfirmed = true,
+//                        profileImage = "",
+//                        StateId = null
+//                    }, "SecureP@ss123!", "Official"),
+
+//                    (new ApplicationUser {
+//                        FullName = "Voter User",
+//                        UserName = "voter@election.com",
+//                        Email = "voter@election.com",
+//                        EmailConfirmed = true,
+//                        profileImage = "",
+//                        StateId = null
+//                    }, "SecureP@ss123!", "Voter"),
+
+//                    (new ApplicationUser {
+//                        FullName = "Auditor User",
+//                        UserName = "auditor@election.com",
+//                        Email = "auditor@election.com",
+//                        EmailConfirmed = true,
+//                        profileImage = "",
+//                        StateId = null
+//                    }, "SecureP@ss123!", "Auditor"),
+
+//                    (new ApplicationUser {
+//                        FullName = "Candidate User",
+//                        UserName = "candidate@election.com",
+//                        Email = "candidate@election.com",
+//                        EmailConfirmed = true,
+//                        profileImage = "",
+//                        StateId = null
+//                    }, "SecureP@ss123!", "Candidate")
+//                };

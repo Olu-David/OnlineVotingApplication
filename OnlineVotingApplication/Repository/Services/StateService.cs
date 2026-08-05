@@ -27,48 +27,51 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _userManager = userManager;
         }
-
-        public async Task<bool> CreateStateAsync(StateDTO state, string Id)
+        public async Task<bool> CreateStateAsync(StateDTO state, string userId)
         {
-            var transaction = await _context.Database.BeginTransactionAsync();
-            try
+            // Wrap the transaction in a 'using' statement block to prevent database locking leaks
+            using (var transaction = await _context.Database.BeginTransactionAsync())
             {
-                //Check Authentication
-                var user = await _userManager.FindByEmailAsync(Id);
-                if (user == null)
+                try
                 {
+                    var user = await _userManager.FindByIdAsync(userId);
+                    if (user == null)
+                    {
+                        // The transaction is now safely disposed automatically when this exits
+                        return false;
+                    }
+
+                    bool IsSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+                    bool IsOfficial = await _userManager.IsInRoleAsync(user, "Official");
+                    if (!IsSuperAdmin && !IsOfficial)
+                    {
+                        return false;
+                    }
+
+                    var newState = new States
+                    {
+                        Id = state.Id ?? Guid.NewGuid(),
+                        Name = state.Name ?? ""
+                    };
+
+                    _context.States.Add(newState);
+                    await _context.SaveChangesAsync();
+
+                    // Commits the changes cleanly to your SQL Server
+                    await transaction.CommitAsync();
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    // Explicitly roll back any operations if an exception occurs
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Error creating state");
                     return false;
                 }
-                bool IsSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
-                bool IsOfficial = await _userManager.IsInRoleAsync(user, "Official");
-                if(!IsSuperAdmin  && !IsOfficial)
-                {
-                    return false;
-                }
-
-
-              
-
-                var newState = new States
-                {
-                    Id = state.Id??Guid.Empty,
-                    Name = state.Name ?? ""
-                };
-                // 4. Create state
-                _context.States.Add(newState);
-                await _context.SaveChangesAsync();
-
-               await transaction.CommitAsync();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                 _logger.LogError(ex.Message);
-                return false;
-            }
-
+            } 
         }
+
+
         public async Task<bool> UpdateStateAsync(UpdateStateDto model, string Id)
         {
             //Check Authentication

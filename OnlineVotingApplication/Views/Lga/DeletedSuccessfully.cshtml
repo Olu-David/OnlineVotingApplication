@@ -1,0 +1,48 @@
+﻿@{
+    ViewData["Title"] = "Deleted Successfully";
+    Layout = "_Layout";
+}
+
+<!-- Automatically redirects the browser to AllLga after 4 seconds as a fallback -->
+<meta http-equiv="refresh" content="4;url=@Url.Action("AllLga", "Lga")" />
+
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6 col-lg-5 text-center">
+
+            <!-- Success Animation Card Container -->
+            <div class="card shadow border-0 rounded-3 p-5">
+                <div class="mb-4 text-success">
+                    <!-- Large Checkmark Circle Icon -->
+                    <i class="bi bi-check-circle-fill display-1 animate__animated animate__bounceIn"></i>
+                </div>
+
+                <h2 class="fw-bold text-dark h3 mb-2">Erasure Complete!</h2>
+                <p class="text-muted mb-4">
+                    The Local Government Area record has been successfully purged from the system repository.
+                </p>
+
+                <!-- Loading Spinner Loop Visual Anchor -->
+                <div class="d-flex align-items-center justify-content-center gap-2 text-primary small bg-light p-2 rounded border mb-4">
+                    <div class="spinner-border spinner-border-sm" role="status"></div>
+                    <span>Returning to the LGA master roster list...</span>
+                </div>
+
+                <!-- Instant Override Button Link -->
+                <a asp-controller="Lga" asp-action="AllLga" class="btn btn-dark w-100 py-2">
+                    <i class="fas fa-arrow-left me-1"></i> Return Immediately
+                </a>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        // Optional smooth UI assurance redirect backup
+        setTimeout(function () {
+            window.location.href = '@Url.Action("AllLga", "Lga")';
+        }, 4000);
+    </script>
+}

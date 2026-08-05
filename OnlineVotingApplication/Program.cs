@@ -57,6 +57,7 @@ namespace OnlineVotingApplication
             builder.Services.AddScoped<IVoteService, VoteService>();
             builder.Services.AddScoped<iPositionService,PositionService>();
             builder.Services.AddScoped<iStateService, StateService>();
+            builder.Services.AddScoped<iLgaService, LgaService>();
 
             // ==========================================
             // 3. RATE LIMITING
@@ -88,6 +89,8 @@ namespace OnlineVotingApplication
             // ==========================================
             builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
             {
+                 options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
+
                 options.SignIn.RequireConfirmedEmail = true;
                 options.Password.RequireNonAlphanumeric = true;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromDays(3);
@@ -97,7 +100,9 @@ namespace OnlineVotingApplication
                 options.Password.RequiredLength = 6;
             })
             .AddEntityFrameworkStores<AppDbContext>()
+            .AddRoles<IdentityRole>()
             .AddDefaultTokenProviders();
+
 
             // ==========================================
             // 5. COOKIE SETTINGS
@@ -132,15 +137,16 @@ namespace OnlineVotingApplication
                 try
                 {
                     var context = services.GetRequiredService<AppDbContext>();
-                    //var emailQueue = services.GetRequiredService<EmailQueue>();
-
-                    logger.LogInformation("Applying database migrations...");
+                    var dbName = context.Database.GetDbConnection().Database;
+                    var dataSource = context.Database.GetDbConnection().DataSource;
+                    Console.WriteLine($"[DB CHECK] Connected to server '{dataSource}', database '{dbName}'");
+                    logger.LogInformation("[DB CHECK] Connected to server '{DataSource}', database '{DbName}'", dataSource, dbName);
                     await context.Database.MigrateAsync();
-                    Console.WriteLine("Seeder started");
-                    logger.LogInformation("Seeding roles and users...");
+                    logger.LogInformation("Starting database seeding process...");
+                    Console.WriteLine("Starting database seeding process...");
+
                     await DbroleSeeder.SeedRolesAndUsersAsync(services);
-                    Console.WriteLine("Seeder finished");
-                    logger.LogInformation("Seeder is running");
+
                     if (!await context.PendingEmails.AnyAsync())
                     {
                         logger.LogInformation("Seeding test emails...");
@@ -149,14 +155,23 @@ namespace OnlineVotingApplication
                             new PendingEmail { Recipient = "test2@example.com", Subject = "Offer", Body = "<p>50% off today!</p>" }
                         );
                         await context.SaveChangesAsync();
+                        logger.LogInformation("Test emails seeded successfully.");
                     }
 
-                    logger.LogInformation("Recovering pending emails into the processing queue...");
-                    //await emailQueue.RecoverPendingEmailsAsync();
+                    logger.LogInformation("System initialization and seeding completed successfully.");
+                    Console.WriteLine("System initialization and seeding completed successfully.");
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "System initialization failed.");
+                    logger.LogError(ex, "System initialization and seeding failed.");
+                    Console.WriteLine("=== SEEDING FAILED ===");
+                    Console.WriteLine(ex.ToString());
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine("--- INNER EXCEPTION ---");
+                        Console.WriteLine(ex.InnerException.ToString());
+                    }
+                    throw;
                 }
             }
 

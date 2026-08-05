@@ -5,8 +5,18 @@
 @using OnlineVotingApplication.Areas.Identity.Data
 @inject SignInManager<ApplicationUser> SignInManager
 
-<nav class="admin-sidebar bg-dark text-white d-flex flex-column p-3" id="adminSidebar">
+<!-- Floating hamburger: only visible below the lg breakpoint (medium/small/very small).
+     Lives outside the <nav> so it stays clickable even while the sidebar itself
+     is translated off-screen. -->
+<button class="sidebar-floating-toggle d-lg-none" id="sidebarMobileToggle"
+        type="button" aria-label="Toggle sidebar" aria-expanded="false" aria-controls="adminSidebar">
+    <i class="fas fa-bars"></i>
+</button>
 
+<!-- Dark backdrop shown behind the sidebar drawer on small / very small screens -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<nav class="admin-sidebar bg-dark text-white d-flex flex-column p-3 flex-shrink-0" id="adminSidebar" style="height: 100vh; position: sticky; top: 0;">
     <!-- Brand -->
     <div class="sidebar-brand d-flex align-items-center gap-2 mb-4">
         <div class="brand-icon"><i class="fas fa-vote-yea"></i></div>
@@ -14,6 +24,12 @@
             <span class="d-block fw-bold">VoteX</span>
             <small class="text-white-50">Super Admin</small>
         </div>
+
+        <!-- Large-screen-only collapse-to-icons toggle -->
+        <button class="btn btn-sm btn-outline-light border-0 ms-auto d-none d-lg-inline-flex" id="sidebarCollapseToggle"
+                type="button" aria-label="Collapse sidebar">
+            <i class="fas fa-angles-left"></i>
+        </button>
     </div>
 
     <!-- User chip -->
@@ -71,31 +87,114 @@
             </div>
         </li>
 
+        <!-- Collapsible Candidates -->
         <li class="nav-item">
-            <a asp-controller="Candidate" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")">
-                <i class="fas fa-user-tie me-2"></i><span>Candidates</span>
+            <a href="#CandidateMenu" class="nav-link text-white d-flex justify-content-between @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")"
+               data-bs-toggle="collapse" aria-expanded="false" aria-label="CandidateDropMenu">
+                <span><i class="fas fa-user-tie me-2"></i> Candidates</span>
+                <i class="fas fa-chevron-down small"></i>
             </a>
+            <div class="collapse" id="CandidateMenu">
+                <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="AllCandidate"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "AllCandidate" ? "active" : "")">
+                            <i class="fas fa-list me-2"></i><span>All Candidates</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="CreateCandidate"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "CreateCandidate" ? "active" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="GetAllSoftdelete"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetAllSoftdelete" ? "active" : "")">
+                            <i class="fas fa-trash-alt me-2"></i><span>Deleted</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </li>
+
+        <!-- Collapsible Positions -->
         <li class="nav-item">
-            <a asp-controller="Position" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")">
-                <i class="fas fa-bullseye me-2"></i><span>Positions</span>
+            <a href="#PositionMenu" class="nav-link text-white d-flex justify-content-between @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")"
+               data-bs-toggle="collapse" aria-expanded="false">
+                <span><i class="fas fa-bullseye me-2"></i> Positions</span>
+                <i class="fas fa-chevron-down small"></i>
             </a>
+            <div class="collapse" id="PositionMenu">
+                <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                        <a asp-controller="Position" asp-action="AllPosition"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "AllPosition" ? "active" : "")">
+                            <i class="fas fa-list me-2"></i><span>All Positions</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Position" asp-action="CreatePosition"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "CreatePosition" ? "active" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </li>
 
         <li class="sidebar-section-label">Geography</li>
+
+        <!-- States Menu -->
         <li class="nav-item">
-            <a asp-controller="State" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "State" ? "active" : "")">
-                <i class="fas fa-map-marker-alt me-2"></i><span>States</span>
+            <a href="#Statedropdown" class="nav-link text-white d-flex justify-content-between @(ViewData["Ctrl"]?.ToString() == "State" ? "active" : "")"
+               data-bs-toggle="collapse" data-bs-target="#Statedropdown" aria-expanded="false">
+                <span><i class="fas fa-map-marker-alt me-2"></i>States</span>
+                <i class="fas fa-chevron-down small"></i>
             </a>
+
+            <div class="collapse" id="Statedropdown">
+                <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                        <a asp-controller="State" asp-action="AllState"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "State" && ViewData["Action"]?.ToString() == "AllState" ? "active" : "")">
+                            <i class="fas fa-list me-2"></i><span>All States</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="StateService" asp-action="CreateState"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "StateService" && ViewData["Action"]?.ToString() == "CreateState" ? "active" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create State</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </li>
+
+        <!-- LGAs Menu -->
         <li class="nav-item">
-            <a asp-controller="Lga" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Lga" ? "active" : "")">
-                <i class="fas fa-city me-2"></i><span>LGAs</span>
+            <a href="#Lgadropdown" class="nav-link text-white d-flex justify-content-between @(ViewData["Ctrl"]?.ToString() == "Lga" ? "active" : "")"
+               data-bs-toggle="collapse" data-bs-target="#Lgadropdown" aria-expanded="false">
+                <span><i class="fas fa-city me-2"></i>LGAs</span>
+                <i class="fas fa-chevron-down small"></i>
             </a>
+
+            <div class="collapse" id="Lgadropdown">
+                <ul class="nav flex-column ms-3">
+                    <li class="nav-item">
+                        <a asp-controller="Lga" asp-action="AllLga"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Lga" && ViewData["Action"]?.ToString() == "AllLga" ? "active" : "")">
+                            <i class="fas fa-list me-2"></i><span>All LGAs</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="StateService" asp-action="CreateLga"
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "StateService" && ViewData["Action"]?.ToString() == "CreateLga" ? "active" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create LGA</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
         </li>
 
         <li class="sidebar-section-label">Users</li>
@@ -117,22 +216,5 @@
                 <i class="fas fa-user-check me-2"></i><span>Auditors</span>
             </a>
         </li>
-
-        <li class="sidebar-section-label">Reports</li>
-        <li class="nav-item">
-            <a asp-controller="SuperAdmin" asp-action="Reports"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdmin" && ViewData["Action"]?.ToString() == "Reports" ? "active" : "")">
-                <i class="fas fa-chart-pie me-2"></i><span>Reports</span>
-            </a>
-        </li>
     </ul>
-
-    <!-- Logout -->
-    <div class="mt-auto pt-3 border-top border-secondary border-opacity-25">
-        <form asp-area="Identity" asp-page="/Account/Logout" method="post">
-            <button class="btn btn-outline-light w-100 d-flex align-items-center justify-content-center gap-2">
-                <i class="fas fa-sign-out-alt"></i> Logout
-            </button>
-        </form>
-    </div>
 </nav>

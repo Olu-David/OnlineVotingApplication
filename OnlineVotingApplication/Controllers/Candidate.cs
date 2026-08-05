@@ -8,6 +8,7 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.Repository.Services;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -15,14 +16,14 @@ using System.Threading.Tasks;
 namespace OnlineVotingApplication.Controllers
 {
     //[Authorize(Roles = "SuperAdmin, Official")]
-    public class CandidateController : Controller
+    public class Candidate : Controller
     {
         private readonly iCandidateService _candidateService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly AppDbContext _context;
 
 
-        public CandidateController(iCandidateService candidateService, UserManager<ApplicationUser> userManager, AppDbContext context)
+        public Candidate(iCandidateService candidateService, UserManager<ApplicationUser> userManager, AppDbContext context)
         {
             _candidateService = candidateService;
             _userManager = userManager;
@@ -35,64 +36,112 @@ namespace OnlineVotingApplication.Controllers
 
             return View();
         }
-        [Authorize(Roles = "SuperAdmin")]
         [HttpGet]
         public async Task<IActionResult> CreateCandidate()
         {
-            // Clean, distinct ViewBag assignments
-            ViewBag.StateView = await _context.States.AsNoTracking().ToListAsync();
-            ViewBag.PositionView = await _context.Position.AsNoTracking().ToListAsync();
-            ViewBag.Lga = new List<LGA>(); // Empty initially until a state is chosen
-
-            return View();
-        }
-        [Authorize(Roles = "SuperAdmin")]
-        [HttpPost]
-        public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string id, string formAction)
-        {
-            // 1. Handle State Change Request (No-JS reload)
-            if (formAction == "loadLgas")
+            var model = new CandidateViewModel
             {
-                ViewBag.StateView = await _context.States.AsNoTracking().ToListAsync();
-                ViewBag.PositionView = await _context.Position.AsNoTracking().ToListAsync();
-                ViewBag.Lga = await _context.Lgas
-                    .AsNoTracking()
-                    .Where(l => l.StateId == model.StateId)
-                    .ToListAsync();
+                // Pre-populate empty lists to avoid null reference crashes in Razor engine rendering
+                States = Enumerable.Empty<SelectListItem>(),
+                Lga = Enumerable.Empty<SelectListItem>(),
+                Positions = Enumerable.Empty<SelectListItem>()
+            };
 
-                return View(model);
-            }
+            // Call your internal helper method to cleanly seed ViewBag dropdown lists
+            await PopulateDropdownsAsyncs(null);
 
-            // 2. Validate Form Data Before Processing
+            return View("~/Views/Candidate/CreateCandidate.cshtml", model);
+        }
+
+        // ==========================================
+        // 2. HTTP POST: Handle Form Submissions
+        // ==========================================
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCandidate(CandidateViewModel model)
+        {
             if (!ModelState.IsValid)
             {
-                TempData["ErrorMessage"] = "Unable to create, check errors.";
-                await RepopulateDropdowns(model.StateId);
-                return View(model);
+                // DEBUG TRACKER: Gathers every validation error and prints it explicitly onto your screen banner
+                var validationErrors = string.Join(" | ", ModelState.Values
+                    .SelectMany(v => v.Errors)
+                    .Select(e => e.ErrorMessage));
+
+                TempData["ErrorMessage"] = $"Unable to create. Validation Errors: {validationErrors}";
+
+                // Keep dropdown choices cached so the user doesn't lose their selected options
+                await PopulateDropdownsAsyncs(model.StateId);
+                return View("~/Views/Candidate/CreateCandidate.cshtml", model);
             }
 
-            // 3. Process Execution
-            var result = await _candidateService.CreateCandidateAsync(model, id);
+            // Extract the logged-in User Context ID matching your application rules
+            var userId = _userManager.GetUserId(User);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User context not found. Please log in again.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // Fire your transactional service pipeline (File Storage Engine -> Database Row Entry)
+            var result = await _candidateService.CreateCandidateAsync(model, userId);
 
             if (!result.Success)
             {
                 TempData["ErrorMessage"] = result.Message ?? "Failed to save candidate.";
-                await RepopulateDropdowns(model.StateId);
-                return View(model);
+                await PopulateDropdownsAsyncs(model.StateId);
+                return View("~/Views/Candidate/CreateCandidate.cshtml", model);
             }
 
-            TempData["SuccessMessage"] = "Candidate Created Successfully;";
-            return RedirectToAction(nameof(Index), new { id });
+            TempData["SuccessMessage"] = result.Message;
+            return RedirectToAction(nameof(Index));
         }
 
-        // Clean helper to reuse viewbag logic
-        private async Task RepopulateDropdowns(Guid? stateId)
+        // ==========================================
+        // 3. PRIVATE HELPER: Dropdown Seed Logic
+        // ==========================================
+        private async Task PopulateDropdownsAsyncs(Guid? selectedStateId)
         {
-            ViewBag.StateView = await _context.States.AsNoTracking().ToListAsync();
-            ViewBag.PositionView = await _context.Position.AsNoTracking().ToListAsync();
-            ViewBag.Lga = stateId.HasValue
-                ? await _context.Lgas.AsNoTracking().Where(l => l.StateId == stateId.Value).ToListAsync()
-                : new List<LGA>();
+            // Seed Positions List
+            var positionEntities = await _context.Position.AsNoTracking().ToListAsync();
+            ViewBag.PositionView = new SelectList(positionEntities, "Id", "Name");
+            //Seed Party List
+            var PartyEntries = await _context.Party.AsNoTracking().ToListAsync();
+            ViewBag.Party = new SelectList(PartyEntries, "Id", "Name");
+
+            // Seed States List
+            var stateEntities = await _context.States.AsNoTracking().ToListAsync();
+            ViewBag.StateView = new SelectList(stateEntities, "Id", "Name", selectedStateId);
+
+            // Seed Local Government Areas (LGA) conditionally if a State choice already exists
+            if (selectedStateId.HasValue && selectedStateId.Value != Guid.Empty)
+            {
+                var lgaEntities = await _context.Lgas
+                    .AsNoTracking()
+                    .Where(l => l.StateId == selectedStateId.Value)
+                    .ToListAsync();
+
+                ViewBag.Lga = new SelectList(lgaEntities, "Id", "Name");
+            }
+            else
+            {
+                ViewBag.Lga = new SelectList(Enumerable.Empty<SelectListItem>());
+            }
+        }
+    
+
+        // AJAX Endpoint: Fetch LGAs by State ID
+        [HttpGet]
+        [AllowAnonymous] // Change to custom authorization if required for your UI
+        public async Task<IActionResult> GetLgasByState(Guid stateId)
+        {
+            var lgas = await _context.Lgas
+                .AsNoTracking()
+                .Where(l => l.StateId == stateId)
+                .Select(l => new { id = l.Id, name = l.Name })
+                .ToListAsync();
+
+            return Json(lgas);
         }
 
 
@@ -234,7 +283,7 @@ namespace OnlineVotingApplication.Controllers
         public async Task<IActionResult> GetAllSoftdelete(int pageNumber = 1, int pageSize = 10)
         {
             // 1. Authenticate logged-in user context identity securely from Claims
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var userId = _userManager.GetUserId(User);
             if (string.IsNullOrEmpty(userId))
             {
                 return RedirectToAction("Index", "Home");

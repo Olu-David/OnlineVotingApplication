@@ -1,0 +1,62 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model StateDTO
+
+@{
+    ViewData["Title"] = "Create State";
+    Layout = "_Layout";
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+
+            <!-- ⬇️ START OF THE CARD CONTAINER ⬇️ -->
+            <div class="card shadow border-0 rounded-3">
+
+                <!-- CARD HEADER -->
+                <div class="card-header bg-light border-0 py-3">
+                    <h3 class="fw-bold text-muted m-0">
+                        <i class="fas fa-plus-circle text-primary me-2"></i>Create New State
+                    </h3>
+                </div>
+
+                <!-- CARD BODY (Form Content) -->
+                <div class="card-body p-4">
+                    <form asp-action="CreateState" asp-controller="StateService" method="post" enctype="multipart/form-data">
+                        @Html.AntiForgeryToken()
+
+                        <!-- GLOBAL VALIDATION SUMMARY BOX -->
+                        <div asp-validation-summary="All" class="text-danger mb-3"></div>
+
+                        <!-- STATE NAME INPUT -->
+                        <div class="mb-4">
+                            <label asp-for="Name" class="form-label fw-semibold text-dark">
+                                <i class="fas fa-map-marker-alt text-secondary me-1"></i> State Name 
+                            </label>
+                            <input asp-for="Name" class="form-control form-control-lg border-2" placeholder="Enter State's full name">
+                            <span asp-validation-for="Name" class="text-danger small mt-1 d-block"></span>
+                        </div>
+
+                        <!-- FORM ACTION BUTTONS (INSIDE CARD BODY FOOTER) -->
+                        <div class="d-flex gap-2 mt-4 pt-2 border-top">
+                            <a asp-action="Index" asp-controller="Home" class="btn btn-outline-secondary btn-lg flex-grow-1">
+                                <i class="fas fa-times"></i> Cancel
+                            </a>
+                            <button type="submit" class="btn btn-primary btn-lg flex-grow-1">
+                                <i class="fas fa-save"></i> Save State
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+            </div>
+            <!-- ⬆️ END OF THE CARD CONTAINER ⬆️ -->
+
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+}

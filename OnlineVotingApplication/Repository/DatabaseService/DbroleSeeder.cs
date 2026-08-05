@@ -12,142 +12,90 @@ namespace OnlineVotingApplication.Repository.DatabaseService
 {
     public class DbroleSeeder
     {
+        // No internal 'using var scope' is created here because the scoped serviceProvider 
+        // is cleanly passed in from your Program.cs initialization pipeline.
         public static async Task SeedRolesAndUsersAsync(IServiceProvider serviceProvider)
         {
             var logger = serviceProvider.GetRequiredService<ILogger<DbroleSeeder>>();
 
-            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-            var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var logger = scope.ServiceProvider.GetRequiredService<ILogger<DbroleSeeder>>();
-
             try
             {
-                await context.Database.MigrateAsync();
-                logger.LogInformation("Database migration applied/verified.");
+                var context = serviceProvider.GetRequiredService<AppDbContext>();
 
+                // Applies any pending migrations cleanly to your LocalDB
+                await context.Database.MigrateAsync();
+                logger.LogInformation("Database migration applied/verified successfully.");
+                Console.WriteLine("Database migration applied/verified successfully.");
+
+                var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+                var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+                // Seed Roles
                 var roles = new[] { "SuperAdmin", "Official", "Voter", "Auditor", "Candidate" };
                 foreach (var role in roles)
                 {
                     if (!await roleManager.RoleExistsAsync(role))
                     {
-                        await roleManager.CreateAsync(new IdentityRole(role));
-                        logger.LogInformation($"Role created: {role}");
+                        var roleResult = await roleManager.CreateAsync(new IdentityRole(role));
+                        if (roleResult.Succeeded)
+                        {
+                            logger.LogInformation("Role created: {Role}", role);
+                            Console.WriteLine($"Role created: {role}");
+                        }
+                        else
+                        {
+                            var errors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                            logger.LogWarning("Role creation failed for {Role}: {Errors}", role, errors);
+                            Console.WriteLine($"Role creation FAILED for {role}: {errors}");
+                        }
                     }
                 }
 
+                // Prepare Seed Users
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
-                    (new ApplicationUser {
-                        FullName = "Olusanya David Victor",
-                        UserName = "superadmin",
-                        Email = "superadmin@election.com",
-                        EmailConfirmed = true,
-                        profileImage = "",
-                        StateId =null
-                    }, "SecureP@ss123!", "SuperAdmin"),
-
-                    (new ApplicationUser {
-                        FullName = "Election Official",
-                        UserName = "official",
-                        Email = "official@election.com",
-                        EmailConfirmed = true,
-                        profileImage = "",
-                        StateId=null
-                    }, "SecureP@ss123!", "Official"),
-
-                    (new ApplicationUser {
-                        FullName = "Voter User",
-                        UserName = "voter",
-                        Email = "voter@election.com",
-                        EmailConfirmed = true,
-                        profileImage = "",
-                        StateId=null
-                    }, "SecureP@ss123!", "Voter"),
-
-                    (new ApplicationUser {
-                        FullName = "Auditor User",
-                        UserName = "auditor",
-                        Email = "auditor@election.com",
-                        EmailConfirmed = true,
-                        profileImage = "",
-                        StateId=null
-                    }, "SecureP@ss123!", "Auditor"),
-
-                    (new ApplicationUser {
-                        FullName = "Candidate User",
-                        UserName = "candidate",
-                        Email = "candidate@election.com",
-                        EmailConfirmed = true,
-                        profileImage = "",
-                        StateId=null
-                        
-                    }, "SecureP@ss123!", "Candidate")
-
+                    (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null }, "SecureP@ss123!", "SuperAdmin"),
+                    (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null }, "SecureP@ss123!", "Official"),
+                    (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null }, "SecureP@ss123!", "Voter"),
+                    (new ApplicationUser { FullName = "Auditor User", UserName = "auditor@election.com", Email = "auditor@election.com", EmailConfirmed = true, profileImage = "", StateId = null }, "SecureP@ss123!", "Auditor"),
+                    (new ApplicationUser { FullName = "Candidate User", UserName = "candidate@election.com", Email = "candidate@election.com", EmailConfirmed = true, profileImage = "", StateId = null }, "SecureP@ss123!", "Candidate")
                 };
 
+                // Seed and Update Users
                 foreach (var item in users)
                 {
                     try
                     {
-                        ApplicationUser? existingUser = null;
-
-                        try
-                        {
-                            existingUser = await userManager.FindByEmailAsync(item.User.Email ?? "");
-                        }
-                        catch (InvalidOperationException ex) when (ex.Message.Contains("more than one element"))
-                        {
-                            logger.LogError($"Duplicate emails found for '{item.User.Email}'. Clean up your Users table.");
-                            throw;
-                        }
-
-                        if (existingUser == null)
-                        {
-                            try
-                            {
-                                existingUser = await userManager.FindByNameAsync(item.User.UserName ?? "");
-                            }
-                            catch (InvalidOperationException ex) when (ex.Message.Contains("more than one element"))
-                            {
-                                logger.LogError($"Duplicate usernames found for '{item.User.UserName}'. Clean up your Users table.");
-                                throw;
-                            }
-                        }
+                        ApplicationUser? existingUser = await userManager.FindByEmailAsync(item.User.Email ?? "");
 
                         if (existingUser == null)
                         {
                             var result = await userManager.CreateAsync(item.User, item.Password);
                             if (result.Succeeded)
                             {
-                                var createdUser = await userManager.FindByEmailAsync(item.User.Email ?? "");
-                                await userManager.AddToRoleAsync(createdUser!, item.Role);
-                                logger.LogInformation($"Created: {item.User.Email}");
+                                await userManager.AddToRoleAsync(item.User, item.Role);
+                                logger.LogInformation("Successfully seeded and assigned role to user: {Email}", item.User.Email);
+                                Console.WriteLine($"Successfully seeded user: {item.User.Email}");
                             }
                             else
                             {
-                                logger.LogWarning($"Create failed for {item.User.Email}: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                                var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                                logger.LogWarning("Create failed for {Email}: {Errors}", item.User.Email, errors);
+                                Console.WriteLine($"Create FAILED for {item.User.Email}: {errors}");
                             }
                         }
                         else
                         {
-                            bool changed = false;
+                            // Sync role if missing
+                            if (!await userManager.IsInRoleAsync(existingUser, item.Role))
+                            {
+                                await userManager.AddToRoleAsync(existingUser, item.Role);
+                                logger.LogInformation("Assigned missing role '{Role}' to existing user: {Email}", item.Role, existingUser.Email);
+                                Console.WriteLine($"Assigned missing role '{item.Role}' to user: {existingUser.Email}");
+                            }
 
-                            if (existingUser.Email != item.User.Email)
-                            {
-                                existingUser.Email = item.User.Email;
-                                changed = true;
-                            }
-                            if (existingUser.UserName != item.User.UserName)
-                            {
-                                existingUser.UserName = item.User.UserName;
-                                changed = true;
-                            }
-                            if (existingUser.EmailConfirmed != item.User.EmailConfirmed)
-                            {
-                                existingUser.EmailConfirmed = item.User.EmailConfirmed;
-                                changed = true;
-                            }
+                            // Sync profile details if changed
+                            bool changed = false;
                             if (existingUser.FullName != item.User.FullName)
                             {
                                 existingUser.FullName = item.User.FullName;
@@ -156,50 +104,28 @@ namespace OnlineVotingApplication.Repository.DatabaseService
 
                             if (changed)
                             {
-                                bool saved = false;
-                                int retries = 3;
-                                while (!saved && retries > 0)
+                                var updateResult = await userManager.UpdateAsync(existingUser);
+                                if (updateResult.Succeeded)
                                 {
-                                    try
-                                    {
-                                        var updateResult = await userManager.UpdateAsync(existingUser);
-                                        if (updateResult.Succeeded)
-                                        {
-                                            saved = true;
-                                            logger.LogInformation($"Updated: {existingUser.Email}");
-                                        }
-                                        else
-                                        {
-                                            logger.LogWarning($"Update failed for {existingUser.Email}: {string.Join(", ", updateResult.Errors.Select(e => e.Description))}");
-                                            break;
-                                        }
-                                    }
-                                    catch (DbUpdateConcurrencyException)
-                                    {
-                                        await context.Entry(existingUser).ReloadAsync();
-                                        retries--;
-                                        logger.LogWarning($"Concurrency conflict for {existingUser.Email}, retrying... ({retries} left)");
-                                    }
+                                    logger.LogInformation("Updated details for user: {Email}", existingUser.Email);
+                                    Console.WriteLine($"Updated details for user: {existingUser.Email}");
                                 }
-                            }
-
-                            var currentRoles = await userManager.GetRolesAsync(existingUser);
-                            if (!currentRoles.Contains(item.Role))
-                            {
-                                await userManager.AddToRoleAsync(existingUser, item.Role);
-                                logger.LogInformation($"Role '{item.Role}' added to {existingUser.Email}");
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        logger.LogError(ex, $"Failed to process user: {item.User.Email ?? item.User.UserName}");
+                        logger.LogError(ex, "Error processing seeder item for user {Email}", item.User.Email);
+                        Console.WriteLine($"ERROR seeding {item.User.Email}: {ex.Message}");
                     }
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Seeding pipeline crashed during data execution.");
+                logger.LogCritical(ex, "Global Seeder Processing failure");
+                Console.WriteLine("=== GLOBAL SEEDER FAILURE ===");
+                Console.WriteLine(ex.ToString());
+                throw;
             }
         }
     }

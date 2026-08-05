@@ -8,15 +8,14 @@ namespace OnlineVotingApplication.Models
         public Guid Id {  get; set; }
         public string? Name { get; set; }
         [Required]
-        public int MaxChoice { get; set; } = 1;
-        [Required]
-        public Guid ElectionId {  get; set; }
-        [ForeignKey(nameof(ElectionId))]
-        public virtual Election? Election { get; set; }
+        //public int MaxChoice { get; set; } = 1;
+        //public Guid ElectionId {  get; set; }
+        //[ForeignKey(nameof(ElectionId))]
+        //public virtual Election? Election { get; set; }
 
         public virtual ICollection<Candidate>? Candidates { get; set; }
-        public bool IsDeleted { get; internal set; }
-        public DateTime DeletedAt { get; internal set; }
+        public bool IsDeleted { get;  set; }
+        public DateTime DeletedAt { get;  set; }
        
     }
 }

@@ -47,7 +47,7 @@ namespace OnlineVotingApplication.Repository.Services
                     .Select(m => new PositionDTO
                     {
                         Id = m.Id,
-                        Name = m.Name,
+                        Name = m.Name
                     })
                     .ToListAsync();
 
@@ -107,25 +107,29 @@ namespace OnlineVotingApplication.Repository.Services
                 var positionName = model.Name?.Trim().ToUpper();
 
                 var exists = await _context.Position
-                    .AnyAsync(m => m.Name == positionName);
+                    .AnyAsync(m => m.Name == positionName && !m.IsDeleted);
 
                 if (exists)
                 {
                     response.Success = false;
-                    response.Message = "Position already exists";
+                    response.Message = "Position already exists for this election";
                     return response;
                 }
 
+              
                 var newPosition = new Positions
                 {
                     Name = positionName,
-                    ElectionId = model.ElectionId
+                    IsDeleted = false
                 };
 
                 _context.Position.Add(newPosition);
                 await _context.SaveChangesAsync();
 
                 await transaction.CommitAsync();
+
+                //  Clear the positions list cache so changes are immediately visible
+                _cache.Remove("ref_ALL-Positions");
 
                 response.Success = true;
                 response.Message = "Position created successfully";
@@ -137,12 +141,13 @@ namespace OnlineVotingApplication.Repository.Services
                 await transaction.RollbackAsync();
 
                 response.Success = false;
-                response.Message = "An unexpected error occurred";
-                response.Errors = new List<string> { ex.Message };
+                response.Message = "An unexpected error occurred during database save operation.";
+                response.Errors = new List<string> { ex.Message, ex.InnerException?.Message ?? "" };
 
                 return response;
             }
         }
+
         public async Task<ServiceResponse<string>> DeletePosition(Guid ID, string userId, CancellationToken cancellationToken = default)
         {
             var response = new ServiceResponse<string>();
@@ -185,7 +190,7 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
 
-        public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model,string ID)
+        public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model, string ID)
         {
             var response = new ServiceResponse<string>();
             var user = await _userManager.FindByIdAsync(ID);
@@ -216,7 +221,7 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             existingPositon.Name = model.Name;
-           
+
             await _context.SaveChangesAsync();
 
 
@@ -225,6 +230,36 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
 
+        public async Task<PaginatedListViewModel<PositionDTO>> AllSoftDeleted(int PageNumber = 1, int PageSize = 10)
+        {
+            PageNumber = Math.Max(1, PageNumber);
+            PageSize = Math.Max(1, PageSize);
+
+            var QueryDb = _context.Position.Where(m => m.IsDeleted);
+            int counted = await QueryDb.CountAsync();
+
+            string CacheKey = $"ref_All_SoftDelete_Position_{PageNumber}_{PageSize}";
+            if (!_cache.TryGetValue(CacheKey, out List<PositionDTO>? Pos))
+            {
+
+                Pos = await QueryDb.OrderBy(m => m.Name).Select(m => new PositionDTO
+                {
+                    Name = m.Name
+
+
+                }).ToListAsync();
+
+                _cache.Set(CacheKey, Pos, TimeSpan.FromMinutes(5));
+            }
+
+            return new PaginatedListViewModel<PositionDTO>
+            {
+                Items = Pos ?? new List<PositionDTO>(),
+                PageNumber = PageNumber,
+                PageSize = PageSize,
+                TotalItems = counted
+            };
+        }
     }
 }
 

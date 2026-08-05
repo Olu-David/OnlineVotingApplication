@@ -62,14 +62,14 @@ namespace OnlineVotingApplication.Repository.BackGroundServices
                         var fileService = scope.ServiceProvider.GetRequiredService<iFileService>();
                         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
-                        // Polymorphic Pattern Case checks map instruction sets instantly
                         switch (job)
                         {
+                            // This block now safely processes BOTH optimized images AND standard documents (PDFs)
                             case ProcessImageJob img:
                                 await UpdateStatusAsync(db, img.FileId, FileProcessingStatus.Processing, null, stoppingToken);
                                 try
                                 {
-                                    // Passed img.FilePath here instead of img.FileName to let ImageSharp locate coordinates
+                                    // This now safely identifies files and skips ImageSharp if it's a PDF
                                     await fileService.RunImageOptimizationAsync(img.FileId, img.FilePath, stoppingToken);
                                     await UpdateStatusAsync(db, img.FileId, FileProcessingStatus.Completed, null, stoppingToken);
                                 }
@@ -105,6 +105,7 @@ namespace OnlineVotingApplication.Repository.BackGroundServices
                 }
             }
         }
+
 
         // TRACK B: Periodic recovery safety net loop (Matches your email architecture!)
         private async Task PollDatabaseForFilesAsync(CancellationToken stoppingToken)

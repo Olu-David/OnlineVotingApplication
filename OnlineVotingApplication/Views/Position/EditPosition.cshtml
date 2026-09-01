@@ -1,34 +1,50 @@
-﻿@using OnlineVotingApplication.DataTransferView;
-@model EditPositionModel;
+﻿@model OnlineVotingApplication.DataTransferView.EditPositionModel
 
 @{
     ViewData["Title"] = "Edit Position";
     Layout = "_Layout";
-
+    var electionId = ViewBag.ElectionId;
 }
-<div class="container mt-4">
-   <div class="row align-content-center">
-       <div class="col-md-6">
-            <h1 class="fw-bold text-muted mb-4">Edit Position</h1>
-            <form action="EditPosition" method="post" class="card p-4 shadow-sm border-0 rounded-3">
-               @Html.AntiForgeryToken()
-               <input type="hidden" name="Id" @Model.Id/>
-               <div  asp-validation-summary="ModelOnly"  class="text-danger mb-2 "></div>
-               <div class="mb-4">
-                    <label asp-for="Name" class="form-label fw-medium">Position Name</label>
-                    <input type="text" name="Name" asp-for="Name" class="form-control" />
-                    <span asp-validation-for="Name" class="text-danger small"></span>
-               </div>
-               <div class="mb-4 d-flex gap-2">
-                    <button class="btn btn-primary btn-lg flex-grow-1">
-                    <i class="fas fa-save me-1"></i> Save Changes
-                    </button>
-                     <a asp-action="Index" class="btn btn-outline-secondary btn-lg"> </a>
-                        <i class="fas fa-times me-1"></i> Cancel
-               </div>
-              
 
-           </form>
-       </div>
-   </div>
+<div class="container py-4">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-warning text-dark py-3">
+                    <h4 class="mb-0"><i class="fas fa-edit me-2"></i>Edit Position</h4>
+                </div>
+                <div class="card-body p-4">
+                    <form asp-action="Edit" method="post">
+                        @Html.AntiForgeryToken()
+
+                        <!-- Hidden Position ID -->
+                        <input type="hidden" asp-for="Id" />
+
+                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                        <div class="mb-3">
+                            <label asp-for="Name" class="form-label fw-bold">Position Title</label>
+                            <input asp-for="Name" class="form-control" placeholder="e.g. President, General Secretary" />
+                            <span asp-validation-for="Name" class="text-danger"></span>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-4">
+                            <a asp-action="Index" asp-route-electionId="@electionId" class="btn btn-outline-secondary">
+                                <i class="fas fa-arrow-left me-1"></i> Back to List
+                            </a>
+                            <button type="submit" class="btn btn-warning text-dark px-4 fw-semibold">
+                                <i class="fas fa-save me-1"></i> Update Position
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
+
+@section Scripts {
+    @{
+        await Html.RenderPartialAsync("_ValidationScriptsPartial");
+    }
+}

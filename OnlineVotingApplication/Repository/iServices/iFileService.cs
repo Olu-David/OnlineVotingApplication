@@ -1,4 +1,5 @@
-﻿using OnlineVotingApplication.Areas.Identity.Data;
+﻿
+using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Enums;
 using OnlineVotingApplication.Models;
 

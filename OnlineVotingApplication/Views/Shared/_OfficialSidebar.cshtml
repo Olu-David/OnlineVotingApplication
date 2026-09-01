@@ -1,0 +1,145 @@
+﻿@{
+    Layout = null;
+    string userName = User?.Identity?.Name ?? "User";
+    string initial = !string.IsNullOrEmpty(userName) ? userName.Substring(0, 1).ToUpper() : "U";
+}
+
+<!-- Large-screen-only collapse-to-icons toggle -->
+<button class="btn btn-sm btn-outline-light border-0 ms-auto d-none d-lg-inline-flex" id="sidebarCollapseToggle"
+        type="button" aria-label="Collapse sidebar">
+    <i class="fas fa-angles-left"></i>
+</button>
+<
+
+<!-- User chip -->
+<div class="sidebar-user d-flex align-items-center gap-2 p-2 rounded mb-3">
+    <span class="avatar-sm">@initial</span>
+    <div class="sidebar-user-info small">
+        <div class="fw-semibold">@userName</div>
+        <div class="sidebar-role-badge">Election Official</div>
+    </div>
+</div>
+
+<hr class="border-secondary opacity-25" />
+
+<!-- Navigation -->
+<ul class="nav flex-column flex-grow-1">
+
+    <li class="sidebar-section-label">Overview</li>
+    <li class="nav-item">
+        <a asp-controller="Tenant" asp-action="Dashboard"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "Dashboard" ? "active" : "")">
+            <i class="fas fa-tachometer-alt me-2"></i><span>Dashboard</span>
+        </a>
+    </li>
+    <li class="nav-item">
+        <a asp-controller="Tenant" asp-action="ManageUsers"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "ManageUsers" ? "active" : "")">
+            <i class="fas fa-users-gear me-2"></i><span>Manage Admins</span>
+        </a>
+    </li>
+
+    <li class="sidebar-section-label">Election Management</li>
+
+    <!-- Election Analytics / Live Results -->
+    <li class="nav-item">
+        <a asp-controller="Vote" asp-action="LiveResults"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
+            <i class="fas fa-chart-line me-2"></i><span>Election Analytics</span>
+        </a>
+    </li>
+
+    <li class="nav-item">
+        <a asp-controller="Vote" asp-action="ManualEntry"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active" : "")">
+            <i class="fas fa-file-pen me-2"></i><span>Manual Entry</span>
+        </a>
+    </li>
+
+    <!-- Candidates Management -->
+    <li class="nav-item">
+        <a asp-controller="Candidate" asp-action="AllCandidate"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")">
+            <i class="fas fa-user-tie me-2"></i><span>Candidates</span>
+        </a>
+    </li>
+
+    <li class="sidebar-section-label">Tenant Operations</li>
+
+    <!-- Collapsible Elections (Create, View, Delete) -->
+    <li class="nav-item">
+        <a href="#electionMenu" class="nav-link text-white d-flex justify-content-between"
+           data-bs-toggle="collapse" aria-expanded="false">
+            <span><i class="fas fa-calendar-alt me-2"></i> Elections</span>
+            <i class="fas fa-chevron-down small"></i>
+        </a>
+        <div class="collapse" id="electionMenu">
+            <ul class="nav flex-column ms-3">
+                <li class="nav-item">
+                    <a asp-controller="ElectionEvent" asp-action="Index"
+                       class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                        <i class="fas fa-list me-2"></i><span>All Elections</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a asp-controller="ElectionEvent" asp-action="Create"
+                       class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
+                        <i class="fas fa-plus-circle me-2"></i><span>Create Election</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a asp-controller="ElectionEvent" asp-action="Edit"
+                       class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Edit" ? "active" : "")">
+                        <i class="fas fa-pen-to-square me-2"></i><span>Edit Election</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a asp-controller="ElectionEvent" asp-action="Delete"
+                       class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Delete" ? "active" : "")">
+                        <i class="fas fa-trash me-2"></i><span>Delete Election</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </li>
+
+    <!-- Collapsible Positions (Create, View, Delete) -->
+    <li class="nav-item">
+        <a href="#PositionMenu" class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")'
+           data-bs-toggle="collapse" aria-expanded="false">
+            <span><i class="fas fa-bullseye me-2"></i> Positions</span>
+            <i class="fas fa-chevron-down small"></i>
+        </a>
+        <div class="collapse" id="PositionMenu">
+            <ul class="nav flex-column ms-3">
+                <li class="nav-item">
+                    <a asp-controller="Position" asp-action="Index"
+                       class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")'>
+                        <i class="fas fa-list me-2"></i><span>All Positions</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a asp-controller="Position" asp-action="Create"
+                       class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")'>
+                        <i class="fas fa-plus-circle me-2"></i><span>Create Position</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a asp-controller="Position" asp-action="GetAllSoftDelete"
+                       class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "GetAllSoftDelete" ? "active" : "")'>
+                        <i class="fas fa-trash-alt me-2"></i><span>Trash / Deleted</span>
+                    </a>
+                </li>
+            </ul>
+        </div>
+    </li>
+
+    <!-- Tenant Form Designer / Form Customization -->
+    <li class="nav-item mt-2">
+        <a asp-controller="TenantFormDesigner" asp-action="Index"
+           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "TenantFormDesigner" ? "active" : "")">
+            <i class="fas fa-wand-magic-sparkles me-2"></i><span>Form Designer</span>
+        </a>
+    </li>
+
+</ul>

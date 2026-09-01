@@ -1,82 +1,80 @@
-﻿@using OnlineVotingApplication.DataTransferView;
-@model PaginatedListViewModel<PositionDTO>;
+﻿@model OnlineVotingApplication.DataTransferView.PaginatedListViewModel<OnlineVotingApplication.DataTransferView.PositionDTO>
 
 @{
-    ViewData["Title"] = "AllSoftDelete";
+    ViewData["Title"] = "Deleted Positions (Trash)";
     Layout = "_Layout";
+    var softDeletedRawList = ViewBag.SoftPositionDeletedByElection as List<OnlineVotingApplication.Models.Positions>;
 }
 
-<div class=" container mt-4">
-    @* @Html.PartialAsync("_Alerts"); *@
-    <div class="card border-0 rounded-3 shadow-sm">
-        <div class=" card-header align-items-center justify-content-center">
-            <h5 class="p-4 fw-bold">
-                <i class="fi-f-crown"></i>
-                <span>AllSoftDelete</span>
-            </h5>
-            <div class="card-body m-0 p-4">
-                @if((Model.Items==null)|| !Model.Items.Any())
-                {
-                    <div class="p-5 text-center text-muted">
-                        <i class="bi bi-folder-x display-5 d-block mb-2"></i>
-                        <span>No active records found for this page window index.</span>
-                    </div>
-                }
-                else
-                {
-                    <div class=" table-responsive">
-                        <table class="table-hover  align-middle mb-0">
-                            <thead class="table-light border-bottom">
-                                <tr >
-                                    <th scope="col" >Positon Name</th>
-                                    <th scope="col">Election Title</th>
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-danger"><i class="fas fa-trash-alt me-2"></i>Deleted Positions</h2>
+            <p class="text-muted mb-0">Review positions that have been soft-deleted from election events.</p>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary shadow-sm">
+                <i class="fas fa-arrow-left me-1"></i> Back to Active Positions
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3">Position Name</th>
+                            <th class="py-3">Deleted Date</th>
+                            <th class="text-end pe-4 py-3">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model == null || Model.Items == null || !Model.Items.Any())
+                        {
+                            <tr>
+                                <td colspan="3" class="text-center py-5 text-muted">
+                                    <i class="fas fa-trash fa-2x mb-2 d-block text-black-50"></i>
+                                    No deleted positions found in the trash.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var position in Model.Items)
+                            {
+                                // Updated to match position.Id and handle singular Position model namespace
+                                var rawMatch = softDeletedRawList?.FirstOrDefault(p => p.Id.ToString() == position.PositionId);
+
+                                <tr>
+                                    <td class="ps-4 fw-semibold text-dark">@position.Name</td>
+                                    <td class="text-muted">
+                                        @(rawMatch != null ? rawMatch.DeletedAt.ToString("g") : "N/A")
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Soft Deleted</span>
+                                    </td>
                                 </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (var item in Model.Items)
-                                {
-                                    <tr>
-                                        <td >
-                                            <div class="fw-bold text-dark">@item.Name</div>
-                                        </td>
-
-                                        <td>
-                                            @if (ViewBag.SoftPositionDeletedByElection!=null)
-                                            {
-                                                <div class="fw-bold text-dark">@ViewBag.SoftPositionDeletedByElection</div>
-                                            }
-                                        </td>
-                                        <td class="pe-3">
-                                            <div class="align-items-center justify-content-center ">
-                                                <a asp-controller="Positon" asp-route="EditPosition" class="btn-outline-warning btn-sm d-flex align-items-center justify-content-center gap-1 flex-grow-1">
-                                                    <i class="bi bi-pencil-square"></i> Edit
-                                                </a>
-                                                @* <!-- SOFT-DELETE ACTION FORM -->
-                                                <form asp-action="Restore " method="post" class="m-0 flex-grow-1"
-                                                      onsubmit="return confirm('⚠️ SOFT-DELETE CONFIRMATION:\n\nAre you sure you want to move @item.Name to the Trash Bin?\n\nYou will have 30 days to restore this profile before it is automatically destroyed.');">
-                                                    @Html.AntiForgeryToken()
-
-                                                    <!-- Hidden configuration mappings directly tied to pagination properties -->
-                                                    <input type="hidden" name="candidateId" value="@item.Id" />
-                                                    <input type="hidden" name="pageNumber" value="@Model.PageNumber" />
-                                                    <input type="hidden" name="pageSize" value="@Model.PageSize" />
-
-                                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center gap-1">
-                                                        <i class="bi bi-trash3-fill"></i> Delete
-                                                    </button>
-                                                </form> *@
-
-                                            </div>
-                                        </td>
-                                    </tr>
-
-                                }
-                            </tbody>
-                        </table>
-                        
-                    </div>
-                }
-
+                            }
+                        }
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>

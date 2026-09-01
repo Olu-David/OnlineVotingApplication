@@ -1,0 +1,125 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model  ServiceResponse<PaginatedListViewModel<TenantViewModel>>;
+@{
+    ViewData["Title"] = "Global Tenant Registry (Super Admin Oversight)";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800"><i class="fas fa-user-shield text-danger me-2"></i>Global Tenant Registry</h1>
+            <p class="text-muted small">Platform Management Console. Impersonate and monitor tenant environments below.</p>
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow border-0 mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light text-uppercase fs-7 text-muted fw-bold">
+                        <tr>
+                            <th class="ps-4">Organization Name</th>
+                            <th>Web Handle / Slug</th>
+                            <th>Subscription Tier</th>
+                            <th>System Status</th>
+                            <th class="text-end pe-4">Context Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model?.Data?.Items != null && Model.Data.Items.Any())
+                        {
+                            foreach (var tenant in Model.Data.Items)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="avatar bg-danger text-white rounded p-2 me-3 fw-bold" style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                                @tenant.OrganizationName.Substring(0, Math.Min(2, tenant.OrganizationName.Length)).ToUpper()
+                                            </div>
+                                            <div>
+                                                <span class="fw-bold text-dark d-block">@tenant.OrganizationName</span>
+                                                <span class="text-muted small">ID: @tenant.Id</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <code class="bg-light text-danger px-2 py-1 rounded small">/@tenant.Slug</code>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(tenant.SubscriptionPlan == "Premium" ? "bg-warning text-dark" : "bg-secondary") px-2 py-1 fw-semibold">
+                                            @tenant.SubscriptionPlan
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge @(tenant.IsActive ? "bg-success" : "bg-danger") px-2 py-1 rounded-pill">
+                                            @(tenant.IsActive ? "Operational" : "Suspended")
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <!-- 🔑 THE SWITCH CONTEXT ENGINE IS EMBEDDED DIRECTLY HERE -->
+                                        <form asp-action="SwitchContext" asp-controller="Tenant" method="post" class="d-inline m-0">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@tenant.Id" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm px-3 rounded-pill fw-semibold">
+                                                <i class="fas fa-sign-in-alt me-1"></i> Switch & Open
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-5 text-muted">
+                                    <i class="fas fa-folder-open fa-3x mb-3 text-gray-300"></i>
+                                    <p class="mb-0 fw-semibold">No active workspaces registered on the platform directory.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        @if (Model?.Data?.TotalPages > 1)
+        {
+            var p = Model.Data; // Short alias to keep your markup readable
+
+            <div class="card-footer bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+                <div class="text-muted small">
+                    Showing Page <span class="fw-bold">@p.PageNumber</span> of <span class="fw-bold">@p.TotalPages</span>
+                </div>
+                <nav aria-label="Tenant directory navigation">
+                    <ul class="pagination pagination-sm mb-0 justify-content-end gap-1">
+                        <!-- Previous Button Button Boundary -->
+                        <li class="page-item @(p.HasPreviousPage ? "" : "disabled")">
+                            <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@(p.PageNumber - 1)">Previous</a>
+                        </li>
+
+                        <!-- Dynamic Page Numbers Assembly -->
+                        @for (int i = 1; i <= p.TotalPages; i++)
+                        {
+                            <li class="page-item @(p.PageNumber == i ? "active" : "")">
+                                <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@i">@i</a>
+                            </li>
+                        }
+
+                        <!-- Next Button Button Boundary -->
+                        <li class="page-item @(p.HasNextPage ? "" : "disabled")">
+                            <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@(p.PageNumber + 1)">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+
+    </div>
+</div>

@@ -47,10 +47,41 @@
                             </button>
                         </div>
                     </form>
+
+                    <!-- Divider -->
+                    <div class="position-relative my-4">
+                        <hr class="text-muted opacity-50" />
+                        <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 small text-muted fw-semibold">or continue with</span>
+                    </div>
+
+                    <!-- Social Auth Buttons -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" asp-route-provider="Google" method="post">
+                                <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fab fa-google text-danger"></i>
+                                    <span class="small fw-semibold">Google</span>
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-6">
+                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" asp-route-provider="Apple" method="post">
+                                <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fab fa-apple"></i>
+                                    <span class="small fw-semibold">Apple</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                 </div>
-            </div>
-            <div class="text-center mt-3">
-                <p class="text-muted small">New voter? <a asp-action="Register" class="text-decoration-none fw-bold">Create an Account</a></p>
+
+                <!-- Card Footer for Sign-up Links (Voter + Organisation) -->
+                <div class="card-footer bg-light text-center py-3 rounded-bottom-3 border-0">
+                    <p class="text-muted small mb-1">New voter? <a asp-action="Register" class="text-decoration-none fw-bold">Create an Account</a></p>
+                    <p class="text-muted small mb-0">Represent an institution? <a asp-controller="Tenant" asp-action="CreateOrganization" class="text-decoration-none fw-bold text-primary">Register as Organisation</a></p>
+                </div>
+
             </div>
         </div>
     </div>

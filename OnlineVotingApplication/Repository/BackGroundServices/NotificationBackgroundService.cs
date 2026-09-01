@@ -22,7 +22,7 @@ namespace OnlineVotingApplication.Repository.BackGroundServices
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly NotificationChannel _notificationChannel;
         private readonly int _checkIntervalMinutes;
-
+       
         public NotificationBackgroundService(ILogger<NotificationBackgroundService> logger, IServiceScopeFactory scopeFactory, NotificationChannel notificationChannel)
         {
             _logger = logger;

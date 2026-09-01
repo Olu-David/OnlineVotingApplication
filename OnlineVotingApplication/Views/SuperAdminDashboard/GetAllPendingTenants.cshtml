@@ -1,0 +1,114 @@
+﻿@model OnlineVotingApplication.DataTransferView.PaginatedListViewModel<OnlineVotingApplication.Models.Tenant>
+
+@{
+    ViewData["Title"] = "Pending Tenants";
+    Layout = "_Layout";
+}
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4"><i class="fas fa-building me-2"></i>Pending Organization Approvals</h1>
+    <ol class="breadcrumb mb-4">
+        <li class="breadcrumb-item"><a asp-action="Index">Dashboard</a></li>
+        <li class="breadcrumb-item active">Pending Tenants</li>
+    </ol>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card mb-4 shadow-sm">
+        <div class="card-header bg-dark text-white">
+            <i class="fas fa-table me-1"></i> Organizations Awaiting Verification
+        </div>
+        <div class="card-body">
+            @if (Model.Items != null && Model.Items.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Logo</th>
+                                <th>Organization Name</th>
+                                <th>Slug</th>
+                                <th>Category</th>
+                                <th>Registered Date</th>
+                                <th class="text-center" style="width: 200px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var tenant in Model.Items)
+                            {
+                                <tr>
+                                    <td class="text-center">
+                                        <img src="@tenant.ProfilePicture" alt="Logo" class="rounded-circle" style="width: 40px; height: 40px; object-fit: cover;" />
+                                    </td>
+                                    <td class="fw-bold">@tenant.OrganizationName</td>
+                                    <td><code>@tenant.Slug</code></td>
+                                    <td><span class="badge bg-secondary">@tenant.TenantCategory</span></td>
+                                    <td>@tenant.CreatedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td class="text-center">
+                                        <div class="d-flex justify-content-center gap-2">
+                                            <form asp-action="AcceptTenant" method="post">
+                                                <input type="hidden" name="id" value="@tenant.Id" />
+                                                <button type="submit" class="btn btn-success btn-sm" title="Approve Organization">
+                                                    <i class="fas fa-check"></i> Accept
+                                                </button>
+                                            </form>
+                                            <form asp-action="RejectTenant" method="post" onsubmit="return confirm('Are you sure you want to reject this organization?');">
+                                                <input type="hidden" name="id" value="@tenant.Id" />
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Reject Organization">
+                                                    <i class="fas fa-times"></i> Reject
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination Navigation Controls -->
+                @if (Model.TotalPages > 1)
+                {
+                    <nav aria-label="Page navigation" class="mt-4">
+                        <ul class="pagination justify-content-center">
+                            <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
+                                <a class="page-link" asp-action="GetAllPendingTenants" asp-route-pageNumber="@(Model.PageNumber - 1)" asp-route-pageSize="@Model.PageSize">Previous</a>
+                            </li>
+
+                            @for (int i = 1; i <= Model.TotalPages; i++)
+                            {
+                                <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                                    <a class="page-link" asp-action="GetAllPendingTenants" asp-route-pageNumber="@i" asp-route-pageSize="@Model.PageSize">@i</a>
+                                </li>
+                            }
+
+                            <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
+                                <a class="page-link" asp-action="GetAllPendingTenants" asp-route-pageNumber="@(Model.PageNumber + 1)" asp-route-pageSize="@Model.PageSize">Next</a>
+                            </li>
+                        </ul>
+                    </nav>
+                }
+            }
+            else
+            {
+                <div class="text-center py-5">
+                    <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                    <p class="text-muted fs-5">There are no pending tenant registrations at this time.</p>
+                </div>
+            }
+        </div>
+    </div>
+</div>

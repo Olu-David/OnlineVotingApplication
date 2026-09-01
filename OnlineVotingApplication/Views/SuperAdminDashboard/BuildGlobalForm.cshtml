@@ -1,0 +1,98 @@
+﻿@using OnlineVotingApplication.Enums
+@model OnlineVotingApplication.Models.ElectionCustomField
+
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Build Global Form Field Template";
+}
+
+<div class="container mt-4">
+    <div class="mb-4">
+        <h2 class="fw-bold text-dark"><i class="fas fa-tools text-primary me-2"></i>Super Admin Form Designer</h2>
+        <p class="text-muted small">Create unbreakable default blueprint questions to attach automatically to target election ecosystems.</p>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success border-0 shadow-sm alert-dismissible fade show" role="alert">
+            <i class="fas fa-check-circle me-1"></i> @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div asp-validation-summary="ModelOnly" class="text-danger small mb-3"></div>
+
+    <div class="card border-0 shadow-sm p-4 rounded-3">
+        <form asp-controller="SuperAdminDashboard" asp-action="BuildGlobalForm" method="post">
+            @Html.AntiForgeryToken()
+
+            <div class="mb-3">
+                <label asp-for="FieldName" class="form-label fw-bold">Field Label / Question Text</label>
+                <input asp-for="FieldName" type="text" name="fieldName" class="form-control" placeholder="e.g. Upload Portfolio, Enter Student ID" required />
+                <span asp-validation-for="FieldName" class="text-danger small"></span>
+            </div>
+
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="FormCategory" class="form-label fw-bold">Global Template Category</label>
+                        <select asp-for="FormCategory" name="tenantCategory" class="form-select" required>
+                            <option value="@TenantCategory.Political">Political</option>
+                            <option value="@TenantCategory.Educational">Academic / Educational</option>
+                            <option value="@TenantCategory.Corporate">Corporate Board</option>
+                            <option value="@TenantCategory.Fashion">Fashion Pageant</option>
+                            <option value="@TenantCategory.Sports">Sports Leagues</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label asp-for="FieldType" class="form-label fw-bold">HTML Input Control Type</label>
+                        <select asp-for="FieldType" name="fieldType" id="globalFieldType" class="form-select" required>
+                            <option value="@ElectionFieldType.Input">Short Text Input</option>
+                            <option value="@ElectionFieldType.TextArea">Long Text Paragraph</option>
+                            <option value="@ElectionFieldType.Dropdown">Dropdown Selection Menu</option>
+                            <option value="@ElectionFieldType.File">File / Document Upload</option>
+                            <option value="@ElectionFieldType.StateDropdown">System State Dropdown</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3 bg-light p-3 rounded" id="globalChoicesWrapper" style="display:none;">
+                <label class="form-label fw-bold text-primary"><i class="fas fa-list-ul me-1"></i>Dropdown Selections (Comma-Separated CSV)</label>
+                <input type="text" name="csvChoices" class="form-control bg-white" placeholder="e.g. Gold, Silver, Bronze or Male, Female" />
+                <div class="form-text text-muted xsmall">Separate choices using sequential commas. Spaces before or after characters will clean automatically.</div>
+            </div>
+
+            <div class="form-check mb-4">
+                <input type="checkbox" name="isRequired" value="true" class="form-check-input" id="globalIsRequired" checked />
+                <input type="hidden" name="isRequired" value="false" />
+                <label class="form-check-label fw-semibold" for="globalIsRequired">Enforce validation constraint (Is Required field)</label>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-primary px-4 py-2 fw-bold shadow-sm">
+                    <i class="fas fa-cloud-upload-alt me-1"></i> Publish Global Template Field
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="https://jquery.com" crossorigin="anonymous"></script>
+<script type="text/javascript">
+    $(document).ready(function () {
+        var typeDropdown = $("#globalFieldType");
+        var choicesWrapper = $("#globalChoicesWrapper");
+
+        typeDropdown.change(function () {
+            if ($(this).val() === "Dropdown") {
+                choicesWrapper.slideDown();
+            } else {
+                choicesWrapper.slideUp().find("input").val("");
+            }
+        });
+    });
+</script>

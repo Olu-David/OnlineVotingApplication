@@ -1,0 +1,123 @@
+﻿@model IEnumerable<OnlineVotingApplication.Models.AuditLog>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark mb-1">System Audit Trail</h2>
+            <p class="text-muted small mb-0">Immutable flight-recorder ledger for tracking administrative and user actions.</p>
+        </div>
+        <div>
+            <span class="badge bg-primary-subtle text-primary px-3 py-2 rounded-pill shadow-sm">
+                <i class="fas fa-shield-alt me-1"></i> Secure Ledger Active
+            </span>
+        </div>
+    </div>
+
+    <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle mb-0">
+                    <thead class="table-dark text-uppercase fs-7">
+                        <tr>
+                            <th class="ps-4">Timestamp (UTC)</th>
+                            <th>User ID</th>
+                            <th>Action Type</th>
+                            <th>Details</th>
+                            <th>IP Address</th>
+                            <th class="pe-4">Tenant ID</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model == null || !Model.Any())
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No audit logs recorded yet.</td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var log in Model)
+                            {
+                                <tr>
+                                    <td class="ps-4 text-nowrap"><small class="fw-semibold">@log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</small></td>
+                                    <td><code>@(log.UserId ?? "System/Guest")</code></td>
+                                    <td>
+                                        <span class="badge bg-secondary-subtle text-dark fw-bold">@log.Action</span>
+                                    </td>
+                                    <td>@log.Details</td>
+                                    <td><code class="text-info">@log.IpAddress</code></td>
+                                    <td class="pe-4"><small class="text-muted">@(log.TenantId.HasValue? log.TenantId.ToString() : "Global")</small></td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Optional: Simple Pagination footer based on ViewBag states -->
+    <div class="d-flex justify-content-between align-items-center mt-3 px-2">
+        <div class="text-muted small">
+            Showing page <strong>@ViewBag.CurrentPage</strong> (Page size: @ViewBag.PageSize)
+        </div>
+        <div>
+            @if (ViewBag.CurrentPage > 1)
+            {
+                <a href="@Url.Action("Index", new { pageNumber = ViewBag.CurrentPage - 1, pageSize = ViewBag.PageSize, tenantIdStr = ViewBag.SelectedTenantId })" class="btn btn-sm btn-outline-secondary rounded-3 me-1">Previous</a>
+            }
+            <a href="@Url.Action("Index", new { pageNumber = ViewBag.CurrentPage + 1, pageSize = ViewBag.PageSize, tenantIdStr = ViewBag.SelectedTenantId })" class="btn btn-sm btn-outline-primary rounded-3">Next</a>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <!-- Include Microsoft SignalR Client Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/8.0.0/signalr.min.js"></script>
+
+    <script>
+        // Connect to the DashboardHub endpoint configured in Program.cs
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/dashboardHub")
+            .withAutomaticReconnect()
+            .build();
+
+        // Listen for real-time audit log payloads broadcasted from AuditLogService
+        connection.on("ReceiveAuditLog", function (log) {
+            const tbody = document.querySelector("table tbody");
+
+            // Clear out the "No audit logs recorded yet" placeholder if present
+            const emptyRow = tbody.querySelector("td.text-center");
+            if (emptyRow) {
+                emptyRow.parentElement.remove();
+            }
+
+            // Create a brand new row with a brief highlight animation effect
+            const newRow = document.createElement("tr");
+            newRow.style.backgroundColor = "#e8f4fd";
+
+            newRow.innerHTML = `
+                <td class="ps-4 text-nowrap"><small class="fw-semibold">${log.timestamp}</small></td>
+                <td><code>${log.userId}</code></td>
+                <td><span class="badge bg-secondary-subtle text-dark fw-bold">${log.action}</span></td>
+                <td>${log.details}</td>
+                <td><code class="text-info">${log.ipAddress}</code></td>
+                <td class="pe-4"><small class="text-muted">${log.tenantId}</small></td>
+            `;
+
+            // Prepend the new entry to the top of the table list
+            tbody.insertBefore(newRow, tbody.firstChild);
+
+            // Smoothly fade away the highlight background color after 1.5 seconds
+            setTimeout(() => {
+                newRow.style.transition = "background-color 1.5s ease";
+                newRow.style.backgroundColor = "transparent";
+            }, 500);
+        });
+
+        // Start the SignalR connection stream
+        connection.start().then(() => {
+            console.log("SignalR Real-Time Audit Stream Connected!");
+        }).catch(err => console.error("SignalR Connection Error: ", err));
+    </script>
+}

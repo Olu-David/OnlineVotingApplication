@@ -1,0 +1,41 @@
+﻿@model IEnumerable<OnlineVotingApplication.Models.ElectionEvent>
+
+@{
+    ViewData["Title"] = "Available Elections";
+}
+
+<div class="container mt-4">
+    <h2>Available Election Events</h2>
+    <hr />
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+
+    <div class="row">
+        @if (Model != null && Model.Any())
+        {
+            foreach (var election in Model)
+            {
+                <div class="col-md-4 mb-3">
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title">@election.Title</h5>
+                            <p class="card-text text-muted">@election.Description</p>
+                            <p><strong>Starts:</strong> @election.StartDate.ToString("g")</p>
+                            <p><strong>Ends:</strong> @election.EndDate.ToString("g")</p>
+                            <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-primary w-100">View Ballot & Vote</a>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="col-12">
+                <div class="alert alert-info">No active election events found for this tenant.</div>
+            </div>
+        }
+    </div>
+</div>

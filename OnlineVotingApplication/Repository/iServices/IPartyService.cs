@@ -9,5 +9,7 @@ namespace OnlineVotingApplication.Repository.iServices
         Task<PaginatedListViewModel<PartyViewModel>> AllPartyAsync(int PageNumber = 1, int PageSize = 10);
         Task<ServiceResponse<String>> EditPartyAsync(EditPartyViewModel model, string Id);
         Task <ServiceResponse< bool>> SoftDeletePartyAsync( string Id, Guid PartyID);
+        Task<PaginatedListViewModel<PartyViewModel>> AllSoftDeleteAsync(int PageNumber = 1, int PageSize = 10);
+        Task<ServiceResponse<string>> RestoreDeletedParty(string Id, Guid PartyID);
     }
 }

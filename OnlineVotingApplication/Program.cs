@@ -1,14 +1,6 @@
-﻿using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.RateLimiting;
-using Microsoft.EntityFrameworkCore;
-using OnlineVotingApplication.Areas.Identity.Data;
-using OnlineVotingApplication.Channels;
-using OnlineVotingApplication.Models;
-using OnlineVotingApplication.Repository.BackGroundServices;
-using OnlineVotingApplication.Repository.DatabaseService;
-using OnlineVotingApplication.Repository.iServices;
-using OnlineVotingApplication.Repository.Services;
-using OnlineVotingApplication.Repository.Settings;
+﻿using Microsoft.EntityFrameworkCore; // 👈 Add this if needed to reference UseInMemoryDatabase
+using OnlineVotingApplication.Areas.Identity.Data; // 👈 Change to match your AppDbContext namespace
+using OnlineVotingApplication.Config;
 
 namespace OnlineVotingApplication
 {
@@ -19,174 +11,56 @@ namespace OnlineVotingApplication
             var builder = WebApplication.CreateBuilder(args);
 
             // ==========================================
-            // 1. DATABASE CONNECTION
+            // REGISTER SERVICES (Toolbox Configuration)
             // ==========================================
-            var connectionString = builder.Configuration.GetConnectionString("OnlineVotingApplicationContextConnection")
-                ?? throw new InvalidOperationException("Connection string not found.");
 
-            builder.Services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString));
-
-            // ==========================================
-            // 2. SERVICE REGISTRATIONS
-            // ==========================================
-            builder.Services.AddMemoryCache();
-            builder.Services.AddHttpContextAccessor();
-            builder.Services.AddControllersWithViews();
-
-            // Email settings
-            builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
-
-            // Background workers
-            builder.Services.AddHostedService<NotificationBackgroundService>();
-            builder.Services.AddHostedService<FileProcessingBackgroundService>();
-            //builder.Services.AddHostedService<EmailBackgroundService>();
-
-            // Messaging channels
-            builder.Services.AddSingleton<NotificationChannel>();
-            builder.Services.AddSingleton<FileChannel>();
-            //builder.Services.AddSingleton<EmailQueue>();
-            //builder.Services.AddSingleton<IEmailQueue>(sp => sp.GetRequiredService<EmailQueue>());
-
-            // Scoped application services
-            builder.Services.AddScoped<iAuthService, AuthService>();
-            builder.Services.AddScoped<iCandidateService, CandidateService>();
-            builder.Services.AddScoped<iFileService, FileService>();
-            builder.Services.AddScoped<IEmailService, EmailService>();
-            builder.Services.AddScoped<IElectionService, ElectionService>();
-            builder.Services.AddScoped<IVoteService, VoteService>();
-            builder.Services.AddScoped<iPositionService,PositionService>();
-            builder.Services.AddScoped<iStateService, StateService>();
-            builder.Services.AddScoped<iLgaService, LgaService>();
-
-            // ==========================================
-            // 3. RATE LIMITING
-            // ==========================================
-            builder.Services.AddRateLimiter(options =>
+            // 1. Check if we are running under an automated xUnit test runner session
+            if (builder.Environment.IsEnvironment("Testing"))
             {
-                options.AddSlidingWindowLimiter("StrictPolicy", opt =>
-                {
-                    opt.PermitLimit = 5;
-                    opt.Window = TimeSpan.FromMinutes(30);
-                    opt.SegmentsPerWindow = 5;
-                    opt.QueueLimit = 0;
-                });
+                // Register ONLY the clean In-Memory provider directly
+                builder.Services.AddDbContext<AppDbContext>(options =>
+                    options.UseInMemoryDatabase("OnlineVotingApplicationTestDb"));
 
-                options.OnRejected = async (context, token) =>
-                {
-                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                    context.HttpContext.Response.ContentType = "application/json";
-                    await context.HttpContext.Response.WriteAsJsonAsync(new
-                    {
-                        success = false,
-                        message = "Too many failed attempts. For security, your 2FA verification is locked for 10 minutes."
-                    }, token);
-                };
-            });
-
-            // ==========================================
-            // 4. IDENTITY CONFIGURATION
-            // ==========================================
-            builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
+                // Pass a flag or customize this call if AddVotingInfrastructure internal logic crashes without SQL Server
+                builder.Services.AddVotingInfrastructure(builder.Configuration);
+            }
+            else
             {
-                 options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
-
-                options.SignIn.RequireConfirmedEmail = true;
-                options.Password.RequireNonAlphanumeric = true;
-                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromDays(3);
-                options.Lockout.MaxFailedAccessAttempts = 5;
-                options.Password.RequireUppercase = true;
-                options.User.RequireUniqueEmail = true;
-                options.Password.RequiredLength = 6;
-            })
-            .AddEntityFrameworkStores<AppDbContext>()
-            .AddRoles<IdentityRole>()
-            .AddDefaultTokenProviders();
-
-
-            // ==========================================
-            // 5. COOKIE SETTINGS
-            // ==========================================
-            builder.Services.ConfigureApplicationCookie(options =>
+                // Run your standard production database setup routine
+                builder.Services.AddVotingInfrastructure(builder.Configuration);
+            }
+         
+            builder.Services.AddCustomIdentityAndSecurity();
+            builder.Services.AddSession(options =>
             {
-                options.LoginPath = "/Home/Index";
-                options.LogoutPath = "/Home/Logout";
-                options.AccessDeniedPath = "/Home/AccessDenied";
+                options.IdleTimeout = TimeSpan.FromMinutes(30);
                 options.Cookie.HttpOnly = true;
-                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-                options.Cookie.SameSite = SameSiteMode.Strict;
-                options.Cookie.Name = "OnlineVotingApplication";
-
-                options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
-                options.SlidingExpiration = true;
+                options.Cookie.IsEssential = true;
             });
-
-            // ==========================================
-            // 6. BUILD THE APPLICATION
-            // ==========================================
+          
             var app = builder.Build();
 
             // ==========================================
-            // 7. DATABASE INITIALIZATION & SEEDING
+            // EXECUTE TASKS & MIDDLEWARE (Runtime)
             // ==========================================
-            using (var scope = app.Services.CreateScope())
-            {
-                var services = scope.ServiceProvider;
-                var logger = services.GetRequiredService<ILogger<Program>>();
 
-                try
-                {
-                    var context = services.GetRequiredService<AppDbContext>();
-                    var dbName = context.Database.GetDbConnection().Database;
-                    var dataSource = context.Database.GetDbConnection().DataSource;
-                    Console.WriteLine($"[DB CHECK] Connected to server '{dataSource}', database '{dbName}'");
-                    logger.LogInformation("[DB CHECK] Connected to server '{DataSource}', database '{DbName}'", dataSource, dbName);
-                    await context.Database.MigrateAsync();
-                    logger.LogInformation("Starting database seeding process...");
-                    Console.WriteLine("Starting database seeding process...");
-
-                    await DbroleSeeder.SeedRolesAndUsersAsync(services);
-
-                    if (!await context.PendingEmails.AnyAsync())
-                    {
-                        logger.LogInformation("Seeding test emails...");
-                        context.PendingEmails.AddRange(
-                            new PendingEmail { Recipient = "test1@example.com", Subject = "Welcome", Body = "<h1>Hello World!</h1>" },
-                            new PendingEmail { Recipient = "test2@example.com", Subject = "Offer", Body = "<p>50% off today!</p>" }
-                        );
-                        await context.SaveChangesAsync();
-                        logger.LogInformation("Test emails seeded successfully.");
-                    }
-
-                    logger.LogInformation("System initialization and seeding completed successfully.");
-                    Console.WriteLine("System initialization and seeding completed successfully.");
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "System initialization and seeding failed.");
-                    Console.WriteLine("=== SEEDING FAILED ===");
-                    Console.WriteLine(ex.ToString());
-                    if (ex.InnerException != null)
-                    {
-                        Console.WriteLine("--- INNER EXCEPTION ---");
-                        Console.WriteLine(ex.InnerException.ToString());
-                    }
-                    throw;
-                }
-            }
-
-            // ==========================================
-            // 8. MIDDLEWARE PIPELINE
-            // ==========================================
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
 
+            // This is perfect! It prevents SQL Server migrations from crashing your tests.
+            if (app.Environment.EnvironmentName != "Testing")
+            {
+                await app.InitializeAndSeedDatabaseAsync();
+            }
+
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseRouting();
+            app.UseSession();
+            app.UseRateLimiter();
             app.UseAuthentication();
             app.UseAuthorization();
 
@@ -194,10 +68,7 @@ namespace OnlineVotingApplication
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
-            // ==========================================
-            // 9. RUN THE APPLICATION
-            // ==========================================
-            app.Run();
+            await app.RunAsync();
         }
     }
 }

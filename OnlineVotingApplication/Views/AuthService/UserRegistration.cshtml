@@ -1,7 +1,6 @@
 ﻿@using OnlineVotingApplication.DataTransferView;
 @model RegistrationViewModel
 
-
 @{
     ViewData["Title"] = "Voter Registration";
 }
@@ -63,6 +62,33 @@
                             </button>
                         </div>
                     </form>
+
+                    <!-- Divider -->
+                    <div class="position-relative my-4">
+                        <hr class="text-muted opacity-50" />
+                        <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 small text-muted fw-semibold">or register with</span>
+                    </div>
+
+                    <!-- Social Auth Buttons -->
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <form asp-controller="Account" asp-action="ExternalLogin" asp-route-provider="Google" method="post">
+                                <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fab fa-google text-danger"></i>
+                                    <span class="small fw-semibold">Google</span>
+                                </button>
+                            </form>
+                        </div>
+                        <div class="col-6">
+                            <form asp-controller="Account" asp-action="ExternalLogin" asp-route-provider="Apple" method="post">
+                                <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
+                                    <i class="fab fa-apple"></i>
+                                    <span class="small fw-semibold">Apple</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                 </div>
             </div>
             <div class="text-center mt-3">

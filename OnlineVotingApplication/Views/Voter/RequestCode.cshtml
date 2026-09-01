@@ -1,0 +1,45 @@
+﻿@{
+    ViewData["Title"] = "Enter Confirmation Code";
+    var electionId = ViewBag.ElectionId;
+    var candidateId = ViewBag.CandidateId;
+    var positionId = ViewBag.PositionId;
+}
+
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-6">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h4 class="mb-0">Security Verification</h4>
+                </div>
+                <div class="card-body">
+                    @if (TempData["SuccessMessage"] != null)
+                    {
+                        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+                    }
+                    @if (TempData["ErrorMessage"] != null)
+                    {
+                        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+                    }
+
+                    <p class="text-muted">A secure 6-character confirmation code has been emailed to you. Enter it below to complete your vote.</p>
+
+                    <form asp-action="ConfirmAndVote" method="post">
+                        <input type="hidden" name="electionId" value="@electionId" />
+                        <input type="hidden" name="candidateId" value="@candidateId" />
+                        <input type="hidden" name="positionId" value="@positionId" />
+
+                        <div class="mb-3">
+                            <label for="enteredCode" class="form-label">Confirmation Code</label>
+                            <input type="text" id="enteredCode" name="enteredCode" class="form-control text-uppercase fw-bold text-center" maxlength="6" placeholder="ABC123" required autocomplete="off" />
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success btn-lg">Confirm & Submit Vote</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

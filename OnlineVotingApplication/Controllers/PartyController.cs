@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
+using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
 {
+    [Authorize(Roles ="SuperAdmin")]
   
     public class PartyController : Controller
     {
@@ -30,6 +33,24 @@ namespace OnlineVotingApplication.Controllers
         public IActionResult CreateParty()
         {
             return View();
+        }
+        [HttpGet]
+        public  async Task<IActionResult> RestoreSoftDeleted(Guid PartyId)
+        {
+            var user = _userManager.GetUserId(User);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "User doesn't exist";
+                return RedirectToAction("Index", "Home");
+            }
+            var result = await _party.RestoreDeletedParty(user, PartyId);
+            if(!result.Success)
+            {
+                TempData["ErrorMessage"] = "Can not restore data try again";
+                return RedirectToAction(nameof(Index));
+            }
+            TempData["SuccessMessage"] = "Data restored succesfully"
+;            return RedirectToAction(nameof(AllParty), new { PartyId });
         }
 
         [HttpPost]
@@ -91,6 +112,34 @@ namespace OnlineVotingApplication.Controllers
                 = result.TotalItems
             };
             return View(newView);   
+        }
+        [HttpGet]
+        public async Task<IActionResult> AllSoftDeleted(int PageNumber = 1, int Pageize = 10)
+        {
+            var user = _userManager.GetUserId(User);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "User doesn't exist";
+                return RedirectToAction("Index", "Home");
+            }
+
+            var result = await _party.AllSoftDeleteAsync(PageNumber, Pageize);
+
+            if (!result.Items.Any() || result.Items == null)
+            {
+                return View(result);
+            }
+
+            var newView = new PaginatedListViewModel<PartyViewModel>
+            {
+
+                Items = result.Items,
+                PageNumber = PageNumber,
+                PageSize = Pageize,
+                TotalItems
+                = result.TotalItems
+            };
+            return View(newView);
         }
     }
 }

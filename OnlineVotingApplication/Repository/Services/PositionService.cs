@@ -5,10 +5,7 @@ using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Build.Tasks;
 using OnlineVotingApplication.Areas.Identity.Data;
-using Microsoft.Diagnostics.Runtime.AbstractDac;
-using Microsoft.AspNetCore.Mvc.ModelBinding.Metadata;
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -18,36 +15,62 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IHttpContextAccessor _contextAccessor;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMemoryCache _cache;
+        private readonly ITenantProvider _tenantProvider; // Added Tenant Provider
 
-        public PositionService(AppDbContext context, IHttpContextAccessor contextAccessor, UserManager<ApplicationUser> userManager, IMemoryCache cache)
+        public PositionService(
+            AppDbContext context,
+            IHttpContextAccessor contextAccessor,
+            UserManager<ApplicationUser> userManager,
+            IMemoryCache cache,
+            ITenantProvider tenantProvider)
         {
             _context = context;
             _contextAccessor = contextAccessor;
             _userManager = userManager;
             _cache = cache;
+            _tenantProvider = tenantProvider;
         }
 
-        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(string id, int pageNumber = 1, int pageSize = 10)
+        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(string electionId, int pageNumber = 1, int pageSize = 10)
         {
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
 
-            // 1. Get the total count from DB
-            int totalItems = await _context.Position.AsNoTracking().CountAsync();
+            if (!Guid.TryParse(electionId, out Guid electionGuid))
+            {
+                return new PaginatedListViewModel<PositionDTO>();
+            }
 
-            string cacheKey = $"ref:Positions_Page_{pageNumber}_Size_{pageSize}";
+            // Optional Tenant Verification check for extra safety
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+
+            var baseQuery = _context.Position
+                .AsNoTracking()
+                .Include(p => p.ElectionEvent)
+                .Where(p => p.ElectionEventId == electionGuid && !p.IsDeleted);
+
+            if (!isSuperAdmin)
+            {
+                baseQuery = baseQuery.Where(p => p.ElectionEvent != null && p.ElectionEvent.TenantId == activeTenantId);
+            }
+
+            // 1. Get the total count from DB strictly for this election & tenant
+            int totalItems = await baseQuery.CountAsync();
+
+            string cacheKey = $"ref:Positions_Election_{electionGuid}_Tenant_{activeTenantId}_Page_{pageNumber}_Size_{pageSize}";
 
             if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? positions))
             {
                 // 2. Fetch only the requested page slice
-                positions = await _context.Position
-                    .AsNoTracking()
+                positions = await baseQuery
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .Select(m => new PositionDTO
                     {
                         Id = m.Id,
-                        Name = m.Name
+                        Name = m.Name,
+                        ElectionId = m.ElectionEventId
                     })
                     .ToListAsync();
 
@@ -64,29 +87,32 @@ namespace OnlineVotingApplication.Repository.Services
             };
         }
 
-
-
-
         public async Task<bool> GetPositionByIdAsync(Guid id)
         {
-            var position = await _context.Position.FirstOrDefaultAsync(m => m.Id == id);
-            if (position == null)
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+
+            var query = _context.Position
+                .Include(p => p.ElectionEvent)
+                .Where(m => m.Id == id && !m.IsDeleted);
+
+            if (!isSuperAdmin)
             {
-                return false;
+                query = query.Where(m => m.ElectionEvent != null && m.ElectionEvent.TenantId == activeTenantId);
             }
-            return true;
+
+            var position = await query.FirstOrDefaultAsync();
+            return position != null;
         }
 
-        public async Task<ServiceResponse<string>> CreatePositionAsync(PositionDTO model, string userId)
+        public async Task<ServiceResponse<string>> CreatePositionAsync(PositionDTO model, string userId, Guid electionId)
         {
             var response = new ServiceResponse<string>();
-
             await using var transaction = await _context.Database.BeginTransactionAsync();
 
             try
             {
                 var user = await _userManager.FindByIdAsync(userId);
-
                 if (user == null)
                 {
                     response.Success = false;
@@ -104,46 +130,58 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
+                // Verify target election belongs to active tenant if not SuperAdmin
+                if (!isAdmin)
+                {
+                    Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+                    var electionExists = await _context.ElectionEvents
+                        .AnyAsync(e => e.Id == electionId && e.TenantId == activeTenantId);
+
+                    if (!electionExists)
+                    {
+                        response.Success = false;
+                        response.Message = "Unauthorized or invalid election target for your organization.";
+                        return response;
+                    }
+                }
+
                 var positionName = model.Name?.Trim().ToUpper();
 
+                // Check uniqueness strictly within this specific election
                 var exists = await _context.Position
-                    .AnyAsync(m => m.Name == positionName && !m.IsDeleted);
+                    .AnyAsync(m => m.ElectionEventId == electionId && m.Name == positionName && !m.IsDeleted);
 
                 if (exists)
                 {
                     response.Success = false;
-                    response.Message = "Position already exists for this election";
+                    response.Message = "Position already exists for this election event.";
                     return response;
                 }
 
-              
                 var newPosition = new Positions
                 {
-                    Name = positionName,
-                    IsDeleted = false
+                    Id = Guid.NewGuid(),
+                    Name = positionName ?? string.Empty,
+                    IsDeleted = false,
+                    ElectionEventId = electionId
                 };
 
                 _context.Position.Add(newPosition);
                 await _context.SaveChangesAsync();
-
                 await transaction.CommitAsync();
 
-                //  Clear the positions list cache so changes are immediately visible
-                _cache.Remove("ref_ALL-Positions");
+                _cache.Remove($"ref:Positions_Election_{electionId}");
 
                 response.Success = true;
                 response.Message = "Position created successfully";
-
                 return response;
             }
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
-
                 response.Success = false;
                 response.Message = "An unexpected error occurred during database save operation.";
                 response.Errors = new List<string> { ex.Message, ex.InnerException?.Message ?? "" };
-
                 return response;
             }
         }
@@ -170,30 +208,36 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // Passed the token to protect the position lookup query
-            var existingPositon = await _context.Position.FirstOrDefaultAsync(m => m.Id == ID, cancellationToken);
-            if (existingPositon == null)
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            var query = _context.Position
+                .Include(p => p.ElectionEvent)
+                .Where(m => m.Id == ID);
+
+            if (!isAdmin)
             {
-                response.Message = "Position does not Exist";
+                query = query.Where(m => m.ElectionEvent != null && m.ElectionEvent.TenantId == activeTenantId);
+            }
+
+            var existingPosition = await query.FirstOrDefaultAsync(cancellationToken);
+            if (existingPosition == null)
+            {
+                response.Message = "Position does not exist or unauthorized access.";
                 response.Success = false;
                 return response;
             }
 
-            existingPositon.IsDeleted = true;
-            existingPositon.DeletedAt = DateTime.UtcNow;
-
-            // Passed the token to protect the save operation from hanging during a server shutdown/abort
+            existingPosition.IsDeleted = true;
             await _context.SaveChangesAsync(cancellationToken);
 
-            response.Message = "Position moved to trash. It will be permanently deleted in 30 days.";
+            response.Message = "Position moved to trash successfully.";
             response.Success = true;
             return response;
         }
 
-        public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model, string ID)
+        public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model, string userId)
         {
             var response = new ServiceResponse<string>();
-            var user = await _userManager.FindByIdAsync(ID);
+            var user = await _userManager.FindByIdAsync(userId);
 
             if (user == null)
             {
@@ -212,20 +256,35 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var existingPositon = await _context.Position.FirstOrDefaultAsync(m => m.Id == model.Id);
-            if (existingPositon == null)
+            if (!Guid.TryParse(model.Id, out Guid parsedPositionId))
             {
-                response.Message = "Position does not Exist";
+                response.Success = false;
+                response.Message = "Invalid position ID format.";
+                return response;
+            }
+
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            var query = _context.Position
+                .Include(p => p.ElectionEvent)
+                .Where(m => m.Id == parsedPositionId);
+
+            if (!isAdmin)
+            {
+                query = query.Where(m => m.ElectionEvent != null && m.ElectionEvent.TenantId == activeTenantId);
+            }
+
+            var existingPosition = await query.FirstOrDefaultAsync();
+            if (existingPosition == null)
+            {
+                response.Message = "Position does not exist or unauthorized access.";
                 response.Success = false;
                 return response;
             }
 
-            existingPositon.Name = model.Name;
-
+            existingPosition.Name = model.Name?.Trim().ToUpper() ?? existingPosition.Name;
             await _context.SaveChangesAsync();
 
-
-            response.Message = "Positon Deleted Successfully";
+            response.Message = "Position updated successfully";
             response.Success = true;
             return response;
         }
@@ -234,27 +293,43 @@ namespace OnlineVotingApplication.Repository.Services
         {
             PageNumber = Math.Max(1, PageNumber);
             PageSize = Math.Max(1, PageSize);
+            int skip = (PageNumber - 1) * PageSize;
 
-            var QueryDb = _context.Position.Where(m => m.IsDeleted);
-            int counted = await QueryDb.CountAsync();
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
 
-            string CacheKey = $"ref_All_SoftDelete_Position_{PageNumber}_{PageSize}";
-            if (!_cache.TryGetValue(CacheKey, out List<PositionDTO>? Pos))
+            var queryDb = _context.Position
+                .Include(p => p.ElectionEvent)
+                .Where(m => m.IsDeleted);
+
+            if (!isSuperAdmin)
             {
+                queryDb = queryDb.Where(m => m.ElectionEvent != null && m.ElectionEvent.TenantId == activeTenantId);
+            }
 
-                Pos = await QueryDb.OrderBy(m => m.Name).Select(m => new PositionDTO
-                {
-                    Name = m.Name
+            int counted = await queryDb.CountAsync();
 
+            string cacheKey = $"ref_All_SoftDelete_Position_Tenant_{activeTenantId}_{PageNumber}_{PageSize}";
+            if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? pos))
+            {
+                pos = await queryDb
+                    .OrderBy(m => m.Name)
+                    .Skip(skip)
+                    .Take(PageSize)
+                    .Select(m => new PositionDTO
+                    {
+                        Id = m.Id,
+                        Name = m.Name,
+                        ElectionId = m.ElectionEventId
+                    })
+                    .ToListAsync();
 
-                }).ToListAsync();
-
-                _cache.Set(CacheKey, Pos, TimeSpan.FromMinutes(5));
+                _cache.Set(cacheKey, pos, TimeSpan.FromMinutes(5));
             }
 
             return new PaginatedListViewModel<PositionDTO>
             {
-                Items = Pos ?? new List<PositionDTO>(),
+                Items = pos ?? new List<PositionDTO>(),
                 PageNumber = PageNumber,
                 PageSize = PageSize,
                 TotalItems = counted
@@ -262,4 +337,3 @@ namespace OnlineVotingApplication.Repository.Services
         }
     }
 }
-

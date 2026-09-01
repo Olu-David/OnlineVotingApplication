@@ -1,122 +1,146 @@
-﻿@model OnlineVotingApplication.DataTransferView.CandidateViewModel
+﻿@using OnlineVotingApplication.Enums
+@model OnlineVotingApplication.DataTransferView.CandidateViewModel
 
 @{
     ViewData["Title"] = "Create Candidate";
+
+    // Evaluate if the category is Political (either via strongly-typed Enum or string/int conversion)
+    bool isPolitical = false;
+    if (ViewBag.ElectionCategory != null)
+    {
+        if (ViewBag.ElectionCategory is TenantCategory categoryEnum)
+        {
+            isPolitical = categoryEnum == TenantCategory.Political;
+        }
+        else if (int.TryParse(ViewBag.ElectionCategory.ToString(), out int categoryInt))
+        {
+            isPolitical = categoryInt == (int)TenantCategory.Political;
+        }
+        else
+        {
+            isPolitical = string.Equals(ViewBag.ElectionCategory.ToString(), TenantCategory.Political.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
 }
 
 <div class="container mt-4">
-    <div class="row justify-content-center">
-        <div class="col-md-8 col-lg-6">
-            <!-- Form Wrapped in a Bootstrap Card -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Create New Candidate</h4>
+    <div class="card shadow-sm">
+        <div class="card-header bg-primary text-white">
+            <h4 class="mb-0">Create Candidate for @ViewBag.ElectionTitle</h4>
+        </div>
+        <div class="card-body">
+
+            @if (TempData["ErrorMessage"] != null)
+            {
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    @TempData["ErrorMessage"]
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
-                
-                    <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data">
-                        @Html.AntiForgeryToken()
-                        <div asp-validation-summary="ModelOnly" class="text-danger align-middle"></div>
+            }
 
-                        <!-- Name -->
-                        <div class="mb-3">
-                            <label asp-for="Name" class="form-label fw-bold">Candidate Name</label>
-                            <input asp-for="Name" class="form-control" placeholder="Enter full name" />
-                            <span asp-validation-for="Name" class="text-danger"></span>
-                        </div>
+            <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data">
+                @Html.AntiForgeryToken()
 
-                        <!-- Position Dropdown -->
-                        <div class="mb-3">
-                            <label asp-for="PositionId" class="form-label fw-bold">Position</label>
-                            <select asp-for="PositionId" class="form-select" asp-items="ViewBag.PositionView">
-                                <option value="">-- Select Position --</option>
-                            </select>
-                            <span asp-validation-for="PositionId" class="text-danger"></span>
-                        </div>
+                <!-- Hardcoded value forces the HTML to print it regardless of ModelState behavior -->
+                <input type="hidden" asp-for="ElectionEventId" value="@Model.ElectionEventId" />
+                <div class="row">
+                    <!-- Candidate Full Name -->
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="Name" class="form-label fw-bold">Candidate Full Name</label>
+                        <input asp-for="Name" class="form-control" placeholder="e.g. John Doe" />
+                        <span asp-validation-for="Name" class="text-danger"></span>
+                    </div>
 
-                        <!-- State Dropdown -->
-                        <div class="mb-3">
-                            <label asp-for="StateId" class="form-label fw-bold">State</label>
-                            <select asp-for="StateId" id="stateDropdown" class="form-select" asp-items="ViewBag.StateView">
-                                <option value="">-- Select State --</option>
-                            </select>
-                            <span asp-validation-for="StateId" class="text-danger"></span>
-                        </div>
+                    <!-- Position Selection -->
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="PositionId" class="form-label fw-bold">Position</label>
+                        <select asp-for="PositionId" asp-items="ViewBag.PositionView" class="form-select">
+                            <option value="">-- Select Position --</option>
+                        </select>
+                        <span asp-validation-for="PositionId" class="text-danger"></span>
+                    </div>
+                </div>
 
-                        <!-- LGA Dropdown -->
-                        <div class="mb-3">
-                            <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
-                            <select asp-for="LgaId" id="lgaDropdown" class="form-select" asp-items="ViewBag.Lga">
-                                <option value="">-- Select LGA --</option>
-                            </select>
-                            <span asp-validation-for="LgaId" class="text-danger"></span>
-                        </div>
-
-                        <!-- Manifesto -->
-                        <div class="mb-3">
-                            <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
-                            <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's manifesto..."></textarea>
-                            <span asp-validation-for="Manifesto" class="text-danger"></span>
-                        </div>
-
-                        <!-- Party Dropdown Menu -->
-                        <div class="mb-3">
+                <div class="row">
+                    <!-- Political Party Dropdown (Displays ONLY if TenantCategory == Political) -->
+                    @if (isPolitical)
+                    {
+                        <div class="col-md-6 mb-3">
                             <label asp-for="PartyId" class="form-label fw-bold">Political Party</label>
-                            <select asp-for="PartyId" class="form-select" asp-items="ViewBag.PartyView">
-                                <option value="">-- Select Political Party --</option>
+                            <select asp-for="PartyId" asp-items="ViewBag.Party" class="form-select">
+                                <option value="">-- Select Party --</option>
                             </select>
                             <span asp-validation-for="PartyId" class="text-danger"></span>
                         </div>
+                    }
 
+                    <!-- State Dropdown -->
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="StateId" class="form-label fw-bold">State</label>
+                        <select asp-for="StateId" id="stateDropdown" asp-items="ViewBag.StateView" class="form-select">
+                            <option value="">-- Select State --</option>
+                        </select>
+                        <span asp-validation-for="StateId" class="text-danger"></span>
+                    </div>
 
-                        <!-- Candidate Image Upload -->
-                        <div class="mb-4">
-                            <label asp-for="CandidateImageUrl" class="form-label fw-bold">Candidate Photo</label>
-                            <input asp-for="CandidateImageUrl" type="file" class="form-control" />
-                            <span asp-validation-for="CandidateImageUrl" class="text-danger"></span>
-                        </div>
-
-                        <!-- Action Buttons Inside Card Footer Area -->
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-end border-top pt-3">
-                            <a asp-action="Index" class="btn btn-light me-md-2">Cancel</a>
-                            <button type="submit" class="btn btn-primary">Create Candidate</button>
-                        </div>
-                    </form>
+                    <!-- Cascading LGA Dropdown -->
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
+                        <select asp-for="LgaId" id="lgaDropdown" asp-items="ViewBag.Lga" class="form-select">
+                            <option value="">-- Select LGA --</option>
+                        </select>
+                        <span asp-validation-for="LgaId" class="text-danger"></span>
+                    </div>
                 </div>
-            </div>
-        </div>
-</div>
 
+                <!-- Manifesto -->
+                <div class="mb-3">
+                    <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
+                    <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's vision or goals..."></textarea>
+                    <span asp-validation-for="Manifesto" class="text-danger"></span>
+                </div>
+
+                <!-- Actions -->
+                <div class="d-flex justify-content-between mt-4">
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
+                    <button type="submit" class="btn btn-success px-4">Create Candidate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 
     <script>
-        document.getElementById('stateDropdown').addEventListener('change', function () {
-            var stateId = this.value;
-            var lgaDropdown = document.getElementById('lgaDropdown');
+        $(document).ready(function () {
+            $('#stateDropdown').on('change', function () {
+                var selectedStateId = $(this).val();
+                var $lgaSelect = $('#lgaDropdown');
 
-            lgaDropdown.innerHTML = '<option value="">-- Select LGA --</option>';
+                // Clear existing LGA options
+                $lgaSelect.empty().append('<option value="">-- Select LGA --</option>');
 
-            if (!stateId) return;
-
-            var url = '@Url.Action("GetLgasByState", "Candidate")?stateId=' + stateId;
-
-            fetch(url)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok');
-                    }
-                    return response.json();
-                })
-                .then(data => {
-                    data.forEach(lga => {
-                        var option = document.createElement('option');
-                        option.value = lga.id;
-                        option.textContent = lga.name;
-                        lgaDropdown.appendChild(option);
+                if (selectedStateId) {
+                    $.ajax({
+                        url: '/Candidate/GetLgasByState',
+                        type: 'GET',
+                        data: { stateId: selectedStateId },
+                        dataType: 'json',
+                        success: function (data) {
+                            $.each(data, function (index, item) {
+                                var id = item.id || item.Id;
+                                var name = item.name || item.Name;
+                                $lgaSelect.append(new Option(name, id));
+                            });
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("Error loading LGAs: ", error);
+                        }
                     });
-                })
-                .catch(error => console.error('Error loading LGAs:', error));
+                }
+            });
         });
     </script>
 }

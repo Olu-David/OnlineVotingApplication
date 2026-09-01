@@ -1,0 +1,70 @@
+﻿@model OnlineVotingApplication.DataTransferView.PaginatedListViewModel<OnlineVotingApplication.DataTransferView.ElectionViewModel>
+@{
+    ViewData["Title"] = "Election Trash Bin";
+}
+
+<div class="container-fluid px-4">
+    <div class="d-flex justify-content-between align-items-center my-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">Election Trash Bin</h1>
+            <p class="text-muted small">Items are permanently deleted after 30 days.</p>
+        </div>
+        <div>
+            <a asp-action="Index" class="btn btn-outline-secondary btn-sm">
+                <i class="fas fa-arrow-left me-1"></i> Back to Elections
+            </a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Title</th>
+                            <th>Year</th>
+                            <th>Tenant</th>
+                            <th>Deleted Date</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Items != null && Model.Items.Any())
+                        {
+                            foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="fw-bold text-muted">@item.Title</td>
+                                    <td>@item.ElectionYear</td>
+                                    <td>@(item.TenantName ?? "System-wide")</td>
+                                    <td>
+                                        <small class="text-danger">
+                                            @(item.DeletedAt.HasValue? item.DeletedAt.Value.ToString("MMM dd, yyyy HH:mm") : "N/A")
+                                        </small>
+                                    </td>
+                                    <td class="text-end">
+                                        <form asp-action="Restore" asp-route-id="@item.Id" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <button type="submit" class="btn btn-outline-success btn-sm" title="Restore">
+                                                <i class="fas fa-undo me-1"></i> Restore
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="5" class="text-center py-4 text-muted">
+                                    Trash bin is empty.
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,155 @@
+﻿@model List<OnlineVotingApplication.Models.ElectionEvent>
+
+@{
+    var metrics = ViewBag.Metrics as OnlineVotingApplication.DataTransferView.TenantMetricsDto;
+    var tenant = ViewBag.Tenant as OnlineVotingApplication.Models.Tenant;
+    ViewData["Title"] = $"{tenant?.OrganizationName ?? "Organization"} Dashboard";
+}
+
+<div class="container-fluid py-4">
+    <!-- Active Workspace Context Banner -->
+    <div class="card bg-dark text-white border-0 shadow-sm mb-4 overflow-hidden position-relative">
+        <div class="card-body p-4">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <span class="badge bg-primary text-uppercase px-2 py-1 mb-2 fw-bold small">Active Tenant Space</span>
+                    <h1 class="h2 mb-1 text-white fw-bold">@tenant?.OrganizationName</h1>
+                    <p class="text-white-50 small mb-0">Workspace Handle: <code class="text-warning bg-secondary px-2 py-0.5 rounded">/@tenant?.Slug</code></p>
+                </div>
+                <div class="col-md-4 text-md-end mt-3 mt-md-0">
+                    <span class="btn btn-sm btn-light disabled fw-semibold text-dark shadow-sm">
+                        <i class="fas fa-layer-group me-1 text-primary"></i> Subscription: @metrics?.ActiveSubscriptionPlan
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Metrics Cards Grid Row -->
+    <div class="row g-3 mb-4">
+        <!-- Elections Total Count -->
+        <div class="col-xl-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-primary border-4">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-uppercase text-muted small fw-bold d-block mb-1">Managed Ballots</span>
+                            <h3 class="fw-bold mb-0 text-dark">@metrics?.TotalElections</h3>
+                        </div>
+                        <div class="bg-primary text-white rounded p-3">
+                            <i class="fas fa-poll fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Approved Candidates Count -->
+        <div class="col-xl-4 col-sm-6">
+            <div class="card border-0 shadow-sm h-100 border-start border-success border-4">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-uppercase text-muted small fw-bold d-block mb-1">Approved Candidates</span>
+                            <h3 class="fw-bold mb-0 text-dark">@metrics?.TotalApprovedCandidates</h3>
+                        </div>
+                        <div class="bg-success text-white rounded p-3">
+                            <i class="fas fa-user-check fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Votes Cast Count -->
+        <div class="col-xl-4 col-sm-12">
+            <div class="card border-0 shadow-sm h-100 border-start border-info border-4">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div>
+                            <span class="text-uppercase text-muted small fw-bold d-block mb-1">Total Votes Cast</span>
+                            <h3 class="fw-bold mb-0 text-dark">@metrics?.TotalVotesCast</h3>
+                        </div>
+                        <div class="bg-info text-white rounded p-3">
+                            <i class="fas fa-envelope-open-text fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Tenant Elections Database Monitor -->
+    <div class="card shadow border-0">
+        <div class="card-header bg-white border-0 pt-4 pb-0">
+            <h4 class="h5 mb-0 fw-bold text-gray-800">Workspace Ballots Configuration Registry</h4>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table align-middle mb-0 table-hover">
+                    <thead class="table-light text-muted small text-uppercase">
+                        <tr>
+                            <th class="ps-4">Election Identification Handle</th>
+                            <th>Timeline Window</th>
+                            <th>Status Matrix</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            foreach (var election in Model)
+                            {
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-light rounded p-2 me-3 text-secondary">
+                                                <i class="fas fa-vote-yea"></i>
+                                            </div>
+                                            <div>
+                                                <span class="fw-bold text-dark d-block">@election.Title</span>
+                                                <span class="text-muted small">UUID: @election.Id</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="text-dark small">@election.StartDate.ToString("g")</div>
+                                        <div class="text-muted small">thru @election.EndDate.ToString("g")</div>
+                                    </td>
+                                    <td>
+                                        @if (DateTime.UtcNow >= election.StartDate && DateTime.UtcNow <= election.EndDate)
+                                        {
+                                            <span class="badge bg-success text-white px-2 py-1 rounded-pill">Polls Open</span>
+                                        }
+                                        else if (DateTime.UtcNow < election.StartDate)
+                                        {
+                                            <span class="badge bg-warning text-dark px-2 py-1 rounded-pill">Scheduled</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary text-white px-2 py-1 rounded-pill">Concluded</span>
+                                        }
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <a asp-action="Details" asp-controller="Election" asp-route-id="@election.Id" class="btn btn-sm btn-light border shadow-sm px-3">
+                                            <i class="fas fa-sliders-h me-1 text-primary"></i> Configure
+                                        </a>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="4" class="text-center py-5 text-muted">
+                                    <i class="fas fa-clipboard-list fa-3x mb-3 text-gray-300"></i>
+                                    <p class="mb-1 fw-semibold text-dark">No ballots compiled for this tenant space yet.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

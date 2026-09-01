@@ -1,9 +1,7 @@
-﻿using AspNetCoreGeneratedDocument;
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.VisualStudio.Web.CodeGenerators.Mvc.Templates.BlazorIdentity.Pages;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
@@ -11,7 +9,6 @@ using System.Text;
 
 namespace OnlineVotingApplication.Controllers
 {
-   
     public class AuthServiceController : Controller
     {
         private readonly iAuthService _AuthService;
@@ -19,7 +16,11 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signManager;
 
-        public AuthServiceController(iAuthService AuthService, ILogger<AuthServiceController> ilogger, UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager)
+        public AuthServiceController(
+            iAuthService AuthService,
+            ILogger<AuthServiceController> ilogger,
+            UserManager<ApplicationUser> userManager,
+            SignInManager<ApplicationUser> signInManager)
         {
             _AuthService = AuthService;
             _ilogger = ilogger;
@@ -31,31 +32,41 @@ namespace OnlineVotingApplication.Controllers
         {
             return View();
         }
+
         [HttpGet]
         public IActionResult UserRegistration()
         {
             return View();
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> UserRegistration(RegistrationViewModel model,string Roles)
+        public async Task<IActionResult> UserRegistration(RegistrationViewModel model, string roles = "Voter")
         {
-           if(!ModelState.IsValid)
+            if (!ModelState.IsValid)
             {
-                return View();  
+                return View(model);
             }
-           var NewUser= await _AuthService.RegisterUser(model);
-            if(!NewUser.Success)
-            {
-                return RedirectToAction(nameof(HomeController), "Index");
-            }
-            return View(model);
 
+            var newUserResponse = await _AuthService.RegisterUser(model, roles);
+            if (!newUserResponse.Success)
+            {
+                foreach (var error in newUserResponse.Errors!)
+                {
+                    ModelState.AddModelError(string.Empty, error);
+                }
+                TempData["Error"] = newUserResponse.Message ?? "Registration failed.";
+                return View(model);
+            }
+
+            // Automatically trigger the confirmation email send process post-registration
+            return RedirectToAction(nameof(SendConfirmationToken), new { userId = newUserResponse.Data?.Id });
         }
-        [HttpGet]
 
-        public async Task<IActionResult> SendConfirmationToken(ApplicationUser user)
+        [HttpGet]
+        public async Task<IActionResult> SendConfirmationToken(string userId)
         {
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 TempData["Error"] = "User not found, please register.";
@@ -64,24 +75,25 @@ namespace OnlineVotingApplication.Controllers
 
             // 1. Generate the security token
             string token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
-            string EncodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-            // 2. Build the callback URL (Points to the action that validates the token)
-            string confirmationLink = Url.Action("Confirm_Email", "User",
-                new { userId = user.Id, EncodedToken }, Request.Scheme)!;
+            string encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
-            // 3. Send the email via your integrated SendGrid/Mail service
+            // 2. Build the callback URL pointing back to this controller
+            string confirmationLink = Url.Action("Confirm_Email", "AuthService",
+                new { userId = user.Id, token = encodedToken }, Request.Scheme)!;
+
+            // 3. Send the email via your service channel
             var result = await _AuthService.SendConfirmationTokenAsync(user, confirmationLink);
 
             if (!result.Success)
             {
-                TempData["Error"] = "Failed to send email. Please try again.";
+                TempData["Error"] = "Failed to send confirmation email. Please try again.";
                 return RedirectToAction(nameof(UserRegistration));
             }
 
-            // 4. IMPORTANT: Redirect to a "Success Notification" page, NOT the confirmation action itself
             TempData["Success"] = "A confirmation link has been sent to your email!";
-            return RedirectToAction(nameof(ConfirmEmailSent)); // Create a simple view that says "Check your inbox"
+            return RedirectToAction(nameof(ConfirmEmailSent));
         }
+
         [HttpGet]
         public IActionResult ConfirmEmailSent() => View();
 
@@ -90,30 +102,34 @@ namespace OnlineVotingApplication.Controllers
         {
             if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId))
             {
-                TempData["Error"] = "Token Expired or User not Found";
-                return RedirectToAction(nameof(SendConfirmationToken));
+                TempData["Error"] = "Token expired or user not found.";
+                return RedirectToAction(nameof(UserRegistration));
             }
+
             var userFind = await _userManager.FindByIdAsync(userId);
             if (userFind == null)
             {
-                TempData["Error"] = "User doesnt Exist, Register";
+                TempData["Error"] = "User doesn't exist. Please register.";
                 return RedirectToAction(nameof(UserRegistration));
             }
-            string Encodedtoken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
-            var result = await _AuthService.ConfirmEmailAsync(userId, token);
 
-            if (!result)
+            var isConfirmed = await _AuthService.ConfirmEmailAsync(userId, token);
+            if (!isConfirmed)
             {
-                TempData["Error"] = "User's Account not confirmed Sucessfully, Token expired Try Again";
+                TempData["Error"] = "Account could not be confirmed. The token may have expired. Please try again.";
                 return RedirectToAction(nameof(UserRegistration));
             }
-            TempData["Info"] = "User Account Confirmed Successfully";
+
+            TempData["Info"] = "User account confirmed successfully!";
             return RedirectToAction(nameof(Login));
         }
+
+        [HttpGet]
         public IActionResult Login()
         {
             return View();
         }
+
         [HttpPost]
         [ValidateAntiForgeryToken]
         [AllowAnonymous]
@@ -121,30 +137,17 @@ namespace OnlineVotingApplication.Controllers
         {
             returnUrl ??= Url.Content("~/");
 
-            // === STRONG DEBUGGING - Check this in Output Window ===
             if (!ModelState.IsValid)
             {
-                Console.WriteLine("=== MODELSTATE INVALID ===");
-                foreach (var state in ModelState)
-                {
-                    if (state.Value?.Errors.Count > 0)
-                    {
-                        var errors = string.Join(" | ", state.Value.Errors.Select(e => e.ErrorMessage));
-                        Console.WriteLine($"FIELD: '{state.Key}' → Errors: {errors}");
-                    }
-                }
-                Console.WriteLine("===========================");
-
                 TempData["ErrorMessage"] = "Please correct the errors below.";
                 return View(model);
             }
 
-            // Rest of your logic (unchanged)
             var (result, is2fa, message) = await _AuthService.LoginUserAsync(model);
 
             if (is2fa)
             {
-                return RedirectToAction("LoginWith2fa", new { ReturnUrl = returnUrl, model.RememberMe });
+                return RedirectToAction(nameof(LoginWith2fa), new { rememberMe = model.RememberMe });
             }
 
             if (result.Succeeded)
@@ -153,19 +156,18 @@ namespace OnlineVotingApplication.Controllers
                 if (user != null)
                 {
                     if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
-                        return RedirectToAction("CreateCandidate", nameof(Candidate));
+                        return RedirectToAction("Dashboard", "SuperAdminDashboard");
 
-                    if (await _userManager.IsInRoleAsync(user, "Admin"))
-                        return RedirectToAction("Index", "AdminDashboard");
+                    if (await _userManager.IsInRoleAsync(user, "Official"))
+                        return RedirectToAction("Index", "Tenant");
+                    if (await _userManager.IsInRoleAsync(user, "Candidate"))
+                        return RedirectToAction("Index", "Candidate");
+                    if (await _userManager.IsInRoleAsync(user, "Auditor"))
+                        return RedirectToAction("Index", "Auditor");
 
-                    if (await _userManager.IsInRoleAsync(user, "Merchant"))
-                        return RedirectToAction("Dashboard", "Merchant");
-
-                    if (await _userManager.IsInRoleAsync(user, "Vendor"))
-                        return RedirectToAction("Dashboard", "Vendor");
                 }
 
-                return RedirectToAction("Index", "Home");
+                return LocalRedirect(returnUrl);
             }
 
             if (result.IsLockedOut)
@@ -175,24 +177,20 @@ namespace OnlineVotingApplication.Controllers
             TempData["ErrorMessage"] = message ?? "Invalid login attempt.";
             return View(model);
         }
+
         [HttpGet]
         public async Task<IActionResult> LoginWith2fa(bool rememberMe)
         {
-            // Identity tracks who is "partially" logged in
             var user = await _signManager.GetTwoFactorAuthenticationUserAsync();
-
             if (user == null) return RedirectToAction(nameof(Login));
 
-            // Step 1: Send the code using your service
             var sent = await _AuthService.TwoFactorAuthentication(user);
-
             if (!sent)
             {
-                TempData["Error"] = "Could not send code. Try again.";
+                TempData["Error"] = "Could not send 2FA code. Try again.";
                 return RedirectToAction(nameof(Login));
             }
 
-            // Step 2: Show the view
             var model = new LoginWith2faViewModel
             {
                 UserId = user.Id!,
@@ -202,59 +200,54 @@ namespace OnlineVotingApplication.Controllers
             return View(model);
         }
 
-        // POST: /User/LoginWith2fa
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LoginWith2fa(LoginWith2faViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
 
-            // Step 3: Confirm using your service
             if (string.IsNullOrEmpty(model.UserId))
             {
-                return RedirectToAction("Login");
+                return RedirectToAction(nameof(Login));
             }
+
             var response = await _AuthService.ConfirmTwoFactorAsync(model.UserId, model.TwoFactorCode ?? "", model.RememberMe);
 
-            if(response!=null)
-            if (response.Success)
+            if (response != null && response.Success)
             {
                 return RedirectToAction("Index", "Dashboard");
             }
 
-            // If it fails, show the error message from the service
-
-            ModelState.AddModelError(string.Empty, "Invalid authencation code");
+            ModelState.AddModelError(string.Empty, "Invalid authentication code.");
             return View(model);
         }
 
-        // ---. FORGOT PASSWORD (GET) ---    
         [HttpGet]
         public IActionResult ForgotPassword() => View();
 
-
-        
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordVM model)
         {
+            if (!ModelState.IsValid) return View(model);
+
             var user = await _userManager.FindByEmailAsync(model.Email ?? "");
             if (user == null) return RedirectToAction("ForgotPasswordConfirmation");
 
-            // 1. Generate Token
             var token = await _userManager.GeneratePasswordResetTokenAsync(user);
             var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
-            // 2. Generate the full Link
-            var callbackUrl = Url.Action("ResetPassword", "Account",
+            var callbackUrl = Url.Action("ResetPassword", "AuthService",
                 new { token = encodedToken, email = user.Email }, Request.Scheme);
 
-            // 3. Send it!
-             _AuthService.ForgotPasswordAsync(user, callbackUrl!);
+            await _AuthService.ForgotPasswordAsync(user, callbackUrl!);
 
             return RedirectToAction("ForgotPasswordConfirmation");
         }
 
-        // ---. RESET PASSWORD (GET) ---
+        [HttpGet]
+        public IActionResult ForgotPasswordConfirmation() => View();
+
         [HttpGet]
         public IActionResult ResetPassword(string token, string email)
         {
@@ -262,28 +255,37 @@ namespace OnlineVotingApplication.Controllers
             return View(new ResetPasswordViewModel { Token = token, Email = email });
         }
 
-        // --- . RESET PASSWORD (POST) ---
         [HttpPost]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
 
             var user = await _userManager.FindByEmailAsync(model.Email ?? "");
-            var response = await _AuthService.ResetPasswordAsync(user!, model.Token!, model.Password!);
+            if (user == null)
+            {
+                // Don't reveal that the user does not exist
+                return RedirectToAction(nameof(ResetPasswordConfirmation));
+            }
 
-            if (response.Success) return RedirectToAction("Login");
-           
+            var response = await _AuthService.ResetPasswordAsync(user, model.Token!, model.Password!);
+
+            if (response.Success) return RedirectToAction(nameof(ResetPasswordConfirmation));
+
+            ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
         }
 
-        // --- 3. CHANGE PASSWORD (Inside Settings/Profile) ---
+        [HttpGet]
+        public IActionResult ResetPasswordConfirmation() => View();
+
         [HttpPost]
         [Authorize]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> ChangePassword(ChangePasswordDTO model)
         {
             if (!ModelState.IsValid) return View(model);
 
-            // Get Current Logged in User ID
             var userId = _userManager.GetUserId(User);
             var response = await _AuthService.ChangePasswordAsync(userId!, model);
 
@@ -293,13 +295,13 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Profile");
             }
 
-            //ModelState.AddModelError("", response.Message);
+            ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
         }
 
-        // --- 4. LOCKOUT (Admin Only) ---
         [HttpPost]
         [Authorize(Roles = "Admin,SuperAdmin")]
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> LockUser(string userId)
         {
             var response = await _AuthService.LockOutUserAsync(userId);
@@ -317,4 +319,3 @@ namespace OnlineVotingApplication.Controllers
         }
     }
 }
-             

@@ -1,132 +1,136 @@
-﻿@using OnlineVotingApplication.DataTransferView
-@model List<CandidateViewModel>
-
-@* ===== WHAT IS THIS? =====
-   This view shows a list of ALL candidates
-   It's what users see when they visit /Candidate or /Candidate/Index
-*@
+﻿@model OnlineVotingApplication.DataTransferView.CandidateViewModel
 
 @{
-    ViewBag.Title = "All Candidates";
-    Layout = "_Layout"; // 
+    ViewData["Title"] = "Candidate Dashboard";
+    Layout = "_Layout"; // Adjust if using a specific dashboard layout wrapper
 }
 
-<div class="container mt-5">
-    <!-- PAGE HEADER -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="mb-2">
-                <i class="fas fa-users"></i> Candidates
+<div class="container-fluid py-4">
+    <!-- Page Header -->
+    <div class="row mb-4 align-items-center">
+        <div class="col">
+            <h1 class="h3 fw-bold text-dark mb-1">
+                <i class="fas fa-user-tie text-primary me-2"></i>Candidate Portal
             </h1>
-            <p class="text-muted">Browse all available candidates</p>
+            <p class="text-muted mb-0">Manage your campaign profile, manifesto, and election constituency details.</p>
         </div>
-
-        <!-- CREATE BUTTON (only for admins) -->
-        @if (User.IsInRole("SuperAdmin") || User.IsInRole("Official"))
-        {
-            <div class="col-md-4 text-end">
-                <a href="/Candidate/Create" class="btn btn-primary btn-lg">
-                    <i class="fas fa-plus"></i> Add New Candidate
-                </a>
-            </div>
-        }
+        <div class="col-auto">
+            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID" class="btn btn-warning fw-semibold px-4 shadow-sm">
+                <i class="fas fa-edit me-2"></i>Edit Profile
+            </a>
+        </div>
     </div>
 
-    <!-- SUCCESS/ERROR MESSAGES -->
+    <!-- Alert Notifications -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show" role="alert">
-            <i class="fas fa-check-circle"></i> @TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
-
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-circle"></i> @TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
         </div>
     }
 
-    <!-- CANDIDATES GRID -->
-    @if (Model != null && Model.Count > 0)
-    {
-        <div class="row g-4">
-            @foreach (var candidate in Model)
-            {
-                <!-- SINGLE CANDIDATE CARD -->
-                <div class="col-md-6 col-lg-4">
-                    <div class="card h-100 shadow-sm">
-                        <!-- CANDIDATE IMAGE -->
-                        <div style="height: 250px; overflow: hidden; background: #f0f0f0;">
-                            <img src="@candidate.image"
-                                 alt="@candidate.Name"
-                                 style="width: 100%; height: 100%; object-fit: cover;"
-                                 class="card-img-top" />
-                        </div>
-
-                        <!-- CARD BODY -->
-                        <div class="card-body">
-                            <!-- NAME -->
-                            <h5 class="card-title">
-                                @candidate.Name
-                            </h5>
-
-                            <!-- PARTY -->
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-flag"></i> Party: @candidate.PartyName
-                            </p>
-
-                            <!-- POSITION -->
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-briefcase"></i> Position: @candidate.Position
-                            </p>
-
-                            <!-- STATE -->
-                            <p class="text-muted small mb-3">
-                                <i class="fas fa-map-marker-alt"></i> State: @candidate.StateName
-                            </p>
-
-                            <!-- MANIFESTO (short preview) -->
-                            <p class="card-text small">
-                                @(candidate.Manifesto?.Length > 100
-                                                        ? candidate.Manifesto.Substring(0, 100) + "..."
-                                                        : candidate.Manifesto)
-                    </p>
+    <div class="row g-4">
+        <!-- Left Column: Profile Card & Quick Info -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
+                <div class="bg-primary p-4 text-center text-white position-relative" style="background: linear-gradient(135deg, #1a2e5a 0%, #2a437e 100%) !important;">
+                    <div class="position-absolute top-0 end-0 p-3">
+                        <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill shadow-sm">Active Candidate</span>
+                    </div>
+                    <div class="avatar-lg rounded-circle bg-warning text-dark fw-bold display-6 d-inline-flex align-items-center justify-content-center shadow-lg mb-3" style="width: 80px; height: 80px;">
+                        @(Model.Name?.Substring(0, 1).ToUpper() ?? "C")
+                    </div>
+                    <h4 class="fw-bold mb-1">@Model.Name</h4>
+                    <p class="text-white-50 small mb-0"><i class="fas fa-landmark me-1"></i> @(ViewBag.ElectionTitle ?? "Election Event")</p>
                 </div>
+                <div class="card-body p-4">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                            <span class="text-muted"><i class="fas fa-flag text-primary me-2"></i> Political Party</span>
+                            <span class="fw-semibold text-dark">@(Model.PartyName ?? "Independent / N/A")</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                            <span class="text-muted"><i class="fas fa-id-badge text-primary me-2"></i> Running Position</span>
+                            <span class="fw-semibold text-dark">@(Model.PositionName ?? "Not Specified")</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                            <span class="text-muted"><i class="fas fa-map-marker-alt text-primary me-2"></i> State Constituency</span>
+                            <span class="fw-semibold text-dark">@(Model.StateName ?? "Nationwide / General")</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
+                            <span class="text-muted"><i class="fas fa-city text-primary me-2"></i> Local Govt (LGA)</span>
+                            <span class="fw-semibold text-dark">@(Model.LgaName ?? "All LGAs")</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
 
-                        <!-- CARD FOOTER WITH BUTTONS -->
-                        <div class="card-footer bg-light">
-                            <div class="d-flex gap-2">
-                                <!-- VIEW DETAILS BUTTON -->
-                                <a href="/Candidate/Details/@candidate.CandidateID"
-                                   class="btn btn-sm btn-primary flex-grow-1">
-                                    <i class="fas fa-eye"></i> View Details
-                                </a>
+        <!-- Right Column: Manifesto & Campaign Information -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
+                <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="fas fa-scroll text-warning me-2"></i>Campaign Manifesto & Vision
+                    </h5>
+                    <hr class="text-muted opacity-25 mt-3">
+                </div>
+                <div class="card-body px-4 pb-4">
+                    @if (!string.IsNullOrWhiteSpace(Model.Manifesto))
+                    {
+                        <div class="p-4 rounded-3 bg-light text-secondary lh-lg" style="white-space: pre-line; border-left: 4px solid #f5a623;">
+                            @Model.Manifesto
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="text-center py-5">
+                            <div class="text-muted mb-3">
+                                <i class="fas fa-file-alt fa-3x opacity-50"></i>
+                            </div>
+                            <h6 class="fw-semibold text-dark">No Manifesto Added Yet</h6>
+                            <p class="text-muted small mb-3">Share your plans and vision with voters by updating your profile.</p>
+                            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID" class="btn btn-outline-primary btn-sm px-3">
+                                <i class="fas fa-plus me-1"></i> Add Manifesto
+                            </a>
+                        </div>
+                    }
 
-                                <!-- EDIT BUTTON (only for admins) -->
-                        @if (User.IsInRole("SuperAdmin") || User.IsInRole("Official"))
-                                {
-                                    <a href="/Candidate/Edit/@candidate.CandidateID"
-                                       class="btn btn-sm btn-warning">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                }
+                    <!-- Quick Navigation Action Cards -->
+                    <div class="row g-3 mt-4">
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded-3 bg-white shadow-sm d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-3 p-3 me-3">
+                                    <i class="fas fa-chart-bar fa-lg"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Live Vote Tracking</h6>
+                                    <p class="text-muted small mb-0">Monitor real-time ballot counts for your position.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 border rounded-3 bg-white shadow-sm d-flex align-items-center">
+                                <div class="bg-success text-white rounded-3 p-3 me-3">
+                                    <i class="fas fa-shield-alt fa-lg"></i>
+                                </div>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Tenant Verified</h6>
+                                    <p class="text-muted small mb-0">Secured under your active election workspace.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            }
+            </div>
         </div>
-    }
-    else
-    {
-        <!-- NO CANDIDATES MESSAGE -->
-        <div class="alert alert-info text-center p-5">
-            <i class="fas fa-info-circle fa-2x mb-3 d-block"></i>
-            <h5>No candidates found</h5>
-            <p>There are currently no candidates available.</p>
-        </div>
-    }
+    </div>
 </div>

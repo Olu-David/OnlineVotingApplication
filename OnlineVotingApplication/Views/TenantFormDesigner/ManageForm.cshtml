@@ -1,0 +1,170 @@
+﻿@using OnlineVotingApplication.Enums
+@model List<OnlineVotingApplication.Models.ElectionCustomField>
+
+@{
+    Layout = "_Layout";
+    ViewData["Title"] = "Manage Election Questionnaire Form";
+    var electionId = (Guid)ViewBag.ElectionId;
+}
+
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-dark"><i class="fas fa-sliders-h text-primary me-2"></i>Election Form Designer</h2>
+            <p class="text-muted small">Configure and expand the registration profile questions required for candidates in this election.</p>
+        </div>
+        <div>
+            <a asp-controller="Tenant" asp-action="Dashboard" class="btn btn-outline-secondary btn-sm rounded-pill">
+                <i class="fas fa-arrow-left me-1"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+    <partial name="_Alerts" />
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm rounded-3 mb-4">
+                <div class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
+                    <h5 class="fw-bold text-dark mb-0">Active Form Structure</h5>
+                    <span class="badge bg-primary rounded-pill">@Model.Count Question(s)</span>
+                </div>
+                <div class="card-body p-0 mt-3">
+                    <div class="table-responsive">
+                        <table class="table align-middle mb-0 table-hover">
+                            <thead class="table-light text-muted small text-uppercase">
+                                <tr>
+                                    <th class="ps-4">Question Text / Field Label</th>
+                                    <th>Input Mode</th>
+                                    <th>Required</th>
+                                    <th>Group Track</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (Model.Any())
+                                {
+                                    foreach (var field in Model)
+                                    {
+                                        <tr>
+                                            <td class="ps-4">
+                                                <span class="fw-bold text-dark d-block">@field.FieldName</span>
+                                                @if (!string.IsNullOrEmpty(field.CustomChoicesCsv))
+                                                {
+                                                    <span class="text-muted xsmall font-monospace">Options: @field.CustomChoicesCsv</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <span class="badge bg-light text-secondary border px-2 py-1 rounded">@field.FieldType</span>
+                                            </td>
+                                            <td>
+                                                @if (field.IsRequired)
+                                                {
+                                                    <span class="text-danger fw-bold"><i class="fas fa-asterisk me-1"></i>Yes</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-muted">No</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                @if (field.FormCategory == TenantCategory.Custom)
+                                                {
+                                                    <span class="badge bg-info-subtle text-info px-2 py-1 rounded-pill">Bespoke Addition</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success-subtle text-success px-2 py-1 rounded-pill">Blueprint Copy</span>
+                                                }
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="4" class="text-center py-5 text-muted">
+                                            <div class="p-3">
+                                                <i class="fas fa-file-signature fa-3x mb-3 text-gray-300"></i>
+                                                <h6 class="fw-semibold text-dark">No Form Fields Configured</h6>
+                                                <p class="text-muted small mb-3">Candidates will register using only default system profile parameters.</p>
+
+                                                <form asp-action="ApplyBlueprint" method="post" class="d-inline">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="electionId" value="@electionId" />
+                                                    <input type="hidden" name="templateCategory" value="AutoResolve" />
+                                                    <button type="submit" class="btn btn-sm btn-primary px-3 shadow-sm fw-bold">
+                                                        <i class="fas fa-magic me-1"></i> Auto-Inject Industry Blueprint
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm rounded-3 p-4">
+                <h5 class="fw-bold text-dark mb-3"><i class="fas fa-plus-circle text-success me-2"></i>Append Custom Question</h5>
+                <p class="text-muted small mb-4">Add a specialized, single parameter field configuration bound exclusively to this active execution election.</p>
+
+                <form asp-action="AddCustomField" method="post">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="electionId" value="@electionId" />
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">Field Label / Question Text</label>
+                        <input type="text" name="fieldName" class="form-control" placeholder="e.g. Current CGPA, Ward Number, Employee ID" required />
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold">HTML Input Display Element</label>
+                        <select name="fieldType" id="tenantFieldType" class="form-select" required>
+                            <option value="@ElectionFieldType.Input">Short Text Input Box</option>
+                            <option value="@ElectionFieldType.TextArea">Long Text Area Paragraph</option>
+                            <option value="@ElectionFieldType.Dropdown">Dropdown Select Menu Option</option>
+                            <option value="@ElectionFieldType.File">Document / PDF Upload Slot</option>
+                            <option value="@ElectionFieldType.StateDropdown">System State Dropdown</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3 bg-light p-3 rounded" id="tenantChoicesWrapper" style="display:none;">
+                        <label class="form-label small fw-bold text-primary"><i class="fas fa-tags me-1"></i>Dropdown Menu Selections (CSV)</label>
+                        <input type="text" name="csvChoices" class="form-control bg-white" placeholder="e.g. Yes, No or Freshman, Sophomore, Junior" />
+                        <div class="form-text text-muted xsmall mt-1">Separate available entries using clear commas.</div>
+                    </div>
+
+                    <div class="form-check mb-4">
+                        <input type="checkbox" name="isRequired" value="true" class="form-check-input" id="tenantIsRequired" checked />
+                        <input type="hidden" name="isRequired" value="false" />
+                        <label class="form-check-label small fw-semibold" for="tenantIsRequired">Mark field as mandatory response required</label>
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-success fw-bold shadow-sm">
+                            <i class="fas fa-save me-1"></i> Inject Custom Form Field
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://jquery.com" crossorigin="anonymous"></script>
+<script type="text/javascript">
+    $(document).ready(function () {
+        var fieldSelect = $("#tenantFieldType");
+        var csvWrapper = $("#tenantChoicesWrapper");
+
+        fieldSelect.change(function () {
+            if ($(this).val() === "Dropdown") {
+                csvWrapper.slideDown();
+            } else {
+                csvWrapper.slideUp().find("input").val("");
+            }
+        });
+    });
+</script>

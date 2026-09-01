@@ -1,0 +1,106 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model  PaginatedListViewModel<PartyViewModel>
+
+@{
+    ViewData["Title"] = "Recycle Bin - Parties";
+}
+
+<div class="container mt-4">
+    <!-- Breadcrumb and Layout Navigation -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="text-danger fw-bold mb-1">Recycle Bin: Political Parties</h2>
+            <p class="text-muted small mb-0">Manage and restore previously archived data profiles.</p>
+        </div>
+        <a href="@Url.Action("AllParty")" class="btn btn-sm btn-secondary">
+            ← Back to Active Parties
+        </a>
+    </div>
+
+    <!-- Data Layout Table -->
+    <div class="card shadow-sm border-danger-subtle mb-4">
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light text-secondary small uppercase">
+                    <tr>
+                        <th class="ps-4" style="width: 12%">Identity Logo</th>
+                        <th style="width: 25%">Organization Title</th>
+                        <th style="width: 45%">Archived Description</th>
+                        <th class="pe-4 text-end" style="width: 18%">Data System Link</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @if (Model.Items != null && Model.Items.Any())
+                    {
+                        @foreach (var party in Model.Items)
+                        {
+                            <tr>
+                                <td class="ps-4">
+                                    <img src="@(string.IsNullOrEmpty(party.LogoUrl) ? "/images/default-logo.png" : party.LogoUrl)"
+                                         alt="Archived Logo"
+                                         class="rounded bg-light border p-1"
+                                         style="width: 48px; height: 48px; object-fit: contain;">
+                                </td>
+                                <td>
+                                    <span class="fw-bold text-dark d-block mb-1">@party.Name</span>
+                                    <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 small">Archived</span>
+                                </td>
+                                <td class="text-muted small py-3">@party.Description</td>
+                                <td class="pe-4 text-end">
+                                    <form asp-action="RestoreParty" asp-route-name="@party.Name" method="post" class="d-inline">
+                                        @Html.AntiForgeryToken()
+                                        <button type="submit" class="btn btn-sm btn-outline-success font-medium">
+                                            🔄 Restore Record
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                        }
+                    }
+                    else
+                    {
+                        <tr>
+                            <td colspan="4" class="text-center py-5 text-muted">
+                                <div class="fs-2 mb-2">📁</div>
+                                <h6 class="fw-semibold mb-1">Recycle Bin is Completely Empty</h6>
+                                <p class="small text-muted mb-0">No soft-deleted party components exist in database storage.</p>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Isolated Trash Pagination -->
+    @{
+        var hasPreviousPage = Model.PageNumber > 1;
+        var totalPages = (int)Math.Ceiling((double)Model.TotalItems / Model.PageSize);
+        var hasNextPage = Model.PageNumber < totalPages;
+    }
+
+    @if (totalPages > 1)
+    {
+        <nav aria-label="Deleted items navigation" class="mt-4">
+            <ul class="pagination justify-content-center">
+                <li class="page-item @(hasPreviousPage ? "" : "disabled")">
+                    <a class="page-link text-danger border shadow-sm px-3"
+                       asp-action="AllSoftDelete"
+                       asp-route-PageNumber="@(Model.PageNumber - 1)"
+                       asp-route-PageSize="@Model.PageSize">Previous</a>
+                </li>
+                <li class="page-item disabled">
+                    <span class="page-link text-dark bg-light border border-start-0 border-end-0 px-3 fw-medium">
+                        Page @Model.PageNumber of @totalPages
+                    </span>
+                </li>
+                <li class="page-item @(hasNextPage ? "" : "disabled")">
+                    <a class="page-link text-danger border shadow-sm px-3"
+                       asp-action="AllSoftDelete"
+                       asp-route-PageNumber="@(Model.PageNumber + 1)"
+                       asp-route-PageSize="@Model.PageSize">Next</a>
+                </li>
+            </ul>
+        </nav>
+    }
+</div>

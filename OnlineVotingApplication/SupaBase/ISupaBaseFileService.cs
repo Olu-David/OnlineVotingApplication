@@ -1,0 +1,7 @@
+﻿namespace OnlineVotingApplication.SupaBase
+{
+    public interface ISupaBaseFileService
+    {
+        Task<string> UploadFileAsync(string bucketName, string fileName, Stream fileStream, string contentType);
+    }
+}

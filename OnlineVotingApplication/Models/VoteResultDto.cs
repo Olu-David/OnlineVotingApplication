@@ -2,9 +2,10 @@
 {
     public class VoteResultDto
     {
-        public Guid CandidateId { get; set; } 
+        public Guid? CandidateId { get; set; } 
         public string CandidateName { get; set; } = string.Empty;
         public int VoteCount { get; set; }
+        public int TotalVotes { get; internal set; }
     }
 }
 

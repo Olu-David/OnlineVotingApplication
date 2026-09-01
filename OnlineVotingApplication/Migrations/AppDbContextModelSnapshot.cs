@@ -191,6 +191,9 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<bool>("HasVoted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("bit");
 
@@ -224,6 +227,9 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
 
@@ -254,6 +260,8 @@ namespace OnlineVotingApplication.Migrations
                         .HasFilter("[NormalizedUserName] IS NOT NULL");
 
                     b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Users", (string)null);
                 });
@@ -297,6 +305,9 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("ElectionEventId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid?>("LgaId")
                         .HasColumnType("uniqueidentifier");
 
@@ -314,11 +325,21 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<Guid?>("PositionId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
                     b.Property<Guid?>("StateId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<Guid?>("StatesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<string>("UserId")
-                        .IsRequired()
                         .HasColumnType("nvarchar(450)");
 
                     b.Property<bool>("isApproved")
@@ -329,24 +350,177 @@ namespace OnlineVotingApplication.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ElectionEventId");
+
                     b.HasIndex("LgaId");
 
                     b.HasIndex("PartyId");
 
                     b.HasIndex("PositionId");
 
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
                     b.HasIndex("StateId");
+
+                    b.HasIndex("StatesId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("Candidate");
                 });
 
-            modelBuilder.Entity("OnlineVotingApplication.Models.Election", b =>
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateCustomValue", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("FieldId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Value")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.HasIndex("FieldId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("CandidateCustomValues");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateGallery", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("CandidateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ImageUrl")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CandidateId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("CandidateGalleries");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("CandidateEmail")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ElectionEventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ElectionEventId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("candidateInvitations");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.ElectionCustomField", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CustomChoicesCsv")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid?>("ElectionEventId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FieldName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("FieldType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("FormCategory")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsRequired")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ElectionEventId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ElectionCustomFields");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.ElectionEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<int>("ElectionYear")
                         .HasColumnType("int");
@@ -354,18 +528,29 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<DateTime>("EndDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("ImageUrl")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<DateTime>("StartDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Title")
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Election");
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("ElectionEvents");
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.LGA", b =>
@@ -420,7 +605,12 @@ namespace OnlineVotingApplication.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Party");
                 });
@@ -511,7 +701,7 @@ namespace OnlineVotingApplication.Migrations
                     b.Property<DateTime>("DeletedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid?>("ElectionId")
+                    b.Property<Guid?>("ElectionEventId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<bool>("IsDeleted")
@@ -522,9 +712,14 @@ namespace OnlineVotingApplication.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("ElectionId");
+                    b.HasIndex("ElectionEventId");
+
+                    b.HasIndex("TenantId");
 
                     b.ToTable("Position");
                 });
@@ -569,25 +764,81 @@ namespace OnlineVotingApplication.Migrations
                     b.ToTable("States");
                 });
 
+            modelBuilder.Entity("OnlineVotingApplication.Models.Tenant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsApproved")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("MaxAllowedElections")
+                        .HasColumnType("int");
+
+                    b.Property<string>("OrganizationName")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ProfilePicture")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("SubscriptionPlan")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("TenantCategory")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Tenants");
+                });
+
             modelBuilder.Entity("OnlineVotingApplication.Models.Vote", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("CandidateId")
+                    b.Property<Guid?>("CandidateId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime?>("CastAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("ElectionId")
+                    b.Property<string>("ConfirmationCode")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ElectionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("PositionId")
+                    b.Property<bool>("HasVoted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsConfirmed")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid?>("PositionId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("StateId")
+                    b.Property<Guid?>("StateId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TenantId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<DateTime>("VotedAt")
@@ -605,6 +856,8 @@ namespace OnlineVotingApplication.Migrations
                     b.HasIndex("PositionId");
 
                     b.HasIndex("StateId");
+
+                    b.HasIndex("TenantId");
 
                     b.HasIndex("VoterId");
 
@@ -689,35 +942,56 @@ namespace OnlineVotingApplication.Migrations
                         .HasForeignKey("StateId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
                     b.Navigation("State");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.Candidate", b =>
                 {
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
+                        .WithMany("Candidates")
+                        .HasForeignKey("ElectionEventId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("OnlineVotingApplication.Models.LGA", "LGA")
                         .WithMany("Candidates")
                         .HasForeignKey("LgaId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("OnlineVotingApplication.Models.Party", "Party")
                         .WithMany("Candidates")
                         .HasForeignKey("PartyId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("OnlineVotingApplication.Models.Positions", "Position")
                         .WithMany("Candidates")
                         .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("OnlineVotingApplication.Models.States", "State")
+                        .WithMany()
+                        .HasForeignKey("StateId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("OnlineVotingApplication.Models.States", null)
                         .WithMany("Candidates")
-                        .HasForeignKey("StateId");
+                        .HasForeignKey("StatesId");
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
 
                     b.HasOne("OnlineVotingApplication.Areas.Identity.Data.ApplicationUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ElectionEvent");
 
                     b.Navigation("LGA");
 
@@ -727,7 +1001,94 @@ namespace OnlineVotingApplication.Migrations
 
                     b.Navigation("State");
 
+                    b.Navigation("Tenant");
+
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateCustomValue", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.Candidate", "Candidate")
+                        .WithMany("CustomValues")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OnlineVotingApplication.Models.ElectionCustomField", "CustomField")
+                        .WithMany()
+                        .HasForeignKey("FieldId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("CustomField");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateGallery", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.Candidate", "Candidate")
+                        .WithMany("GalleryPhotos")
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Candidate");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateInvitation", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
+                        .WithMany("CandidateInvitations")
+                        .HasForeignKey("ElectionEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ElectionEvent");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.ElectionCustomField", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
+                        .WithMany("CustomFields")
+                        .HasForeignKey("ElectionEventId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("ElectionEvent");
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.ElectionEvent", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.LGA", b =>
@@ -741,38 +1102,53 @@ namespace OnlineVotingApplication.Migrations
                     b.Navigation("State");
                 });
 
+            modelBuilder.Entity("OnlineVotingApplication.Models.Party", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("OnlineVotingApplication.Models.Positions", b =>
                 {
-                    b.HasOne("OnlineVotingApplication.Models.Election", null)
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
                         .WithMany("Positions")
-                        .HasForeignKey("ElectionId");
+                        .HasForeignKey("ElectionEventId");
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
+
+                    b.Navigation("ElectionEvent");
+
+                    b.Navigation("Tenant");
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.Vote", b =>
                 {
                     b.HasOne("OnlineVotingApplication.Models.Candidate", "Candidate")
-                        .WithMany()
-                        .HasForeignKey("CandidateId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("OnlineVotingApplication.Models.Election", null)
                         .WithMany("Votes")
-                        .HasForeignKey("ElectionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("CandidateId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "Election")
+                        .WithMany("Votes")
+                        .HasForeignKey("ElectionId");
 
                     b.HasOne("OnlineVotingApplication.Models.Positions", "Positions")
                         .WithMany()
                         .HasForeignKey("PositionId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("OnlineVotingApplication.Models.States", "State")
                         .WithMany()
-                        .HasForeignKey("StateId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .HasForeignKey("StateId");
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId");
 
                     b.HasOne("OnlineVotingApplication.Areas.Identity.Data.ApplicationUser", "Voter")
                         .WithMany()
@@ -781,15 +1157,34 @@ namespace OnlineVotingApplication.Migrations
 
                     b.Navigation("Candidate");
 
+                    b.Navigation("Election");
+
                     b.Navigation("Positions");
 
                     b.Navigation("State");
 
+                    b.Navigation("Tenant");
+
                     b.Navigation("Voter");
                 });
 
-            modelBuilder.Entity("OnlineVotingApplication.Models.Election", b =>
+            modelBuilder.Entity("OnlineVotingApplication.Models.Candidate", b =>
                 {
+                    b.Navigation("CustomValues");
+
+                    b.Navigation("GalleryPhotos");
+
+                    b.Navigation("Votes");
+                });
+
+            modelBuilder.Entity("OnlineVotingApplication.Models.ElectionEvent", b =>
+                {
+                    b.Navigation("CandidateInvitations");
+
+                    b.Navigation("Candidates");
+
+                    b.Navigation("CustomFields");
+
                     b.Navigation("Positions");
 
                     b.Navigation("Votes");

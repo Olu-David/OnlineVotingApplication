@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using OnlineVotingApplication.Areas.Identity.Data;
@@ -113,48 +114,105 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
         }
-        
 
 
-        public async Task<PaginatedListViewModel<PartyViewModel>> AllPartyAsync(int PageNumber = 1, int PageSize = 10)
+
+        public async Task<PaginatedListViewModel<PartyViewModel>> AllPartyAsync(int pageNumber = 1, int pageSize = 10)
         {
+            // 1. Sanitize inputs
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+            int skip = (pageNumber - 1) * pageSize;
 
-          
-            PageNumber = Math.Max(1, PageNumber);
-            PageSize = Math.Max(1, PageSize);
+            // 2. Define Cache Keys
+            string cacheKeyCount = "Allparty_party_count";
+            string cacheKeyData = $"ref_All_Party_{pageNumber}_{pageSize}";
 
-            int skip = (PageNumber - 1) * PageSize;
-
-            var Query = await _context.Party.AsNoTracking().ToListAsync();
-            var dbCount = Query.Count();
-
-            string CacheKey = $"ref_All_Party_{PageNumber}_{PageSize}";
-
-
-            if(!_cache.TryGetValue(CacheKey, out  List <PartyViewModel>? Party))
+            // 3. Get total count (Cached)
+            if (!_cache.TryGetValue(cacheKeyCount, out int totalCount))
             {
-                Party= Query.OrderBy(m=>m.Name).Select(m=> new PartyViewModel
-                {
-                    Name=m.Name,
-                    Description=m.Description,
-                    LogoUrl=m.LogoUrl
-
-                }).ToList();
-                _cache.Set(CacheKey, Party, TimeSpan.FromMinutes(5));
-
+                totalCount = await _context.Party.CountAsync();
+                _cache.Set(cacheKeyCount, totalCount, TimeSpan.FromMinutes(5));
             }
+
+            // 4. Get paginated data (Cached)
+            if (!_cache.TryGetValue(cacheKeyData, out List<PartyViewModel>? parties))
+            {
+                // Pagination happens at the DATABASE level using Skip and Take
+                parties = await _context.Party
+                    .AsNoTracking()
+                    .OrderBy(m => m.Name)
+                    .Skip(skip)
+                    .Take(pageSize)
+                    .Select(m => new PartyViewModel
+                    {
+                        Name = m.Name,
+                        Description = m.Description,
+                        LogoUrl = m.LogoUrl
+                    })
+                    .ToListAsync();
+
+                _cache.Set(cacheKeyData, parties, TimeSpan.FromMinutes(5));
+            }
+
+            // 5. Return view model
             return new PaginatedListViewModel<PartyViewModel>
             {
-                TotalItems = dbCount,
-                Items = Party ?? Enumerable.Empty<PartyViewModel>(),
-                PageNumber=PageNumber,
-                PageSize=PageSize
-
+                TotalItems = totalCount,
+                Items = parties ?? Enumerable.Empty<PartyViewModel>(),
+                PageNumber = pageNumber,
+                PageSize = pageSize
             };
-            
         }
 
-      
+        public async Task<PaginatedListViewModel<PartyViewModel>> AllSoftDeleteAsync(int PageNumber = 1, int PageSize = 10)
+        {
+            // 1. Sanitize pagination bounds safely
+            PageNumber = Math.Max(1, PageNumber);
+            PageSize = Math.Max(1, PageSize);
+            int skip = (PageNumber - 1) * PageSize;
+
+            // 2. Define unique cache keys specifically isolated for deleted items
+            string CacheKeyItems = $"deleted_party_{PageNumber}_{PageSize}";
+            string CacheKeyCount = $"deleted_party_count";
+
+            // Build the query skeleton (does not execute against DB yet)
+            var queryDb = _context.Party.AsNoTracking().Where(m => m.IsDeleted);
+
+            // 3. Cache or fetch total row count cleanly using asynchronous execution
+            if (!_cache.TryGetValue(CacheKeyCount, out int totalCount))
+            {
+                totalCount = await queryDb.CountAsync();
+                _cache.Set(CacheKeyCount, totalCount, TimeSpan.FromMinutes(5));
+            }
+
+            // 4. Cache or slice pagination directly inside database engine
+            if (!_cache.TryGetValue(CacheKeyItems, out List<PartyViewModel>? deletedParties))
+            {
+                deletedParties = await queryDb
+                    .OrderBy(m => m.Name).Where(m=>m.IsDeleted==true)
+                    .Skip(skip)
+                    .Take(PageSize)
+                    .Select(m => new PartyViewModel
+                    {
+                        Name = m.Name,
+                        Description = m.Description,
+                        LogoUrl = m.LogoUrl
+                    })
+                    .ToListAsync();
+
+                _cache.Set(CacheKeyItems, deletedParties, TimeSpan.FromMinutes(5));
+            }
+
+            // 5. Build and return model layer
+            return new PaginatedListViewModel<PartyViewModel>
+            {
+                TotalItems = totalCount,
+                Items = deletedParties ?? new List<PartyViewModel>(),
+                PageNumber = PageNumber,
+                PageSize = PageSize
+            };
+        }
 
         public async Task<ServiceResponse<string>> EditPartyAsync(EditPartyViewModel model, string Id)
         {

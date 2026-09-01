@@ -1,0 +1,112 @@
+﻿@model OnlineVotingApplication.DataTransferView.PaginatedListViewModel<OnlineVotingApplication.DataTransferView.PositionDTO>
+
+@{
+    ViewData["Title"] = "Positions Management";
+    Layout = "_Layout";
+    string electionId = ViewBag.ElectionId as string ?? "";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold"><i class="fas fa-sitemap me-2 text-primary"></i>Election Positions</h2>
+            <p class="text-muted mb-0">Manage and organize positions available for this election event.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <a asp-action="GetAllSoftDelete" class="btn btn-outline-danger shadow-sm">
+                <i class="fas fa-trash-alt me-1"></i> Trash
+            </a>
+            <a asp-action="Create" asp-route-electionId="@electionId" class="btn btn-success shadow-sm">
+                <i class="fas fa-plus-circle me-1"></i> Create Position
+            </a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
+            <i class="fas fa-exclamation-circle me-2"></i>@TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4 py-3">Position Name</th>
+                            <th class="text-end pe-4 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model == null || Model.Items == null || !Model.Items.Any())
+                        {
+                            <tr>
+                                <td colspan="2" class="text-center py-5 text-muted">
+                                    <i class="fas fa-folder-open fa-2x mb-2 d-block"></i>
+                                    No positions configured for this election yet.
+                                </td>
+                            </tr>
+                        }
+                        else
+                        {
+                            @foreach (var position in Model.Items)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-semibold text-dark">@position.Name</td>
+                                    <td class="text-end pe-4">
+                                        <a asp-action="Edit" asp-route-id="@position.Id" class="btn btn-sm btn-outline-warning me-1">
+                                            <i class="fas fa-edit me-1"></i> Edit
+                                        </a>
+                                        <form asp-action="Delete" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to move this position to trash?');">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="id" value="@position.Id" />
+                                            <input type="hidden" name="electionId" value="@electionId" />
+                                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                                <i class="fas fa-trash-alt me-1"></i> Delete
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Pagination Footer -->
+        @if (Model != null && Model.TotalPages > 1)
+        {
+            <div class="card-footer bg-white py-3">
+                <nav aria-label="Page navigation">
+                    <ul class="pagination justify-content-center mb-0">
+                        <li class="page-item @(!Model.HasPreviousPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-electionId="@electionId" asp-route-pageNumber="@(Model.PageNumber - 1)">Previous</a>
+                        </li>
+
+                        @for (int i = 1; i <= Model.TotalPages; i++)
+                        {
+                            <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                                <a class="page-link" asp-action="Index" asp-route-electionId="@electionId" asp-route-pageNumber="@i">@i</a>
+                            </li>
+                        }
+
+                        <li class="page-item @(!Model.HasNextPage ? "disabled" : "")">
+                            <a class="page-link" asp-action="Index" asp-route-electionId="@electionId" asp-route-pageNumber="@(Model.PageNumber + 1)">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>

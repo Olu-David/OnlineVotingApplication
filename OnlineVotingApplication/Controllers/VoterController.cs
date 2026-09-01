@@ -1,0 +1,259 @@
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using OnlineVotingApplication.Areas.Identity.Data;
+using OnlineVotingApplication.DataTransferView;
+using OnlineVotingApplication.Models;
+using OnlineVotingApplication.Repository.iServices;
+using System.Security.Claims;
+
+namespace OnlineVotingApplication.Controllers
+{
+    [Authorize]
+    public class VoterController : Controller
+    {
+        private readonly AppDbContext _context;
+        private readonly IVoteService _voteService;
+
+        public VoterController(AppDbContext context, IVoteService voteService)
+        {
+            _context = context;
+            _voteService = voteService;
+        }
+
+        // GET: /Voter/Index (Lists election events by tenant)
+        [HttpGet]
+        public async Task<IActionResult> Index(Guid tenantId)
+        {
+            var elections = await _context.ElectionEvents
+                .Where(e => e.TenantId == tenantId)
+                .ToListAsync();
+
+            ViewBag.TenantId = tenantId;
+            return View(elections);
+        }
+
+        // GET: /Voter/Details/5 (Shows election details, positions, and candidates)
+        [HttpGet]
+        public async Task<IActionResult> Details(Guid id) // id = ElectionId
+        {
+            var election = await _context.ElectionEvents
+                .Include(e => e.Positions!)!
+                    .ThenInclude(p => p.Candidates!)
+                .FirstOrDefaultAsync(e => e.Id == id);
+
+            if (election == null)
+            {
+                TempData["ErrorMessage"] = "Election event not found.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            return View(election);
+        }
+
+        // GET: /Voter/RequestCode?electionId=xxx&candidateId=yyy&positionId=zzz
+        [HttpGet]
+        public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId)
+        {
+            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+            var response = await _voteService.GenerateAndQueueConfirmationCodeAsync(voterId, electionId);
+
+            if (!response.Success)
+            {
+                TempData["ErrorMessage"] = response.Message;
+                return RedirectToAction("Details", new { id = electionId });
+            }
+
+            ViewBag.ElectionId = electionId;
+            ViewBag.CandidateId = candidateId;
+            ViewBag.PositionId = positionId;
+            TempData["SuccessMessage"] = "A 6-character confirmation code has been sent to your email.";
+
+            return View();
+        }
+
+        // POST: /Voter/ConfirmAndVote
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ConfirmAndVote(Guid electionId, Guid candidateId, Guid positionId, string enteredCode)
+        {
+            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+
+            var response = await _voteService.ConfirmAndCastVoteAsync(voterId, electionId, enteredCode, candidateId, positionId);
+
+            if (!response.Success)
+            {
+                TempData["ErrorMessage"] = response.Message;
+                return RedirectToAction("RequestCode", new { electionId, candidateId, positionId });
+            }
+
+            TempData["SuccessMessage"] = response.Data ?? "Your vote has been successfully submitted!";
+            return RedirectToAction("ConfirmationSuccess");
+        }
+
+        [HttpGet]
+        public IActionResult ConfirmationSuccess()
+        {
+            return View();
+        }
+
+        // GET: /Voter/MyHistory
+        [HttpGet]
+        public async Task<IActionResult> MyHistory()
+        {
+            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var response = await _voteService.GetElectionsTakenByVoterAsync(voterId);
+
+            if (!response.Success)
+            {
+                TempData["ErrorMessage"] = response.Message;
+                return View(new List<ElectionEvent>());
+            }
+
+            return View(response.Data);
+        }
+
+        // GET: /Voter/BallotBreakdown?electionId=xxx
+        [HttpGet]
+        [Authorize(Roles = "SuperAdmin,Official,Candidate")]
+        public async Task<IActionResult> BallotBreakdown(Guid electionId)
+        {
+            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var response = await _voteService.GetVoterBallotHistoryAsync(voterId, electionId);
+
+            if (!response.Success)
+            {
+                TempData["ErrorMessage"] = response.Message;
+                return RedirectToAction(nameof(MyHistory));
+            }
+
+            return View(response.Data);
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> LiveResults()
+        {
+            var voteData = await _context.Candidate
+                .Select(c => new CandidateVoteDto
+                {
+                    CandidateName = c.Name ?? "",
+                    VoteCount = _context.Votes.Count(v => v.CandidateId == c.Id)
+                })
+                .ToListAsync();
+
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "LiveResults";
+
+            return View(voteData);
+        }
+
+        // GET: /Voter/ManualEntry
+        [HttpGet]
+        [Authorize(Roles = "SuperAdmin,Official,Tenant")]
+        public async Task<IActionResult> ManualEntry(Guid? electionId, Guid? positionId)
+        {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "ManualEntry";
+
+            ViewBag.Elections = await _context.ElectionEvents
+                .Where(e => !e.IsDeleted)
+                .ToListAsync();
+
+            ViewBag.Positions = await _context.Position.ToListAsync();
+
+            var model = new ManualResultViewModel();
+
+            if (electionId.HasValue && positionId.HasValue)
+            {
+                model.ElectionEventId = electionId.Value;
+                model.PositionId = positionId.Value;
+
+                var candidates = await _context.Candidate
+                    .Where(c => c.ElectionEventId == electionId && c.PositionId == positionId && !c.isDeleted)
+                    .ToListAsync();
+
+                model.CandidateVotes = candidates.Select(c => new CandidateVoteInput
+                {
+                    CandidateId = c.Id,
+                    CandidateName = c.Name ?? "Unnamed Candidate",
+                    ManualVoteCount = 0
+                }).ToList();
+            }
+
+            return View(model);
+        }
+
+        // POST: /Voter/ManualEntry
+        [HttpPost]
+        [Authorize(Roles = "SuperAdmin,Official,Tenant")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ManualEntry(ManualResultViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Elections = await _context.ElectionEvents.Where(e => !e.IsDeleted).ToListAsync();
+                ViewBag.Positions = await _context.Position.ToListAsync();
+                return View(model);
+            }
+
+            foreach (var entry in model.CandidateVotes)
+            {
+                if (entry.ManualVoteCount > 0)
+                {
+                    for (int i = 0; i < entry.ManualVoteCount; i++)
+                    {
+                        var vote = new Vote
+                        {
+                            Id = Guid.NewGuid(),
+                            CandidateId = entry.CandidateId,
+                            ElectionId = model.ElectionEventId,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        _context.Votes.Add(vote);
+                    }
+                }
+                else if (entry.ManualVoteCount < 0)
+                {
+                    int removeCount = Math.Abs(entry.ManualVoteCount);
+
+                    var existingVotes = await _context.Votes
+                        .Where(v => v.CandidateId == entry.CandidateId && v.ElectionId == model.ElectionEventId)
+                        .OrderByDescending(v => v.CreatedAt)
+                        .Take(removeCount)
+                        .ToListAsync();
+
+                    if (existingVotes.Any())
+                    {
+                        _context.Votes.RemoveRange(existingVotes);
+                    }
+                }
+            }
+
+            await _context.SaveChangesAsync();
+            TempData["SuccessMessage"] = "Manual votes successfully updated (added/subtracted)!";
+            return RedirectToAction("LiveResults");
+        }
+
+        // POST: /Voter/PenalizeVoter
+        [HttpPost]
+        [Authorize(Roles = "SuperAdmin,Official")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PenalizeVoter(string voterId, Guid electionId, string reason, Guid returnElectionId)
+        {
+            string adminId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            var response = await _voteService.PenalizeVoterAsync(voterId, electionId, reason, adminId);
+
+            if (!response.Success)
+            {
+                TempData["ErrorMessage"] = response.Message;
+            }
+            else
+            {
+                TempData["SuccessMessage"] = response.Data;
+            }
+
+            return RedirectToAction("Details", new { id = returnElectionId });
+        }
+    }
+}

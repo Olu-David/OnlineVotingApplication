@@ -96,7 +96,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (!_cache.TryGetValue(cacheKey, out List<LgaDTO>? lgas))
             {
-                lgas = queryDb
+                lgas = queryDb.Skip((PageNumber-1)*PageSize).Take(PageSize)
                     .Select(l => new LgaDTO
                     {
                         Id = l.Id,
@@ -119,15 +119,31 @@ namespace OnlineVotingApplication.Repository.Services
         }
         public async Task<PaginatedListViewModel<LgaDTO>> GetLgasByStateIdAsync(Guid stateId, int PageNumber = 1, int PageSize = 10)
         {
-            var cacheKey = $"lgas_state_{stateId}_{PageNumber}_{PageSize}";
+            // 1. Sanitize input variables safely
+            PageNumber = Math.Max(1, PageNumber);
+            PageSize = Math.Max(1, PageSize);
+            int skip = (PageNumber - 1) * PageSize;
 
-            var queryDb = _context.Lgas
-                    .Where(x => x.StateId == stateId);
-            int ItemCount = queryDb.Count();
-            if (!_cache.TryGetValue(cacheKey, out List<LgaDTO>? lgas))
+            // 2. Define unique cache keys for both items and total count
+            string CacheKeyItems = $"lgas_state_{stateId}_{PageNumber}_{PageSize}";
+            string CacheKeyCount = $"lgas_state_{stateId}_count";
+
+            var queryDb = _context.Lgas.AsNoTracking().Where(x => x.StateId == stateId);
+
+            // 3. Try to get total count from cache, or fetch asynchronously from DB
+            if (!_cache.TryGetValue(CacheKeyCount, out int totalCount))
+            {
+                totalCount = await queryDb.CountAsync();
+                _cache.Set(CacheKeyCount, totalCount, TimeSpan.FromMinutes(10));
+            }
+
+            // 4. Try to get paginated list from cache, or slice explicitly with Skip/Take from DB
+            if (!_cache.TryGetValue(CacheKeyItems, out List<LgaDTO>? lgas))
             {
                 lgas = await queryDb
                     .OrderBy(x => x.Name)
+                    .Skip(skip)
+                    .Take(PageSize)
                     .Select(x => new LgaDTO
                     {
                         Id = x.Id,
@@ -136,19 +152,18 @@ namespace OnlineVotingApplication.Repository.Services
                     })
                     .ToListAsync();
 
-                _cache.Set(cacheKey, lgas, TimeSpan.FromMinutes(5));
+                _cache.Set(CacheKeyItems, lgas, TimeSpan.FromMinutes(5));
             }
 
+            // 5. Build and return the view model
             return new PaginatedListViewModel<LgaDTO>
             {
-                Items = lgas != null ? lgas : Enumerable.Empty<LgaDTO>(),
-                TotalItems = ItemCount,
+                Items = lgas ?? new List<LgaDTO>(),
+                TotalItems = totalCount,
                 PageSize = PageSize,
                 PageNumber = PageNumber
             };
         }
-
-
 
         public async Task<LGA?> GetLgaByIdAsync(Guid id)
         {

@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -7,6 +8,7 @@ using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Enums;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
 {
@@ -15,13 +17,22 @@ namespace OnlineVotingApplication.Controllers
     {
         private readonly AppDbContext _context;
         private readonly ITenantProvider _tenantProvider;
+        private readonly IAuditLogService _auditLogService;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ElectionEventController> _logger;
 
-        public ElectionEventController(AppDbContext context, ITenantProvider tenantProvider, ILogger<ElectionEventController> logger)
+        public ElectionEventController(
+            AppDbContext context,
+            ITenantProvider tenantProvider,
+            IAuditLogService auditLogService,
+            UserManager<ApplicationUser> userManager,
+            ILogger<ElectionEventController> logger)
         {
-            _context = context;
-            _tenantProvider = tenantProvider;
-            _logger = logger;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         // ─────────────────────────────────────────────
@@ -125,8 +136,14 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            var userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User session is invalid.";
+                return RedirectToAction(nameof(Index));
+            }
 
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
             Guid? effectiveTenantId = isSuperAdmin ? model.TenantId : _tenantProvider.GetCurrentTenantId();
 
             var election = new ElectionEvent
@@ -144,6 +161,18 @@ namespace OnlineVotingApplication.Controllers
 
             _context.ElectionEvents.Add(election);
             await _context.SaveChangesAsync();
+
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Election Created",
+                details: $"Created election event '{election.Title}' (ID: {election.Id})",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
             _logger.LogInformation("Election {ElectionId} ('{Title}') created by {User} for TenantId={TenantId}",
                 election.Id, election.Title, User.Identity?.Name, election.TenantId);
@@ -225,6 +254,19 @@ namespace OnlineVotingApplication.Controllers
 
             await _context.SaveChangesAsync();
 
+            // --- AUDIT LOGGING ---
+            var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Election Updated",
+                details: $"Updated election event ID: {model.Id} ('{model.Title}')",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = $"Election \"{election.Title}\" updated successfully.";
             return RedirectToAction(nameof(Index));
         }
@@ -249,6 +291,19 @@ namespace OnlineVotingApplication.Controllers
             election.IsDeleted = true;
             election.DeletedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // --- AUDIT LOGGING ---
+            var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Election Soft-Deleted",
+                details: $"Moved election event ID: {id} ('{election.Title}') to trash",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
             TempData["SuccessMessage"] = $"\"{election.Title}\" moved to trash. It can be restored within 30 days.";
             return RedirectToAction(nameof(Index));
@@ -337,6 +392,19 @@ namespace OnlineVotingApplication.Controllers
             election.IsDeleted = false;
             election.DeletedAt = null;
             await _context.SaveChangesAsync();
+
+            // --- AUDIT LOGGING ---
+            var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Election Restored",
+                details: $"Restored election event ID: {id} ('{election.Title}') from trash",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
             TempData["SuccessMessage"] = $"\"{election.Title}\" restored successfully.";
             return RedirectToAction(nameof(Index));

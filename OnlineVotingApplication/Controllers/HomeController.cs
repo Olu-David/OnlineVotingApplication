@@ -23,10 +23,6 @@ namespace OnlineVotingApplication.Controllers
             _supportService = supportService;
         }
 
-        public HomeController(ILogger<HomeController> logger, IElectionService electionService, AppDbContext context, ISupportService supportService) : this(logger, electionService, context)
-        {
-            _supportService = supportService;
-        }
 
         public async Task<IActionResult> Index()
         {

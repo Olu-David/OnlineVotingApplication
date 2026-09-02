@@ -57,6 +57,8 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<IPartyService, PartyService>();
         services.AddScoped<ITenantProvider, TenantProvider>();
         services.AddScoped<ITenantService, TenantService>();
+        services.AddScoped<ISupportService, SupportService>();
+        services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<HybridFormBuilderService>();
 
         // Add SignalR to services (usually right near your controllers/views setup)

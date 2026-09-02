@@ -24,24 +24,23 @@ namespace OnlineVotingApplication.Controllers
         private readonly HybridFormBuilderService _formBuilderService;
         private readonly AppDbContext _context;
         private readonly NotificationChannel _channel;
-        private readonly ILogger<SuperAdminDashboardController> _logger;
         private readonly ITenantProvider _tenantProvider;
         private readonly IDistributedCache _cache;
+        private readonly IEmailService _emailService;
 
         public SuperAdminDashboardController(
             HybridFormBuilderService formBuilderService,
             AppDbContext context,
             NotificationChannel channel,
-            ILogger<SuperAdminDashboardController> logger,
             ITenantProvider tenantProvider,
-            IDistributedCache cache)
+            IDistributedCache cache, IEmailService emailService)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _channel = channel ?? throw new ArgumentNullException(nameof(channel));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
+            _emailService = emailService;
         }
         [HttpGet]
         public async Task<IActionResult> Dashboard()
@@ -300,6 +299,13 @@ namespace OnlineVotingApplication.Controllers
             if (adminUser != null)
             {
                 adminUser.IsApproved = true;
+
+                string subject = "Tenant Account Approved";
+                string message = $@"<p>Hello {adminUser.UserName},</p>
+                            <p>Your organization <strong>{tenant.OrganizationName}</strong> has been successfully approved.</p>";
+
+                await _emailService.EmailSendAsync(adminUser.Email ?? "Unknown", subject, message);
+
                 await _context.SaveChangesAsync();
             }
 
@@ -323,6 +329,17 @@ namespace OnlineVotingApplication.Controllers
 
             tenant.IsActive = false;
             await _context.SaveChangesAsync();
+
+            // Fetch the admin user associated with this tenant
+            var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.TenantId == id);
+            if (adminUser != null)
+            {
+                string subject = "Tenant Account Registration Rejected";
+                string message = $@"<p>Hello {adminUser.UserName},</p>
+                            <p>We regret to inform you that your organization registration for <strong>{tenant.OrganizationName}</strong> has been rejected.</p>";
+
+                await _emailService.EmailSendAsync(adminUser.Email ?? "Unknown", subject, message);
+            }
 
             await _cache.RemoveAsync("PendingTenant_TotalCount");
 

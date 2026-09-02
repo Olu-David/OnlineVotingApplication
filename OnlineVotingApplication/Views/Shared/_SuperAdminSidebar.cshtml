@@ -291,5 +291,13 @@
             </div>
         </li>
 
+        <!-- Support Service -->
+        <li class="nav-item mt-2">
+            <a asp-controller="Support" asp-action="Index"
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Support" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                <i class="fas fa-headset me-2"></i><span>Support Service</span>
+            </a>
+        </li>
+
     </ul>
 </nav>

@@ -8,6 +8,7 @@ using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
@@ -19,21 +20,23 @@ namespace OnlineVotingApplication.Controllers
         private readonly ITenantProvider _tenantProvider;
         private readonly ITenantService _tenantService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditLogService _auditLogService;
 
         public TenantController(
             AppDbContext context,
             ITenantProvider tenantProvider,
             ITenantService tenantService,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IAuditLogService auditLogService)
         {
-            _context = context;
-            _tenantProvider = tenantProvider;
-            _tenantService = tenantService;
-            _userManager = userManager;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
+            _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
         }
 
         // --- REGISTRATION (Public Access) ---
-
         [AllowAnonymous]
         [HttpGet]
         public IActionResult CreateOrganization()
@@ -41,12 +44,12 @@ namespace OnlineVotingApplication.Controllers
             return View(new TenantRegistrationViewModel());
         }
 
-        [AllowAnonymous]
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateOrganization(TenantRegistrationViewModel model)
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+                return View(model);
 
             var result = await _tenantService.RegisterTenantOrganizationAsync(model);
 
@@ -71,16 +74,29 @@ namespace OnlineVotingApplication.Controllers
                 _tenantProvider.SetTenantContext(result.Data.Tenant.Id);
             }
 
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            string userId = result.Data?.UserId ?? "Anonymous";
+            Guid? tenantId = result.Data?.Tenant?.Id;
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Organization Registered",
+                details: $"Registered organization profile '{model.OrganizationName}'",
+                ipAddress: ipAddress,
+                tenantId: tenantId
+            );
+
             TempData["SuccessMessage"] = result.Message ?? "Organization successfully provisioned.";
 
-            return RedirectToAction("ConfirmEmail", "Account", new
+            return RedirectToRoute(new
             {
                 area = "Identity",
-                userId = result.Data?.UserId,
-                code = result.Data?.Token
+                controller = "Account",
+                action = "ConfirmEmailSent",
+                email = model.AdminEmail
             });
         }
-
         // --- TENANT DASHBOARD & MANAGEMENT (Official / SuperAdmin) ---
 
         [HttpGet]

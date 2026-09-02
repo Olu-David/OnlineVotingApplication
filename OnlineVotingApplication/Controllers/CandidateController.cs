@@ -19,18 +19,27 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<CandidateController> _logger;
         private readonly IEmailService _emailService;
+        private readonly IAuditLogService _auditLogService;
+        private readonly ITenantProvider _tenantProvider;
 
-        public CandidateController(AppDbContext context, iCandidateService candidateService, UserManager<ApplicationUser> userManager, ILogger<CandidateController> logger, IEmailService emailService)
+        public CandidateController(
+            AppDbContext context,
+            iCandidateService candidateService,
+            UserManager<ApplicationUser> userManager,
+            ILogger<CandidateController> logger,
+            IEmailService emailService,
+            IAuditLogService auditLogService,
+            ITenantProvider tenantProvider)
         {
-            _context = context;
-            _candidateService = candidateService;
-            _userManager = userManager;
-            _logger = logger;
-            _emailService = emailService;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _candidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
-        // ─────────────────────────────────────────────
-        // CANDIDATE DASHBOARD (INDEX) - TENANT AWARE
-        // ─────────────────────────────────────────────
+
         // ─────────────────────────────────────────────
         // CANDIDATE DASHBOARD (INDEX) - TENANT AWARE
         // ─────────────────────────────────────────────
@@ -51,7 +60,6 @@ namespace OnlineVotingApplication.Controllers
                     .AsNoTracking()
                     .Include(c => c.Party)
                     .Include(c => c.Position)
-                        // Use a safe navigation or check that Position is not null before chaining
                         .ThenInclude(p => p!.ElectionEvent)
                     .Include(c => c.State)
                     .Include(c => c.LGA)
@@ -76,7 +84,6 @@ namespace OnlineVotingApplication.Controllers
                     StateName = candidateRecord.State?.Name,
                     LgaId = candidateRecord.LgaId,
                     LgaName = candidateRecord.LGA?.Name,
-                    // Safe access in case Position is null
                     ElectionEventId = candidateRecord.Position?.ElectionEventId ?? Guid.Empty
                 };
 
@@ -88,6 +95,7 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(AllCandidate));
         }
+
         // ─────────────────────────────────────────────
         // STEP A: ADMIN GENERATES AND SENDS THE INVITE
         // ─────────────────────────────────────────────
@@ -104,10 +112,8 @@ namespace OnlineVotingApplication.Controllers
 
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
 
-            // 1. Generate a unique token upfront so we can build the absolute URL via Url.Action
-            var uniqueToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N"); // Or however your entity initializes tokens
+            var uniqueToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
 
-            // Use string? and provide a fallback if it somehow resolves null
             string? secureLink = Url.Action(
                 action: "CreateCandidate",
                 controller: "Candidate",
@@ -121,7 +127,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
             }
 
-            // 2. Hand everything off to your service layer (which handles DB checks, saves token, and sends email)
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -130,6 +135,19 @@ namespace OnlineVotingApplication.Controllers
             }
             else
             {
+                // --- AUDIT LOGGING ---
+                string userId = _userManager.GetUserId(User)!;
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+                await _auditLogService.LogActivityAsync(
+                    userId: userId,
+                    action: "Candidate Invite Sent",
+                    details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
+                    ipAddress: ipAddress,
+                    tenantId: tenantId != Guid.Empty ? tenantId : null
+                );
+
                 TempData["SuccessMessage"] = result.Message;
             }
 
@@ -141,14 +159,13 @@ namespace OnlineVotingApplication.Controllers
         {
             _logger.LogInformation("CreateCandidate GET called with electionEventId={ElectionEventId}", electionEventId);
 
-            // 1. IF NO ID IS PASSED: Don't error out. Grab the latest active election automatically.
             if (electionEventId == Guid.Empty)
             {
                 var latestElection = await _context.ElectionEvents
                     .IgnoreQueryFilters()
                     .AsNoTracking()
                     .Where(e => !e.IsDeleted)
-                    .OrderByDescending(e => e.CreatedAt) // Assuming you have a CreatedAt or Date field; change to your actual ordering column if needed
+                    .OrderByDescending(e => e.CreatedAt)
                     .FirstOrDefaultAsync();
 
                 if (latestElection != null)
@@ -157,7 +174,6 @@ namespace OnlineVotingApplication.Controllers
                 }
                 else
                 {
-                    // Absolute last resort if database has zero elections at all
                     TempData["ErrorMessage"] = "No elections found in the system. Please create an election first.";
                     return RedirectToAction("AllElections", "Election");
                 }
@@ -184,6 +200,7 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+
         // ─────────────────────────────────────────────
         // POST: Create Candidate (Passes Token to Service)
         // ─────────────────────────────────────────────
@@ -210,7 +227,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("AllElections", "Election");
             }
 
-            // Strip PartyId validation if category is not Political
             if (election.Category != Enums.TenantCategory.Political)
             {
                 ModelState.Remove("PartyId");
@@ -230,7 +246,7 @@ namespace OnlineVotingApplication.Controllers
 
                 ModelState.SetModelValue(nameof(model.ElectionEventId), new Microsoft.AspNetCore.Mvc.ModelBinding.ValueProviderResult(model.ElectionEventId.ToString()));
 
-                ViewBag.InviteToken = token; // Keep token alive on reload
+                ViewBag.InviteToken = token;
                 await PopulateCreateDropdownsAsync(election, model.StateId);
                 return View(model);
             }
@@ -243,7 +259,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // Pass the token down to your service layer for email-lock verification and token-burning
             var result = await _candidateService.CreateCandidateAsync(model, userId, token);
 
             if (!result.Success)
@@ -253,14 +268,27 @@ namespace OnlineVotingApplication.Controllers
 
                 ModelState.SetModelValue(nameof(model.ElectionEventId), new Microsoft.AspNetCore.Mvc.ModelBinding.ValueProviderResult(model.ElectionEventId.ToString()));
 
-                ViewBag.InviteToken = token; // Keep token alive on failure
+                ViewBag.InviteToken = token;
                 await PopulateCreateDropdownsAsync(election, model.StateId);
                 return View(model);
             }
 
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Created",
+                details: $"Created candidate profile '{model.Name}' for election ID: {model.ElectionEventId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate));
         }
+
         // ─────────────────────────────────────────────
         // AJAX Endpoints
         // ─────────────────────────────────────────────
@@ -299,6 +327,19 @@ namespace OnlineVotingApplication.Controllers
                 TempData["ErrorMessage"] = "Unable to delete Candidate Successfully";
                 return RedirectToAction(nameof(GetAllSoftdelete));
             }
+
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Soft-Deleted",
+                details: $"Soft-deleted candidate ID: {id}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = "Candidate Moved to Trash, You can restore after 30 days";
             return View();
         }
@@ -321,6 +362,19 @@ namespace OnlineVotingApplication.Controllers
             {
                 return RedirectToAction(nameof(GetAllSoftdelete));
             }
+
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Restored",
+                details: $"Restored candidate ID: {id}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             return RedirectToAction(nameof(AllCandidate));
         }
 
@@ -572,6 +626,18 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Updated",
+                details: $"Updated candidate profile ID: {model.CandidateID}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate), new { model.CandidateID });
         }
@@ -587,6 +653,19 @@ namespace OnlineVotingApplication.Controllers
             if (result.Success)
             {
                 _candidateService.ClearCandidateCache(pageNumber, pageSize);
+
+                // --- AUDIT LOGGING ---
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+                await _auditLogService.LogActivityAsync(
+                    userId: userId,
+                    action: "Candidate Soft-Deleted & Cache Cleared",
+                    details: $"Soft-deleted candidate ID: {candidateId} and flushed cache",
+                    ipAddress: ipAddress,
+                    tenantId: tenantId != Guid.Empty ? tenantId : null
+                );
+
                 TempData["SuccessMessage"] = result.Message;
             }
             else
@@ -597,7 +676,6 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(AllCandidate), new { pageNumber, pageSize });
         }
 
-     
         // ─────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────
@@ -662,7 +740,6 @@ namespace OnlineVotingApplication.Controllers
         {
             ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
 
-            // Scoped positions list matching the specific election event for this candidate's edit view
             var positions = await _context.Position
                 .IgnoreQueryFilters()
                 .AsNoTracking()

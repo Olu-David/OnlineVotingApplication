@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class DbroleSeeeder : Migration
+    public partial class AuditLog : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -26,17 +26,21 @@ namespace OnlineVotingApplication.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AuditLogs",
+                name: "AuditLog",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    UserId = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Action = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    UserId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    Details = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    IpAddress = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true),
+                    Timestamp = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_AuditLogs", x => x.Id);
+                    table.PrimaryKey("PK_AuditLog", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -103,6 +107,26 @@ namespace OnlineVotingApplication.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_States", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SupportTickets",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    Name = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Email = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Subject = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    Message = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsResolved = table.Column<bool>(type: "bit", nullable: false),
+                    IpAdidress = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SupportTickets", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -589,8 +613,7 @@ namespace OnlineVotingApplication.Migrations
                     IsConfirmed = table.Column<bool>(type: "bit", nullable: false),
                     HasVoted = table.Column<bool>(type: "bit", nullable: false),
                     ConfirmationCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
-                    ElectionEventId = table.Column<Guid>(type: "uniqueidentifier", nullable: true)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -602,8 +625,8 @@ namespace OnlineVotingApplication.Migrations
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                     table.ForeignKey(
-                        name: "FK_Votes_ElectionEvents_ElectionEventId",
-                        column: x => x.ElectionEventId,
+                        name: "FK_Votes_ElectionEvents_ElectionId",
+                        column: x => x.ElectionId,
                         principalTable: "ElectionEvents",
                         principalColumn: "Id");
                     table.ForeignKey(
@@ -801,9 +824,9 @@ namespace OnlineVotingApplication.Migrations
                 column: "CandidateId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_Votes_ElectionEventId",
+                name: "IX_Votes_ElectionId",
                 table: "Votes",
-                column: "ElectionEventId");
+                column: "ElectionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Votes_PositionId",
@@ -845,7 +868,7 @@ namespace OnlineVotingApplication.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
-                name: "AuditLogs");
+                name: "AuditLog");
 
             migrationBuilder.DropTable(
                 name: "CandidateCustomValues");
@@ -864,6 +887,9 @@ namespace OnlineVotingApplication.Migrations
 
             migrationBuilder.DropTable(
                 name: "results");
+
+            migrationBuilder.DropTable(
+                name: "SupportTickets");
 
             migrationBuilder.DropTable(
                 name: "voterRegistrations");

@@ -57,14 +57,13 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
 
-
         public async Task<ServiceResponse<TenantRegistrationResultDto>> RegisterTenantOrganizationAsync(TenantRegistrationViewModel model)
         {
             var response = new ServiceResponse<TenantRegistrationResultDto>();
 
-            // Generate unique lookup slug layout
+            // 1. Generate unique lookup slug layout
             string slug = !string.IsNullOrWhiteSpace(model.OrganizationName)
-                ? model.OrganizationName.ToLower().Replace(" ", "-").Replace("'", "")
+                ? model.OrganizationName.ToLower().Trim().Replace(" ", "-").Replace("'", "")
                 : string.Empty;
 
             bool slugExists = await _dbContext.Tenants
@@ -78,8 +77,17 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            string TenantUrl = "/images/default-tenant.png";
-            string TenantFolder = "Tenant_ProfilePictures";
+            // 2. Early check if the Admin Email is already registered
+            var existingUser = await _userManager.FindByEmailAsync(model.AdminEmail ?? string.Empty);
+            if (existingUser != null)
+            {
+                response.Success = false;
+                response.Message = "An account with this email address is already registered.";
+                return response;
+            }
+
+            string tenantUrl = "/images/default-tenant.png";
+            string tenantFolder = "Tenant_ProfilePictures";
             try
             {
                 if (model.ProfilePicture != null && model.ProfilePicture.Length > 0)
@@ -87,12 +95,11 @@ namespace OnlineVotingApplication.Repository.Services
                     string allocatedFileName = await _iFileService.RegisterAndQueueUploadAsync(
                         file: model.ProfilePicture,
                         fileType: Enums.FileType.Image,
-                        uploadFolder: TenantFolder,
+                        uploadFolder: tenantFolder,
                         cancellationToken: CancellationToken.None
                     );
 
-                    // FIXED: Removed the accidental whitespace path breaking issue
-                    TenantUrl = $"/{TenantFolder}/{allocatedFileName}";
+                    tenantUrl = $"/{tenantFolder}/{allocatedFileName}";
                 }
             }
             catch (Exception fileEx)
@@ -105,16 +112,16 @@ namespace OnlineVotingApplication.Repository.Services
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
             {
-                // 1. Provision New Organization profile context records
+                // 3. Provision New Organization profile context records
                 var newTenant = new Tenant
                 {
                     Id = Guid.NewGuid(),
                     OrganizationName = model.OrganizationName ?? string.Empty,
                     TenantCategory = model.TenantCategory,
                     Slug = slug,
-                    ProfilePicture = TenantUrl,
+                    ProfilePicture = tenantUrl,
                     SubscriptionPlan = "Free",
-                    IsApproved = false,
+                    IsApproved = false, // Set to false as per your requirement for admin review
                     IsActive = true,
                     MaxAllowedElections = 1,
                     CreatedAt = DateTime.UtcNow
@@ -123,10 +130,10 @@ namespace OnlineVotingApplication.Repository.Services
                 _dbContext.Tenants.Add(newTenant);
                 await _dbContext.SaveChangesAsync();
 
-                // 2. Initialize necessary default roles for election platform mechanics
+                // 4. Initialize necessary default roles for election platform mechanics
                 await EnsureRolesExistAsync(new[] { "Official", "Voter", "Auditor", "Candidate" });
 
-                // 3. Build Administrative User link structure tied directly to target tenant ID context
+                // 5. Build Administrative User link structure
                 var adminUser = new ApplicationUser
                 {
                     Email = model.AdminEmail,
@@ -134,7 +141,7 @@ namespace OnlineVotingApplication.Repository.Services
                     FullName = $"{model.OrganizationName} Administrator",
                     TenantId = newTenant.Id,
                     EmailConfirmed = false,
-                    IsApproved = false
+                    IsApproved = false // Requires approval
                 };
 
                 var adminResult = await _userManager.CreateAsync(adminUser, model.AdminPassword ?? string.Empty);
@@ -148,11 +155,10 @@ namespace OnlineVotingApplication.Repository.Services
 
                 await _userManager.AddToRoleAsync(adminUser, "Official");
 
-                // 4. Token assembly extraction processing
+                // 6. Token assembly extraction processing
                 var token = await _userManager.GenerateEmailConfirmationTokenAsync(adminUser);
                 var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
-                // Send token using your core authentication tracking scheme engine pattern
                 var emailResponse = await _authService.SendConfirmationTokenAsync(adminUser, encodedToken);
                 if (!emailResponse.Success)
                 {
@@ -161,7 +167,7 @@ namespace OnlineVotingApplication.Repository.Services
 
                 await transaction.CommitAsync();
 
-                // 5. Fill matching response properties array
+                // 7. Fill matching response properties array
                 response.Data = new TenantRegistrationResultDto
                 {
                     Tenant = newTenant,
@@ -178,9 +184,9 @@ namespace OnlineVotingApplication.Repository.Services
                 await transaction.RollbackAsync();
 
                 // Cleanup file system if db commit operation crashes out midway
-                if (TenantUrl != "/images/default-tenant.png")
+                if (tenantUrl != "/images/default-tenant.png")
                 {
-                    string baseAvatarPath = Path.Combine(_env.WebRootPath, TenantFolder, Path.GetFileName(TenantUrl));
+                    string baseAvatarPath = Path.Combine(_env.WebRootPath, tenantFolder, Path.GetFileName(tenantUrl));
                     if (File.Exists(baseAvatarPath)) File.Delete(baseAvatarPath);
                 }
 

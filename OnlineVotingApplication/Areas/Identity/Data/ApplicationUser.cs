@@ -22,5 +22,5 @@ public class ApplicationUser : IdentityUser
     public Guid? TenantId { get; set; }
     [ForeignKey(nameof(TenantId))]
     public virtual Tenant? Tenant { get; set; }
-    public bool IsApproved { get; internal set; }
+    public bool IsApproved { get;  set; }
 }

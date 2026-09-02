@@ -14,11 +14,19 @@ namespace OnlineVotingApplication.Controllers
     {
         private readonly AppDbContext _context;
         private readonly IVoteService _voteService;
+        private readonly IAuditLogService _auditLogService;
+        private readonly ITenantProvider _tenantProvider;
 
-        public VoterController(AppDbContext context, IVoteService voteService)
+        public VoterController(
+            AppDbContext context,
+            IVoteService voteService,
+            IAuditLogService auditLogService,
+            ITenantProvider tenantProvider)
         {
-            _context = context;
-            _voteService = voteService;
+            _context = context ?? throw new ArgumentNullException(nameof(context));
+            _voteService = voteService ?? throw new ArgumentNullException(nameof(voteService));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
 
         // GET: /Voter/Index (Lists election events by tenant)
@@ -87,6 +95,18 @@ namespace OnlineVotingApplication.Controllers
                 TempData["ErrorMessage"] = response.Message;
                 return RedirectToAction("RequestCode", new { electionId, candidateId, positionId });
             }
+
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: voterId,
+                action: "Vote Cast",
+                details: $"Voted for candidate ID: {candidateId} in election ID: {electionId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
             TempData["SuccessMessage"] = response.Data ?? "Your vote has been successfully submitted!";
             return RedirectToAction("ConfirmationSuccess");
@@ -231,6 +251,20 @@ namespace OnlineVotingApplication.Controllers
             }
 
             await _context.SaveChangesAsync();
+
+            // --- AUDIT LOGGING ---
+            string adminId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "System";
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: adminId,
+                action: "Manual Results Updated",
+                details: $"Manually adjusted votes for election ID: {model.ElectionEventId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = "Manual votes successfully updated (added/subtracted)!";
             return RedirectToAction("LiveResults");
         }
@@ -250,6 +284,18 @@ namespace OnlineVotingApplication.Controllers
             }
             else
             {
+                // --- AUDIT LOGGING ---
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+                await _auditLogService.LogActivityAsync(
+                    userId: adminId,
+                    action: "Voter Penalized",
+                    details: $"Penalized voter ID: {voterId} for election ID: {electionId}. Reason: {reason}",
+                    ipAddress: ipAddress,
+                    tenantId: tenantId != Guid.Empty ? tenantId : null
+                );
+
                 TempData["SuccessMessage"] = response.Data;
             }
 

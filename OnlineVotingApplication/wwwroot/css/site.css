@@ -441,7 +441,7 @@
     }
 
     /* Stacks features grid into 1 neat vertical column */
-    .home-trust-grid {
+    .home-trust-grid {e
         grid-template-columns: 1fr;
         gap: 2rem;
         max-width: 32rem;

@@ -8,6 +8,7 @@ using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -20,17 +21,20 @@ namespace OnlineVotingApplication.Controllers
         private readonly ITenantProvider _tenantProvider;
         private readonly iPositionService _positionService;
         private readonly UserManager<ApplicationUser> _userManager;
+        private readonly IAuditLogService _auditLogService;
 
         public PositionController(
             AppDbContext context,
             ITenantProvider tenantProvider,
             iPositionService positionService,
-            UserManager<ApplicationUser> userManager)
+            UserManager<ApplicationUser> userManager,
+            IAuditLogService auditLogService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _positionService = positionService ?? throw new ArgumentNullException(nameof(positionService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
         }
 
         // --- GET: LIST ALL POSITIONS (INDEX) ---
@@ -64,6 +68,7 @@ namespace OnlineVotingApplication.Controllers
 
             return View(paginatedPositions);
         }
+
         // --- GET: CREATE POSITION ---
         [HttpGet]
         public async Task<IActionResult> Create(Guid? electionId)
@@ -111,6 +116,18 @@ namespace OnlineVotingApplication.Controllers
                 await PopulateElectionsViewBagAsync(model.ElectionId);
                 return View(model);
             }
+
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Position Created",
+                details: $"Created position '{model.Name}' for election ID: {model.ElectionId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
             TempData["SuccessMessage"] = result.Message ?? "Position created successfully.";
             return RedirectToAction(nameof(Index), new { electionId = model.ElectionId });
@@ -190,7 +207,6 @@ namespace OnlineVotingApplication.Controllers
 
             string userId = _userManager.GetUserId(User)!;
 
-            // Fixed: Passing string userId as the second argument
             var result = await _positionService.UpdatePosition(model, userId);
 
             if (!result.Success)
@@ -199,9 +215,22 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
+            // --- AUDIT LOGGING ---
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Position Updated",
+                details: $"Updated position ID: {model.Id} to name '{model.Name}'",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["SuccessMessage"] = "Position updated successfully.";
             return RedirectToAction(nameof(Index));
         }
+
         // --- POST: DELETE POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -228,8 +257,26 @@ namespace OnlineVotingApplication.Controllers
             string userId = _userManager.GetUserId(User)!;
             var result = await _positionService.DeletePosition(id, userId);
 
-            if (!result.Success) TempData["ErrorMessage"] = result.Message;
-            else TempData["SuccessMessage"] = result.Message;
+            if (!result.Success)
+            {
+                TempData["ErrorMessage"] = result.Message;
+            }
+            else
+            {
+                // --- AUDIT LOGGING ---
+                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+                await _auditLogService.LogActivityAsync(
+                    userId: userId,
+                    action: "Position Deleted",
+                    details: $"Soft-deleted position ID: {id}",
+                    ipAddress: ipAddress,
+                    tenantId: tenantId != Guid.Empty ? tenantId : null
+                );
+
+                TempData["SuccessMessage"] = result.Message;
+            }
 
             return RedirectToAction(nameof(Index), new { electionId = electionId });
         }
@@ -269,10 +316,8 @@ namespace OnlineVotingApplication.Controllers
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // Fetch from service layer
             var result = await _positionService.AllSoftDeleted(pageNumber, pageSize);
 
-            // Fetch raw model collection for ViewBag with tenant boundary protection
             var query = _context.Position
                 .Include(p => p.ElectionEvent)
                 .Where(m => m.IsDeleted);
@@ -300,9 +345,7 @@ namespace OnlineVotingApplication.Controllers
         [ValidateAntiForgeryToken]
         public IActionResult GetAllSoftDeletePost(int pageNumber = 1, int pageSize = 10)
         {
-            // You can route post actions back to the Get handler or handle pagination posts cleanly
             return RedirectToAction(nameof(AllSoftDelete), new { pageNumber, pageSize });
         }
     }
 }
- 

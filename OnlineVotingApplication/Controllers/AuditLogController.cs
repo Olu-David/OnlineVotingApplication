@@ -1,43 +1,52 @@
-﻿
-    using global::OnlineVotingApplication.Repository.iServices;
-    using Microsoft.AspNetCore.Authorization;
-    using Microsoft.AspNetCore.Mvc;
-    using OnlineVotingApplication.Services;
-    using System;
-    using System.Threading.Tasks;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using OnlineVotingApplication.Repository.iServices;
+using System;
+using System.Security.Claims;
+using System.Threading.Tasks;
 
-    namespace OnlineVotingApplication.Controllers
+namespace OnlineVotingApplication.Controllers
+{
+    [Authorize(Roles = "SuperAdmin,Official")]
+    public class AuditLogController : Controller
     {
-        [Authorize(Roles = "SuperAdmin,Official")] // Restricts view access to administrators and election officials only
-        public class AuditLogController : Controller
+        private readonly IAuditLogService _auditLogService;
+
+        public AuditLogController(IAuditLogService auditLogService)
         {
-            private readonly IAuditLogService _auditLogService;
+            _auditLogService = auditLogService;
+        }
 
-            public AuditLogController(IAuditLogService auditLogService)
-            {
-                _auditLogService = auditLogService;
-            }
+        // GET: /AuditLog/Index
+        [HttpGet]
+        public async Task<IActionResult> Index(int pageNumber = 1, int pageSize = 50)
+        {
+            Guid? tenantIdFilter = null;
 
-            // GET: /AuditLog/Index
-            [HttpGet]
-            public async Task<IActionResult> Index(int pageNumber = 1, int pageSize = 50, string? tenantIdStr = null)
+            // Check if the current user is a SuperAdmin. If NOT, restrict them strictly to their own Tenant ID.
+            if (!User.IsInRole("SuperAdmin"))
             {
-                Guid? tenantId = null;
-                if (!string.IsNullOrEmpty(tenantIdStr) && Guid.TryParse(tenantIdStr, out var parsedGuid))
+                // Extract the TenantId from the logged-in user's claims
+                var tenantClaim = User.FindFirst("TenantId")?.Value;
+
+                if (Guid.TryParse(tenantClaim, out var parsedTenantId))
                 {
-                    tenantId = parsedGuid;
+                    tenantIdFilter = parsedTenantId;
                 }
-
-                // Fetch the paginated logs through the service
-                var logs = await _auditLogService.GetLogsAsync(pageNumber, pageSize, tenantId);
-
-                // Pass pagination and filter states to the view via ViewBag
-                ViewBag.CurrentPage = pageNumber;
-                ViewBag.PageSize = pageSize;
-                ViewBag.SelectedTenantId = tenantIdStr;
-
-                return View(logs);
+                else
+                {
+                    // Fallback if an official somehow lacks a valid tenant claim
+                    return Forbid();
+                }
             }
+            // If they ARE a SuperAdmin, tenantIdFilter stays null, meaning GetLogsAsync pulls every record platform-wide!
+
+            var logs = await _auditLogService.GetLogsAsync(pageNumber, pageSize, tenantIdFilter);
+
+            ViewBag.CurrentPage = pageNumber;
+            ViewBag.PageSize = pageSize;
+
+            return View(logs);
         }
     }
-
+}

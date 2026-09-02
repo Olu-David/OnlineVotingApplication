@@ -49,9 +49,10 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     };
 
                     await context.Tenants.AddAsync(defaultTenant);
-                    await context.SaveChangesAsync(); // Flushes Tenant to DB so FK exists
+                    await context.SaveChangesAsync();
                     logger.LogInformation("Default Tenant 'System Root' created with ID: {TenantId}", defaultTenant.Id);
                 }
+
                 var electionEvent = await context.ElectionEvents.FirstOrDefaultAsync(m => m.Title == "AdminVoting");
 
                 if (electionEvent == null && !await context.ElectionEvents.AnyAsync())
@@ -61,9 +62,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                         Id = Guid.NewGuid(),
                         Title = "General Presidential Election 2026",
                         Category = OnlineVotingApplication.Enums.TenantCategory.Political,
-                        CreatedAt = DateTime.UtcNow,
-                        
-
+                        CreatedAt = DateTime.UtcNow
                     };
 
                     await context.ElectionEvents.AddAsync(sampleElection);
@@ -92,10 +91,11 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 }
 
                 // -------------------------------------------------------------
-                // 4. PREPARE SEED USERS WITH VALID TENANT ID
+                // 4. PREPARE SEED USERS 
                 // -------------------------------------------------------------
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
+                    // SuperAdmin explicitly keeps TenantId = null
                     (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "SuperAdmin"),
                     (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Official"),
                     (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Voter"),
@@ -111,11 +111,19 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     try
                     {
                         ApplicationUser? existingUser = await userManager.FindByEmailAsync(item.User.Email ?? "");
+                        bool isSuperAdmin = item.Role == "SuperAdmin";
 
                         if (existingUser == null)
                         {
-                            // Ensure TenantId is explicitly set on the instance before creation
-                            item.User.TenantId = defaultTenant.Id;
+                            // ONLY assign defaultTenant.Id if it is NOT the SuperAdmin
+                            if (!isSuperAdmin)
+                            {
+                                item.User.TenantId = defaultTenant.Id;
+                            }
+                            else
+                            {
+                                item.User.TenantId = null; // Guarantee null for SuperAdmin
+                            }
 
                             var result = await userManager.CreateAsync(item.User, item.Password);
                             if (result.Succeeded)
@@ -138,7 +146,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                                 logger.LogInformation("Assigned missing role '{Role}' to existing user: {Email}", item.Role, existingUser.Email);
                             }
 
-                            // Sync profile details and update TenantId if unassigned or invalid
+                            // Sync profile details and handle TenantId carefully
                             bool changed = false;
 
                             if (existingUser.FullName != item.User.FullName)
@@ -147,10 +155,23 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                                 changed = true;
                             }
 
-                            if (existingUser.TenantId == Guid.Empty || existingUser.TenantId != defaultTenant.Id)
+                            if (isSuperAdmin)
                             {
-                                existingUser.TenantId = defaultTenant.Id;
-                                changed = true;
+                                // SuperAdmin must always have a null TenantId
+                                if (existingUser.TenantId != null)
+                                {
+                                    existingUser.TenantId = null;
+                                    changed = true;
+                                }
+                            }
+                            else
+                            {
+                                // Standard roles must point to the default tenant ID if unassigned/wrong
+                                if (existingUser.TenantId == Guid.Empty || existingUser.TenantId != defaultTenant.Id)
+                                {
+                                    existingUser.TenantId = defaultTenant.Id;
+                                    changed = true;
+                                }
                             }
 
                             if (changed)

@@ -126,7 +126,13 @@ namespace OnlineVotingApplication.Repository.Services
                 return (SignInResult.Failed, false, "Email and password are required.");
             }
 
-            var user = await _userManager.FindByEmailAsync(model.EmailAddress);
+            // 1. Find the user safely, bypassing Global Query Filters (multi-tenancy) 
+            // This prevents the app from hiding the user when the tenant context is empty.
+            string normalizedEmail = model.EmailAddress.ToUpperInvariant();
+            var user = await _dbContext.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
+
             if (user == null)
             {
                 return (SignInResult.Failed, false, "Invalid email or password combination.");
@@ -138,22 +144,32 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 var currentTenantId = _tenantProvider.GetCurrentTenantId();
 
+                // 2. Fallback: If the URL/request doesn't have a tenant yet, grab it from the user's account safely
+                if (currentTenantId == Guid.Empty && user.TenantId.HasValue && user.TenantId.Value != Guid.Empty)
+                {
+                    currentTenantId = user.TenantId.Value; // Safely unwrap the nullable Guid
+                    _tenantProvider.SetTenantContext(currentTenantId); // Force set it for this request session
+                }
+
                 if (currentTenantId == Guid.Empty)
                 {
                     return (SignInResult.Failed, false, "You must enter through an active organization domain.");
                 }
 
-                if (user.TenantId != currentTenantId)
+                // 3. Ensure user belongs to the active tenant context
+                if (!user.TenantId.HasValue || user.TenantId.Value != currentTenantId)
                 {
                     return (SignInResult.Failed, false, "Invalid email or password combination.");
                 }
             }
 
+            // 4. Ensure email is confirmed
             if (!await _userManager.IsEmailConfirmedAsync(user))
             {
                 return (SignInResult.NotAllowed, false, "Please confirm your email before logging in.");
             }
 
+            // 5. Attempt sign in using standard ASP.NET Identity sign-in manager
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
 
             if (result.Succeeded) return (result, false, null);
@@ -163,7 +179,6 @@ namespace OnlineVotingApplication.Repository.Services
 
             return (SignInResult.Failed, false, "Invalid email or password combination.");
         }
-
         #endregion
 
         #region Identity Token & Email Lifecycle Validation

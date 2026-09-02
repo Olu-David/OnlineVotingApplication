@@ -159,7 +159,7 @@ namespace OnlineVotingApplication.Controllers
                         return RedirectToAction("Dashboard", "SuperAdminDashboard");
 
                     if (await _userManager.IsInRoleAsync(user, "Official"))
-                        return RedirectToAction("Index", "Tenant");
+                        return RedirectToAction("Dashboard", "Tenant");
                     if (await _userManager.IsInRoleAsync(user, "Candidate"))
                         return RedirectToAction("Index", "Candidate");
                     if (await _userManager.IsInRoleAsync(user, "Auditor"))

@@ -282,11 +282,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
-        public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(
-            ManualCandidateCreationViewModel model,
-            Guid currentTenantId,
-            string officialUserId,
-            string ipAddress)
+        public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId,string officialUserId)
         {
             var response = new ServiceResponse<string>();
 
@@ -402,6 +398,141 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Data = newCandidate.CandidateID;
                 response.Success = true;
                 response.Message = $"Candidate '{candidateName}' successfully created and assigned to {targetElection.Title}!";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+
+                foreach (var physicalPath in uploadedPhysicalFiles)
+                {
+                    if (File.Exists(physicalPath))
+                    {
+                        try { File.Delete(physicalPath); } catch { }
+                    }
+                }
+
+                response.Success = false;
+                response.Message = $"Save Error: {ex.Message}";
+                return response;
+            }
+        }
+        public async Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model)
+        {
+            var response = new ServiceResponse<string>();
+
+            if (model == null || model.TenantId == Guid.Empty || model.ElectionEventId == Guid.Empty)
+            {
+                response.Success = false;
+                response.Message = "Invalid tenant, candidate, or election data provided.";
+                return response;
+            }
+
+            // 1. Fetch targeted election event under specified TenantId
+            var targetElection = await _appDbContext.ElectionEvents
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
+                                       && e.TenantId == model.TenantId
+                                       && !e.IsDeleted);
+
+            if (targetElection == null)
+            {
+                response.Success = false;
+                response.Message = "The selected election does not exist or does not belong to the selected tenant.";
+                return response;
+            }
+
+            // 2. Resolve target user by email
+            var cleanEmail = model.CandidateEmail.Trim().ToLower();
+            var targetUser = await _UserManager.FindByEmailAsync(cleanEmail);
+
+            if (targetUser == null)
+            {
+                response.Success = false;
+                response.Message = $"No registered account found matching email '{cleanEmail}'.";
+                return response;
+            }
+
+            // 3. Category & Duplicate Check
+            bool isPolitical = targetElection.Category == TenantCategory.Political;
+
+            var candidateExists = await _appDbContext.Candidate
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.UserId == targetUser.Id && x.ElectionEventId == targetElection.Id);
+
+            if (candidateExists)
+            {
+                response.Success = false;
+                response.Message = "This user is already registered as a candidate for this election event.";
+                return response;
+            }
+
+            var uploadedPhysicalFiles = new List<string>();
+            string targetDatabasePathUrl = "/images/default-candidate.png";
+            string folderPathSegment = "Candidate_Profiles";
+
+            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            try
+            {
+                // 4. Role promotion to Candidate if missing
+                if (!await _UserManager.IsInRoleAsync(targetUser, "Candidate"))
+                {
+                    var addRoleResult = await _UserManager.AddToRoleAsync(targetUser, "Candidate");
+                    if (!addRoleResult.Succeeded)
+                    {
+                        throw new Exception("Failed to upgrade target user permissions to Candidate role.");
+                    }
+                }
+
+                // 5. Image Processing
+                if (model.CandidateImage != null && model.CandidateImage.Length > 0)
+                {
+                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
+                        file: model.CandidateImage,
+                        fileType: Enums.FileType.Image,
+                        uploadFolder: folderPathSegment,
+                        cancellationToken: CancellationToken.None
+                    );
+
+                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
+                    uploadedPhysicalFiles.Add(Path.Combine(_env.WebRootPath, folderPathSegment, allocatedFileName));
+                }
+
+                // 6. Map and Save Candidate Entity
+                var fullName = $"{targetUser.FullName}".Trim();
+                var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
+
+                var slugHelper = new SlugHelper();
+                var newCandidate = new Candidate
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = model.TenantId,
+                    ElectionEventId = targetElection.Id,
+                    UserId = targetUser.Id,
+                    Name = candidateName,
+                    Manifesto = model.Manifesto,
+                    CandidateImg = targetDatabasePathUrl,
+                    Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
+                    PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
+
+                    // Political FKs assigned only if election category is political
+                    PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
+                    StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
+                    LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
+
+                    CreatedAt = DateTime.UtcNow,
+                    isApproved = true,
+                    CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
+                };
+
+                await _appDbContext.Candidate.AddAsync(newCandidate);
+                await _appDbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                response.Data = newCandidate.CandidateID;
+                response.Success = true;
+                response.Message = $"Candidate '{candidateName}' successfully created and assigned to election '{targetElection.Title}'!";
                 return response;
             }
             catch (Exception ex)

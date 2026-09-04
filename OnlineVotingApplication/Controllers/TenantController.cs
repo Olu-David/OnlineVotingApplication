@@ -199,7 +199,7 @@ namespace OnlineVotingApplication.Controllers
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             // 1. Call your single clean service method
-            var result = await _CandidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId, ipAddress);
+            var result = await _CandidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId);
 
             if (!result.Success)
             {

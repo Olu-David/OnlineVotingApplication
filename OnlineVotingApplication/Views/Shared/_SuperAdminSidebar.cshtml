@@ -1,24 +1,22 @@
 ﻿@{
     Layout = null;
+    var currentCtrl = ViewData["Ctrl"]?.ToString();
+    var currentAction = ViewData["Action"]?.ToString();
 }
 @using Microsoft.AspNetCore.Identity
 @using OnlineVotingApplication.Areas.Identity.Data
 @inject SignInManager<ApplicationUser> SignInManager
 
-<!-- The floating mobile toggle and backdrop overlay are rendered once in
-     _Layout.cshtml (shared with _OfficialSidebar) so both roles use the
-     exact same toggle/overlay instance instead of duplicate ids. -->
-
-<nav class="admin-sidebar admin-sidebar--superadmin bg-dark text-white d-flex flex-column p-3 flex-shrink-0" id="adminSidebar">
+<nav class="admin-sidebar admin-sidebar--superadmin bg-dark text-white d-flex flex-column p-3 flex-shrink-0" id="superAdminSidebar">
     <!-- Brand -->
     <div class="sidebar-brand d-flex align-items-center gap-2 mb-3">
-        <div class="brand-icon"><i class="fas fa-vote-yea"></i></div>
+        <div class="brand-icon"><i class="fas fa-shield-alt text-warning"></i></div>
         <div class="brand-text">
-            <span class="d-block fw-bold">Votezy</span>
-            <small class="text-white-50">Super Admin</small>
+            <span class="d-block fw-bold">VoteX</span>
+            <small class="text-warning font-monospace">System Super Admin</small>
         </div>
 
-        <!-- Large-screen-only collapse-to-icons toggle -->
+        <!-- Desktop Collapse Toggle -->
         <button class="btn btn-sm btn-outline-light border-0 ms-auto d-none d-lg-inline-flex" id="sidebarCollapseToggle"
                 type="button" aria-label="Collapse sidebar">
             <i class="fas fa-angles-left"></i>
@@ -27,264 +25,283 @@
 
     <div class="sidebar-punch-rule"></div>
 
-    <!-- User chip -->
-    <div class="sidebar-user d-flex align-items-center gap-2 p-2 mb-3">
-        <span class="avatar-sm">@ViewData["NameInitial"]</span>
-        <div class="sidebar-user-info small">
-            <div class="fw-semibold">@User?.Identity?.Name</div>
-            <div class="sidebar-role-badge">Administrator</div>
+    <!-- User Chip -->
+    <div class="sidebar-user d-flex align-items-center gap-2 p-2 mb-3 bg-secondary bg-opacity-25 rounded">
+        <span class="avatar-sm bg-warning text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center" style="width:32px; height:32px;">
+            @(ViewData["NameInitial"] ?? "SA")
+        </span>
+        <div class="sidebar-user-info small overflow-hidden">
+            <div class="fw-semibold text-truncate">@User?.Identity?.Name</div>
+            <span class="badge bg-danger text-uppercase" style="font-size: 0.65rem;">Global Root</span>
         </div>
     </div>
 
-    <hr class="border-secondary opacity-25" />
+    <hr class="border-secondary opacity-25 my-2" />
 
-    <!-- Navigation -->
-    <ul class="nav flex-column flex-grow-1">
+    <!-- Navigation List -->
+    <ul class="nav flex-column flex-grow-1 overflow-y-auto">
 
-        <li class="sidebar-section-label">Overview</li>
+        <!-- OVERVIEW -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-1">System Overview</li>
+
         <li class="nav-item">
             <a asp-controller="SuperAdminDashboard" asp-action="Dashboard"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" && ViewData["Action"]?.ToString() == "Dashboard" ? "active" : "")">
-                <i class="fas fa-tachometer-alt me-2"></i><span>Dashboard</span>
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "Dashboard" ? "active bg-primary" : "")">
+                <i class="fas fa-tachometer-alt me-2"></i><span>Global Dashboard</span>
             </a>
         </li>
-        <!-- Live Results -->
+
         <li class="nav-item">
             <a asp-controller="Vote" asp-action="LiveResults"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
-                <i class="fas fa-chart-bar me-2"></i><span>Live Results</span>
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Vote" && currentAction == "LiveResults" ? "active bg-primary" : "")">
+                <i class="fas fa-chart-line me-2 text-info"></i><span>Live System Analytics</span>
             </a>
         </li>
 
-        <li class="sidebar-section-label">Election Management</li>
+        <!-- TENANT MANAGEMENT -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1">Platform Multi-Tenancy</li>
 
-        <!-- Collapsible Elections -->
         <li class="nav-item">
-            <a href="#electionMenu" class="nav-link text-white d-flex align-items-center justify-content-between"
-               data-bs-toggle="collapse" aria-expanded="false">
-                <span><i class="fas fa-calendar-alt me-2"></i> Elections</span>
-                <i class="fas fa-chevron-down small"></i>
+            <a href="#TenantMenu"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "SuperAdminDashboard" && (currentAction == "AllTenants" || currentAction == "GetAllPendingTenants") ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "SuperAdminDashboard" && (currentAction == "AllTenants" || currentAction == "GetAllPendingTenants") ? "true" : "false")">
+                <span><i class="fas fa-building me-2 text-warning"></i> Organizations / Tenants</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse" id="electionMenu">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "SuperAdminDashboard" && (currentAction == "AllTenants" || currentAction == "GetAllPendingTenants") ? "show" : "")" id="TenantMenu">
+                <ul class="nav flex-column ms-3 mt-1">
+                    <li class="nav-item">
+                        <a asp-controller="SuperAdminDashboard" asp-action="AllTenants"
+                           class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllTenants" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-list me-2"></i><span>All Organizations</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="SuperAdminDashboard" asp-action="GetAllPendingTenants"
+                           class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "GetAllPendingTenants" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-clock me-2 text-warning"></i><span>Pending Approval</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+
+        <!-- GLOBAL ELECTIONS -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1">Election Operations</li>
+
+        <li class="nav-item">
+            <a href="#electionMenu"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "ElectionEvent" ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "ElectionEvent" ? "true" : "false")">
+                <span><i class="fas fa-poll me-2"></i> Elections</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
+            </a>
+            <div class="collapse @(currentCtrl == "ElectionEvent" ? "show" : "")" id="electionMenu">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Index"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "Index" ? "active text-white fw-bold" : "")">
                             <i class="fas fa-list me-2"></i><span>All Elections</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Create"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "Create" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create Election</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="SoftDeleted"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Election" && ViewData["Action"]?.ToString() == "SoftDeleted" ? "active" : "")">
-                            <i class="fas fa-trash-alt me-2"></i><span>Deleted</span>
+                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "SoftDeleted" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-trash-alt me-2 text-danger"></i><span>Deleted Elections</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <!-- Collapsible Candidates -->
+        <!-- CANDIDATES & FORM BUILDER -->
         <li class="nav-item">
-            <a href="#CandidateMenu" class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")"
-               data-bs-toggle="collapse" aria-expanded="false" aria-label="CandidateDropMenu">
+            <a href="#CandidateMenu"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Candidate" ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "Candidate" ? "true" : "false")">
                 <span><i class="fas fa-user-tie me-2"></i> Candidates</span>
-                <i class="fas fa-chevron-down small"></i>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse" id="CandidateMenu">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "Candidate" ? "show" : "")" id="CandidateMenu">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="AllCandidate"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "AllCandidate" ? "active" : "")">
-                            <i class="fas fa-list me-2"></i><span>All Candidates</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "AllCandidate" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-users me-2"></i><span>All Candidates</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="SuperAdminDashboard" asp-action="BuildGlobalForm"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" && ViewData["Action"]?.ToString() == "BuildGlobalForm" ? "active" : "")">
-                            <i class="fas fa-list me-2"></i><span>Build Global Form</span>
+                           class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "BuildGlobalForm" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-wpforms me-2 text-info"></i><span>Build Global Form</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="Candidate" asp-action="CreateCandidate"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "CreateCandidate" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                        <a asp-controller="SuperAdminDashboard" asp-action="CreateCandidateSuperAdmin"
+                           class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-user-plus me-2"></i><span>Create Candidate</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="GetCandidateByState"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetCandidateByState" ? "active" : "")">
-                            <i class="fas fa-map-marker-alt me-2"></i><span>All Candidate By State</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "GetCandidateByState" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-map-marker-alt me-2"></i><span>Filter By State</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="GetCandidateByLga"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetCandidateByLga" ? "active" : "")">
-                            <i class="fas fa-map-marker-alt me-2"></i><span>All Candidate By Lga</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "GetCandidateByLga" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-city me-2"></i><span>Filter By LGA</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="GetCandidateByParty"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetCandidateByParty" ? "active" : "")">
-                            <i class="fas fa-flag me-2"></i><span>All Candidate By Party</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "GetCandidateByParty" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-flag me-2"></i><span>Filter By Party</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
-        <!-- Collapsible Tenants (Multi-Tenant Management) -->
+
+        <!-- POSITIONS -->
         <li class="nav-item">
-            <a href="#TenantMenu" class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" ? "active" : "")"
-               data-bs-toggle="collapse" aria-expanded="@(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" ? "true" : "false")" aria-label="TenantDropMenu">
-                <span><i class="fas fa-building me-2"></i> Tenants</span>
-                <i class="fas fa-chevron-down small"></i>
+            <a href="#PositionMenu"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Position" ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "Position" ? "true" : "false")">
+                <span><i class="fas fa-bullseye me-2"></i> Electoral Positions</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" ? "show" : "")" id="TenantMenu">
-                <ul class="nav flex-column ms-3">
-                    <li class="nav-item">
-                        <a asp-controller="SuperAdminDashboard" asp-action="AllTenants"
-                           class="nav-link text-white @(ViewData["Action"]?.ToString() == "AllTenants" ? "active" : "")">
-                            <i class="fas fa-list me-2"></i><span>All Tenants</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="SuperAdminDashboard" asp-action="GetAllPendingTenants"
-                           class="nav-link text-white @(ViewData["Action"]?.ToString() == "GetAllPendingTenants" ? "active" : "")">
-                            <i class="fas fa-clock me-2"></i><span>Pending Approval</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
-        </li>
-        <!-- Collapsible Positions -->
-        <li class="nav-item">
-            <a href="#PositionMenu" class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")"
-               data-bs-toggle="collapse" aria-expanded="false">
-                <span><i class="fas fa-bullseye me-2"></i> Positions</span>
-                <i class="fas fa-chevron-down small"></i>
-            </a>
-            <div class="collapse" id="PositionMenu">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "Position" ? "show" : "")" id="PositionMenu">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="AllPosition"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "AllPosition" ? "active" : "")">
+                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "AllPosition" ? "active text-white fw-bold" : "")">
                             <i class="fas fa-list me-2"></i><span>All Positions</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="CreatePosition"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "CreatePosition" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "CreatePosition" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Create Position</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <li class="sidebar-section-label">Geography</li>
+        <!-- GEOGRAPHY BOUNDARIES -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1">Geographic Data</li>
 
-        <!-- States Menu -->
         <li class="nav-item">
-            <a href="#Statedropdown" class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "State" ? "active" : "")"
-               data-bs-toggle="collapse" data-bs-target="#Statedropdown" aria-expanded="false">
-                <span><i class="fas fa-map-marker-alt me-2"></i>States</span>
-                <i class="fas fa-chevron-down small"></i>
+            <a href="#Statedropdown"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "State" || currentCtrl == "StateService" ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "State" || currentCtrl == "StateService" ? "true" : "false")">
+                <span><i class="fas fa-map me-2"></i> States</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse" id="Statedropdown">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "State" || currentCtrl == "StateService" ? "show" : "")" id="Statedropdown">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="State" asp-action="AllState"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "State" && ViewData["Action"]?.ToString() == "AllState" ? "active" : "")">
+                           class="nav-link text-white-50 @(currentCtrl == "State" && currentAction == "AllState" ? "active text-white fw-bold" : "")">
                             <i class="fas fa-list me-2"></i><span>All States</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="StateService" asp-action="CreateState"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "StateService" && ViewData["Action"]?.ToString() == "CreateState" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create State</span>
+                           class="nav-link text-white-50 @(currentCtrl == "StateService" && currentAction == "CreateState" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Add State</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <!-- LGAs Menu -->
         <li class="nav-item">
-            <a href="#Lgadropdown" class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "Lga" ? "active" : "")"
-               data-bs-toggle="collapse" data-bs-target="#Lgadropdown" aria-expanded="false">
-                <span><i class="fas fa-city me-2"></i>LGAs</span>
-                <i class="fas fa-chevron-down small"></i>
+            <a href="#Lgadropdown"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Lga" ? "" : "collapsed")"
+               data-bs-toggle="collapse"
+               aria-expanded="@(currentCtrl == "Lga" ? "true" : "false")">
+                <span><i class="fas fa-university me-2"></i> Local Governments (LGAs)</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse" id="Lgadropdown">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "Lga" ? "show" : "")" id="Lgadropdown">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="Lga" asp-action="AllLga"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Lga" && ViewData["Action"]?.ToString() == "AllLga" ? "active" : "")">
+                           class="nav-link text-white-50 @(currentCtrl == "Lga" && currentAction == "AllLga" ? "active text-white fw-bold" : "")">
                             <i class="fas fa-list me-2"></i><span>All LGAs</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Lga" asp-action="CreateLga"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Lga" && ViewData["Action"]?.ToString() == "CreateLga" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create LGA</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Lga" && currentAction == "CreateLga" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-plus-circle me-2"></i><span>Add LGA</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <!-- Manual Entry -->
+        <!-- SYSTEM & VOTERS AUDIT -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1">Administration & Audit</li>
+
         <li class="nav-item">
             <a asp-controller="Voter" asp-action="ManualEntry"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active" : "")">
-                <i class="fas fa-file-invoice me-2"></i><span>Manual Entry</span>
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Voter" && currentAction == "ManualEntry" ? "active bg-primary" : "")">
+                <i class="fas fa-file-invoice me-2"></i><span>Manual Voter Entry</span>
             </a>
         </li>
 
-        <!-- Collapsible Voters & System Audit -->
         <li class="nav-item">
             <a href="#VoterSystemMenu"
-               class="nav-link text-white d-flex align-items-center justify-content-between @(ViewData["Ctrl"]?.ToString() == "Voter" || ViewData["Ctrl"]?.ToString() == "AuditLog" ? "active" : "collapsed")"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "" : "collapsed")"
                data-bs-toggle="collapse"
-               aria-expanded="@(ViewData["Ctrl"]?.ToString() == "Voter" || ViewData["Ctrl"]?.ToString() == "AuditLog" ? "true" : "false")"
-               aria-controls="VoterSystemMenu">
-                <span><i class="fas fa-users-cog me-2"></i> Voters & System</span>
-                <i class="fas fa-chevron-down small"></i>
+               aria-expanded="@(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "true" : "false")">
+                <span><i class="fas fa-user-shield me-2 text-danger"></i> Security & Compliance</span>
+                <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
-            <div class="collapse @(ViewData["Ctrl"]?.ToString() == "Voter" || ViewData["Ctrl"]?.ToString() == "AuditLog" ? "show" : "")" id="VoterSystemMenu">
-                <ul class="nav flex-column ms-3">
+            <div class="collapse @(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "show" : "")" id="VoterSystemMenu">
+                <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="Voter" asp-action="Index"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
-                            <i class="fas fa-users me-2"></i><span>All Elections / Voters</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Voter" && currentAction == "Index" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-users me-2"></i><span>Voter Registry</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Voter" asp-action="PenalizedVoters"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "PenalizedVoters" ? "active" : "")">
-                            <i class="fas fa-user-slash me-2"></i><span>Penalized Voters</span>
+                           class="nav-link text-white-50 @(currentCtrl == "Voter" && currentAction == "PenalizedVoters" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-user-slash me-2 text-danger"></i><span>Penalized Voters</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="AuditLog" asp-action="Index"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "AuditLog" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
-                            <i class="fas fa-clipboard-list me-2"></i><span>Audit Logs</span>
+                           class="nav-link text-white-50 @(currentCtrl == "AuditLog" && currentAction == "Index" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-clipboard-list me-2 text-warning"></i><span>System Audit Logs</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <!-- Support Service -->
-        <li class="nav-item mt-2">
+        <!-- SUPPORT -->
+        <li class="nav-item mt-3 mb-2">
             <a asp-controller="Home" asp-action="GetPaginatedTicketsAsync"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Home" && ViewData["Action"]?.ToString() == "SubmitSupport" ? "active" : "")">
-                <i class="fas fa-headset me-2"></i><span>Support Service</span>
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Home" && currentAction == "GetPaginatedTicketsAsync" ? "active bg-primary" : "")">
+                <i class="fas fa-headset me-2 text-info"></i><span>Global Support Tickets</span>
             </a>
         </li>
 

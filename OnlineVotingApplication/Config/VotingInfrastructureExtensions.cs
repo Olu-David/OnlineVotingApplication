@@ -21,9 +21,15 @@ public static class VotingInfrastructureExtensions
                 ?? throw new InvalidOperationException("Database connection string 'OnlineVotingApplicationContextConnection' is missing.");
 
             services.AddDbContext<AppDbContext>(options =>
-                options.UseSqlServer(connectionString));
+                options.UseSqlServer(connectionString, sqlOptions =>
+                {
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(30),
+                        errorNumbersToAdd: null);
+                    sqlOptions.CommandTimeout(60);
+                }));
         }
- 
 
         // 2. Framework Utilities
         services.AddMemoryCache();
@@ -44,6 +50,7 @@ public static class VotingInfrastructureExtensions
         services.AddHostedService<FileProcessingBackgroundService>();
         services.AddHostedService<VoteBackgroundService>();
         services.AddHostedService<DeleteBackGroundService>();
+
         // 6. Core Domain Business Services (Scoped Dependency Injection)
         services.AddScoped<iAuthService, AuthService>();
         services.AddScoped<iCandidateService, CandidateService>();
@@ -61,9 +68,8 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<HybridFormBuilderService>();
 
-        // Add SignalR to services (usually right near your controllers/views setup)
-         services.AddSignalR();
-
+        // 7. SignalR
+        services.AddSignalR();
 
         return services;
     }

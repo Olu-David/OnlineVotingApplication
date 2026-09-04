@@ -1,4 +1,6 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Google;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -29,6 +31,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IDistributedCache _cache;
         private readonly IEmailService _emailService;
         private readonly IAuditLogService _auditLogService;
+        private readonly iCandidateService _iCandidateService;
 
         public SuperAdminDashboardController(
             HybridFormBuilderService formBuilderService,
@@ -37,7 +40,7 @@ namespace OnlineVotingApplication.Controllers
             ITenantProvider tenantProvider,
             IDistributedCache cache,
             IEmailService emailService,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService, iCandidateService candidateService)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -46,6 +49,7 @@ namespace OnlineVotingApplication.Controllers
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
             _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _iCandidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
         }
 
         [HttpGet]
@@ -108,7 +112,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         // --- GLOBAL FORM BUILDER ---
-        
+
         [HttpGet]
         public IActionResult BuildGlobalForm()
         {
@@ -278,10 +282,10 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Returned to SuperAdmin context.";
             return RedirectToAction("Dashboard", "SuperAdmin");
         }
-    
 
-// --- PENDING TENANT REGISTRATION APPROVALS ---
-           [HttpGet]
+
+        // --- PENDING TENANT REGISTRATION APPROVALS ---
+        [HttpGet]
         public async Task<IActionResult> GetAllPendingTenants(int pageNumber = 1, int pageSize = 20)
         {
             ViewData["Ctrl"] = "SuperAdminDashboard";
@@ -443,6 +447,95 @@ namespace OnlineVotingApplication.Controllers
 
             TempData["ErrorMessage"] = $"Organization '{tenant.OrganizationName}' registration was rejected.";
             return RedirectToAction(nameof(GetAllPendingTenants));
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> CreateCandidateSuperAdmin()
+        {
+            ViewBag.Tenants = await _context.Tenants
+                .AsNoTracking().IgnoreQueryFilters()
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.OrganizationName)
+                .ToListAsync();
+
+            return View(new SuperAdminCandidateCreationViewModel());
+        }
+
+        // JSON Cascade Endpoint called via JavaScript on Tenant change
+        [HttpGet]
+        public async Task<IActionResult> GetElectionsByTenant(Guid tenantId)
+        {
+            if (tenantId == Guid.Empty)
+            {
+                return Json(new List<object>());
+            }
+
+            var elections = await _context.ElectionEvents
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(e => e.TenantId == tenantId && !e.IsDeleted)
+                .OrderByDescending(e => e.CreatedAt)
+                .Select(e => new
+                {
+                    id = e.Id,
+                    title = e.Title
+                })
+                .ToListAsync();
+
+            return Json(elections);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCandidateSuperAdmin(SuperAdminCandidateCreationViewModel model)
+        {
+            // 1. Resolve User ID directly as string or Guid without premature returns
+            var superAdminUserClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            Guid.TryParse(superAdminUserClaim, out Guid superAdminUserId);
+
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            // 2. Validate ModelState
+            if (!ModelState.IsValid)
+            {
+                ViewBag.Tenants = await _context.Tenants
+                    .AsNoTracking()
+                    .IgnoreQueryFilters()
+                    .Where(t => t.IsActive && t.IsApproved)
+                    .OrderBy(t => t.OrganizationName)
+                    .ToListAsync();
+
+                return View(model);
+            }
+
+            // 3. Process candidate creation via service
+            var result = await _iCandidateService.CreateCandidateBySuperAdminAsync(model);
+
+            if (!result.Success)
+            {
+                ModelState.AddModelError(string.Empty, result.Message ?? string.Empty);
+
+                ViewBag.Tenants = await _context.Tenants
+                    .AsNoTracking()
+                    .IgnoreQueryFilters()
+                    .Where(t => t.IsActive && t.IsApproved)
+                    .OrderBy(t => t.OrganizationName)
+                    .ToListAsync();
+
+                return View(model);
+            }
+
+            // 4. Audit Logging (superAdminUserId is string or Guid depending on your service overload)
+            await _auditLogService.LogActivityAsync(
+                userId: superAdminUserClaim ?? superAdminUserId.ToString(),
+                action: "SuperAdmin Candidate Creation",
+                details: $"SuperAdmin added candidate '{model.CandidateEmail}' under Tenant ID: {model.TenantId}",
+                ipAddress: ipAddress,
+                tenantId: model.TenantId
+            );
+
+            TempData["SuccessMessage"] = result.Message;
+            return RedirectToAction("AllCandidates");
         }
     }
 }

@@ -58,7 +58,7 @@
 
         <!-- Election Analytics / Live Results -->
         <li class="nav-item">
-            <a asp-controller="Vote" asp-action="LiveResults"
+            <a asp-controller="Voter" asp-action="LiveResults"
                class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
                 <i class="fas fa-chart-line me-2"></i><span>Election Analytics</span>
             </a>
@@ -71,82 +71,110 @@
             </a>
         </li>
 
-        <!-- Candidates Management -->
-        <li class="nav-item">
-            <a asp-controller="Candidate" asp-action="AllCandidate"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")">
+        <!-- Candidates Management Dropdown -->
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")"
+               href="#"
+               id="candidatesDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">
                 <i class="fas fa-user-tie me-2"></i><span>Candidates</span>
             </a>
+
+            <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="candidatesDropdown">
+                <!-- View All Candidates -->
+                <li>
+                    <a asp-controller="Candidate"
+                       asp-action="AllCandidate"
+                       class="dropdown-item @(ViewData["Act"]?.ToString() == "AllCandidate" ? "active" : "")">
+                        <i class="fas fa-list me-2"></i>All Candidates
+                    </a>
+                </li>
+
+                <li><hr class="dropdown-divider"></li>
+
+                <!-- Official Registration (Tenant Context) -->
+                <li>
+                    <a asp-controller="Tenant"
+                       asp-action="CreateCandidateOfficial"
+                       class="dropdown-item @(ViewData["Act"]?.ToString() == "CreateCandidateOfficial" ? "active" : "")">
+                        <i class="fas fa-user-plus me-2"></i>Create Candidate (Official)
+                    </a>
+                </li>
+            </ul>
         </li>
 
-        <li class="sidebar-section-label">Tenant Operations</li>
-
-        <!-- Collapsible Elections (Create, View, Delete) -->
-        <li class="nav-item">
-            <a href="#electionMenu" class="nav-link text-white d-flex justify-content-between align-items-center"
-               data-bs-toggle="collapse" aria-expanded="false">
-                <span><i class="fas fa-calendar-alt me-2"></i> Elections</span>
-                <i class="fas fa-chevron-down small"></i>
+        <!-- Elections Management Dropdown -->
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" ? "active" : "")"
+               href="#"
+               id="electionsDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">
+                <i class="fas fa-calendar-alt me-2"></i><span>Elections</span>
             </a>
-            <div class="collapse" id="electionMenu">
-                <ul class="nav flex-column ms-3 mt-1">
-                    <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="Index"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
-                            <i class="fas fa-list me-2"></i><span>All Elections</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="Create"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
-                            <i class="fas fa-plus-circle me-2"></i><span>Create Election</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="Edit"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Edit" ? "active" : "")">
-                            <i class="fas fa-pen-to-square me-2"></i><span>Edit Election</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="Delete"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Delete" ? "active" : "")">
-                            <i class="fas fa-trash me-2"></i><span>Delete Election</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+            <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="electionsDropdown">
+                <li>
+                    <a asp-controller="ElectionEvent" asp-action="Index"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                        <i class="fas fa-list me-2"></i>All Elections
+                    </a>
+                </li>
+                <li>
+                    <a asp-controller="ElectionEvent" asp-action="Create"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
+                        <i class="fas fa-plus-circle me-2"></i>Create Election
+                    </a>
+                </li>
+                <li>
+                    <a asp-controller="ElectionEvent" asp-action="Edit"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Edit" ? "active" : "")">
+                        <i class="fas fa-pen-to-square me-2"></i>Edit Election
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a asp-controller="ElectionEvent" asp-action="Delete"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Delete" ? "active" : "")">
+                        <i class="fas fa-trash me-2"></i>Delete Election
+                    </a>
+                </li>
+            </ul>
         </li>
 
-        <!-- Collapsible Positions (Create, View, Delete) -->
-        <li class="nav-item">
-            <a href="#PositionMenu" class='nav-link text-white d-flex justify-content-between align-items-center @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")'
-               data-bs-toggle="collapse" aria-expanded="false">
-                <span><i class="fas fa-bullseye me-2"></i> Positions</span>
-                <i class="fas fa-chevron-down small"></i>
+        <!-- Positions Management Dropdown -->
+        <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-white @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")"
+               href="#"
+               id="positionsDropdown"
+               role="button"
+               data-bs-toggle="dropdown"
+               aria-expanded="false">
+                <i class="fas fa-bullseye me-2"></i><span>Positions</span>
             </a>
-            <div class="collapse" id="PositionMenu">
-                <ul class="nav flex-column ms-3 mt-1">
-                    <li class="nav-item">
-                        <a asp-controller="Position" asp-action="Index"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")'>
-                            <i class="fas fa-list me-2"></i><span>All Positions</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="Position" asp-action="Create"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")'>
-                            <i class="fas fa-plus-circle me-2"></i><span>Create Position</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="Position" asp-action="GetAllSoftDelete"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "GetAllSoftDelete" ? "active" : "")'>
-                            <i class="fas fa-trash-alt me-2"></i><span>Trash / Deleted</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
+            <ul class="dropdown-menu dropdown-menu-dark shadow" aria-labelledby="positionsDropdown">
+                <li>
+                    <a asp-controller="Position" asp-action="Index"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
+                        <i class="fas fa-list me-2"></i>All Positions
+                    </a>
+                </li>
+                <li>
+                    <a asp-controller="Position" asp-action="Create"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
+                        <i class="fas fa-plus-circle me-2"></i>Create Position
+                    </a>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <a asp-controller="Position" asp-action="GetAllSoftDelete"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "GetAllSoftDelete" ? "active" : "")">
+                        <i class="fas fa-trash-alt me-2"></i>Trash / Deleted
+                    </a>
+                </li>
+            </ul>
         </li>
 
         <!-- Tenant Form Designer / Form Customization -->

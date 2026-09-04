@@ -4,36 +4,47 @@
     ViewData["Title"] = "Sign In";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+}
+
 <div class="container my-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
-            <div class="card shadow-lg border-0 rounded-3">
-                <div class="card-header bg-primary text-white text-center py-4 rounded-top-3">
-                    <h3 class="fw-bold mb-0">Voter Sign In</h3>
-                    <p class="small text-white-50 mb-0">Access Your Secure Voting Portal</p>
+            <div class="card auth-card">
+                <div class="auth-card-header">
+                    <div class="auth-icon"><i class="fas fa-vote-yea"></i></div>
+                    <h3 class="auth-title">Sign In</h3>
+                    <p class="auth-subtitle">Access your secure Votezy account</p>
                 </div>
-                <div class="card-body p-4 position-relative">
+                <div class="auth-card-tear"></div>
 
-                    <div id="loadingOverlay" class="position-absolute top-0 start-0 w-100 h-100 bg-white bg-opacity-75 d-none flex-column justify-content-center align-items-center rounded-3" style="z-index: 1050;">
+                <div class="auth-card-body position-relative">
+
+                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3">
                         <div class="spinner-border text-primary mb-2" role="status" style="width: 3rem; height: 3rem;">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <span class="fw-semibold text-primary">Authenticating...</span>
+                        <span class="fw-semibold text-primary">Signing you in…</span>
                     </div>
 
                     <form id="loginForm" asp-action="Login" method="post">
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>
 
                         <div class="mb-3">
-                            <label asp-for="EmailAddress" class="form-label small fw-bold">Email Address</label>
-                            <input asp-for="EmailAddress" type="email" class="form-control shadow-sm" placeholder="name@example.com" required />
+                            <label asp-for="EmailAddress" class="form-label">Email Address</label>
+                            <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required />
                             <span asp-validation-for="EmailAddress" class="text-danger small"></span>
                         </div>
 
-                        <div class="mb-3">
-                            <label asp-for="Password" class="form-label small fw-bold">Password</label>
-                            <input asp-for="Password" type="password" class="form-control shadow-sm" placeholder="••••••••" required />
+                        <div class="mb-2">
+                            <label asp-for="Password" class="form-label">Password</label>
+                            <input asp-for="Password" type="password" class="form-control" placeholder="••••••••" required />
                             <span asp-validation-for="Password" class="text-danger small"></span>
+                        </div>
+
+                        <div class="text-end mb-3">
+                            <a asp-action="ForgotPassword" class="small text-decoration-none">Forgot password?</a>
                         </div>
 
                         <div class="form-check mb-4">
@@ -42,19 +53,17 @@
                         </div>
 
                         <div class="d-grid">
-                            <button type="submit" id="submitBtn" class="btn btn-primary btn-lg fs-6 fw-bold shadow">
+                            <button type="submit" id="submitBtn" class="btn auth-btn-primary btn-lg fs-6 shadow">
                                 Sign In
                             </button>
                         </div>
                     </form>
 
-                    <!-- Divider -->
-                    <div class="position-relative my-4">
-                        <hr class="text-muted opacity-50" />
-                        <span class="position-absolute top-50 start-50 translate-middle bg-white px-2 small text-muted fw-semibold">or continue with</span>
+                    <div class="auth-divider">
+                        <hr />
+                        <span>or continue with</span>
                     </div>
 
-                    <!-- Social Auth Buttons -->
                     <div class="row g-2">
                         <div class="col-6">
                             <form asp-controller="ExternalAuth" asp-action="GoogleAuth" asp-route-provider="Google" method="post">
@@ -76,10 +85,9 @@
 
                 </div>
 
-                <!-- Card Footer for Sign-up Links (Voter + Organisation) -->
-                <div class="card-footer bg-light text-center py-3 rounded-bottom-3 border-0">
-                    <p class="text-muted small mb-1">New voter? <a asp-action="Register" class="text-decoration-none fw-bold">Create an Account</a></p>
-                    <p class="text-muted small mb-0">Represent an institution? <a asp-controller="Tenant" asp-action="CreateOrganization" class="text-decoration-none fw-bold text-primary">Register as Organisation</a></p>
+                <div class="card-footer bg-light text-center py-3 border-0">
+                    <p class="auth-footnote mb-1">New voter? <a asp-action="Register">Create an account</a></p>
+                    <p class="auth-footnote mb-0">Represent an institution? <a asp-controller="Tenant" asp-action="CreateOrganization">Register as an organization</a></p>
                 </div>
 
             </div>

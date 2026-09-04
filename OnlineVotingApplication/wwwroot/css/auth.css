@@ -1,0 +1,195 @@
+﻿/* ======================================================
+   auth.css
+   Shared styling for the account-entry pages: Login,
+   Voter Registration, and Organization onboarding.
+   Loads after site.css so it can use the shared tokens.
+   ====================================================== */
+
+.auth-card {
+    border: 0;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 20px 45px rgba(15, 26, 56, 0.16);
+}
+
+.auth-card-header {
+    background: var(--votex-navy-900);
+    color: #fff;
+    text-align: center;
+    padding: 2.25rem 1.5rem 1.75rem;
+}
+
+.auth-icon {
+    width: 54px;
+    height: 54px;
+    border-radius: 14px;
+    background: var(--votex-amber);
+    color: var(--votex-navy-900);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    margin: 0 auto 0.85rem;
+}
+
+.auth-title {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.5rem;
+    margin-bottom: 0.2rem;
+}
+
+.auth-subtitle {
+    font-family: var(--votex-font-body);
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0;
+}
+
+/* Reuses the same torn-ballot-stub perforation as the homepage,
+   here as the seam between the navy header and the form body. */
+.auth-card-tear {
+    position: relative;
+    height: 0;
+    border-top: 2px dashed rgba(255, 255, 255, 0.25);
+}
+
+    .auth-card-tear::before,
+    .auth-card-tear::after {
+        content: '';
+        position: absolute;
+        top: -7px;
+        width: 14px;
+        height: 14px;
+        background: #f0f2f8;
+        border-radius: 50%;
+    }
+
+    .auth-card-tear::before {
+        left: -7px;
+    }
+
+    .auth-card-tear::after {
+        right: -7px;
+    }
+
+.auth-card-body {
+    padding: 2rem;
+    font-family: var(--votex-font-body);
+}
+
+.auth-card .form-label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--votex-navy-900);
+}
+
+.auth-card .form-control,
+.auth-card .form-select {
+    border-color: #dde1ea;
+    padding-top: 0.6rem;
+    padding-bottom: 0.6rem;
+}
+
+    .auth-card .form-control:focus,
+    .auth-card .form-select:focus {
+        border-color: var(--votex-navy-800);
+        box-shadow: 0 0 0 0.2rem rgba(15, 26, 56, 0.12);
+    }
+
+/* Primary call to action: same amber treatment as the homepage's
+   .home-btn-primary, so "sign in" / "register" reads as the same
+   kind of action as the marketing page's "cast your vote" CTA. */
+.auth-btn-primary {
+    background: var(--votex-amber);
+    border-color: var(--votex-amber);
+    color: var(--votex-navy-900);
+    font-weight: 700;
+}
+
+    .auth-btn-primary:hover,
+    .auth-btn-primary:focus {
+        background: #e0951c;
+        border-color: #e0951c;
+        color: var(--votex-navy-900);
+    }
+
+.auth-divider {
+    position: relative;
+    text-align: center;
+    margin: 1.75rem 0;
+}
+
+    .auth-divider hr {
+        border-color: #e2e6ee;
+        opacity: 1;
+    }
+
+    .auth-divider span {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: #fff;
+        padding: 0 0.75rem;
+        font-family: var(--votex-font-mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: #9aa1b2;
+    }
+
+.auth-footnote {
+    text-align: center;
+    font-size: 0.85rem;
+    color: #6b7280;
+}
+
+    .auth-footnote a {
+        color: var(--votex-navy-800);
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+        .auth-footnote a:hover {
+            color: var(--votex-amber);
+        }
+
+/* ─── Organization onboarding: multi-section form ─── */
+.org-section-title {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--votex-navy-900);
+    border-bottom: 1px solid #e2e6ee;
+    padding-bottom: 0.6rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+    .org-section-title .step-no {
+        font-family: var(--votex-font-mono);
+        font-size: 0.75rem;
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        background: var(--votex-navy-900);
+        color: #fff;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+    }
+
+.org-terms-box {
+    background: #f7f8fb;
+    border-left: 3px solid var(--votex-amber);
+    border-radius: 6px;
+}
+
+.org-loading-overlay {
+    background: rgba(255, 255, 255, 0.85);
+    z-index: 1050;
+}

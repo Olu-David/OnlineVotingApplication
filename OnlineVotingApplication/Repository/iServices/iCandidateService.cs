@@ -20,7 +20,7 @@ namespace OnlineVotingApplication.Repository.iServices
         Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByStateAsync(Guid? stateId, int pageNumber = 1, int pageSize = 10);
         void ClearCandidateCache(int pageNumber, int pageSize);
 
-        Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId, string ipAddress);
-        Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model, string superAdminUserId, string ipAddress);
+        Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId);
+        Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model);
     }
 }

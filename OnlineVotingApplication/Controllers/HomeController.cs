@@ -27,18 +27,17 @@ namespace OnlineVotingApplication.Controllers
 
         public async Task<IActionResult> Index()
         {
-            // Fetch the top 5 past elections using the service method
+            // 1. Fetch elections list
             var pastElectionsResponse = await _electionService.GetPastElectionsAsync();
-
-            // Pass the past elections list to the view (via ViewBag or ViewModel)
             ViewBag.PastElections = pastElectionsResponse.Success && pastElectionsResponse.Data != null
                 ? pastElectionsResponse.Data
                 : new List<ElectionEvent>();
-            ViewBag.ElectionCount = await _Context.Votes.CountAsync();
+
+            // 2. Fetch vote count using No-Tracking to avoid opening heavy transaction contexts
+            ViewBag.ElectionCount = await _Context.Votes.AsNoTracking().CountAsync();
 
             return View();
         }
-
         // GET: /Home/Privacy
         [HttpGet]
         public IActionResult Privacy()

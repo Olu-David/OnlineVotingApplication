@@ -2,32 +2,36 @@
     ViewData["Title"] = "Verify Your Email";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+}
+
 <div class="container my-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
-            <div class="card shadow-lg border-0 rounded-3 text-center">
-                <div class="card-body p-5">
+            <div class="card auth-card text-center">
+                <div class="auth-card-body p-5">
                     <div class="mb-4">
-                        <div class="d-inline-flex align-items-center justify-content-center bg-light text-primary rounded-circle" style="width: 80px; height: 80px;">
-                            <svg xmlns="http://w3.org" width="40" height="40" fill="currentColor" class="bi bi-envelope-check" viewBox="0 0 16 16">
+                        <div class="auth-icon" style="width: 72px; height: 72px; border-radius: 50%;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" fill="currentColor" class="bi bi-envelope-check" viewBox="0 0 16 16">
                                 <path d="M2 2a2 2 0 0 0-2 2v8.01A2 2 0 0 0 2 14h5.5a.5.5 0 0 0 0-1H2a1 1 0 0 1-.966-.741l5.64-3.471L8 9.583l7-4.2V8.5a.5.5 0 0 0 1 0V4a2 2 0 0 0-2-2zm3.708 6.208L1 11.105V5.383zM1 4.217V4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v.217l-7 4.2z" />
                                 <path d="M16 12.5a3.5 3.5 0 1 1-7 0 3.5 3.5 0 0 1 7 0m-1.993-1.679a.5.5 0 0 0-.707-.067l-1.704 1.363-.651-.488a.5.5 0 1 0-.612.79l.944.708a.5.5 0 0 0 .685-.065l2.001-1.6a.5.5 0 0 0 .044-.704" />
                             </svg>
                         </div>
                     </div>
 
-                    <h3 class="fw-bold text-dark mb-3">Confirm Your Account</h3>
+                    <h3 class="auth-title" style="color: var(--votex-navy-900);">Check Your Inbox</h3>
 
                     <p class="text-muted mb-4">
-                        We have sent a verification link to <strong class="text-dark">@ViewData["Email"]</strong>. Please check your inbox and click the link to activate your voter profile.
+                        We've sent a verification link to <strong class="text-dark">@ViewData["Email"]</strong>. Open it to activate your voter profile.
                     </p>
 
                     <div class="alert alert-info border-0 small text-start mb-4" role="alert">
-                        If you do not see the email within a few minutes, please check your spam or junk folder.
+                        Don't see it? Check your spam or junk folder — it can take a few minutes to arrive.
                     </div>
 
                     <div class="d-grid gap-2">
-                        <a asp-action="Login" class="btn btn-primary btn-lg fs-6 fw-bold shadow">Proceed to Sign In</a>
+                        <a asp-action="Login" class="btn auth-btn-primary btn-lg fs-6 shadow">Proceed to Sign In</a>
                         <button type="button" class="btn btn-link btn-sm text-decoration-none text-muted">Resend Link</button>
                     </div>
                 </div>

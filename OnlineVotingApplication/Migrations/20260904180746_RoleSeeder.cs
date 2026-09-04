@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class AuditLog : Migration
+    public partial class RoleSeeder : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -210,7 +210,7 @@ namespace OnlineVotingApplication.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWID()"),
-                    Title = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Title = table.Column<string>(type: "nvarchar(450)", nullable: true),
                     Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     ElectionYear = table.Column<int>(type: "int", nullable: false),
                     StartDate = table.Column<DateTime>(type: "datetime2", nullable: false),
@@ -613,7 +613,8 @@ namespace OnlineVotingApplication.Migrations
                     IsConfirmed = table.Column<bool>(type: "bit", nullable: false),
                     HasVoted = table.Column<bool>(type: "bit", nullable: false),
                     ConfirmationCode = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false)
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    IsPenalized = table.Column<bool>(type: "bit", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -775,6 +776,13 @@ namespace OnlineVotingApplication.Migrations
                 name: "IX_ElectionEvents_TenantId",
                 table: "ElectionEvents",
                 column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ElectionEvents_Title",
+                table: "ElectionEvents",
+                column: "Title",
+                unique: true,
+                filter: "[Title] IS NOT NULL");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Lgas_StateId",

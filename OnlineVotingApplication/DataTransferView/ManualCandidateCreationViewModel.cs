@@ -1,5 +1,5 @@
 ﻿
-namespace OnlineVotingApplication.Repository.iServices
+namespace OnlineVotingApplication.DataTransferView
 {
     public class ManualCandidateCreationViewModel
     {

@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260903155507_APPDBUPDATE")]
-    partial class APPDBUPDATE
+    [Migration("20260904180746_RoleSeeder")]
+    partial class RoleSeeder
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

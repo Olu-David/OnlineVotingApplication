@@ -1,0 +1,64 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@model SuperAdminCandidateCreationViewModel;
+
+<form asp-action="CreateCandidateSuperAdmin" method="post" enctype="multipart/form-data">
+
+    <!-- Tenant Selection -->
+    <div class="form-group mb-3">
+        <label asp-for="TenantId" class="form-label">Select Tenant</label>
+        <select asp-for="TenantId" id="tenantDropdown" class="form-select"
+                asp-items="@(new SelectList(ViewBag.Tenants, "Id", "Name"))">
+            <option value="">-- Select Tenant --</option>
+        </select>
+        <span asp-validation-for="TenantId" class="text-danger"></span>
+    </div>
+
+    <!-- Cascading Election Selection -->
+    <div class="form-group mb-3">
+        <label asp-for="ElectionEventId" class="form-label">Select Election</label>
+        <select asp-for="ElectionEventId" id="electionDropdown" class="form-select">
+            <option value="">-- Select Tenant First --</option>
+        </select>
+        <span asp-validation-for="ElectionEventId" class="text-danger"></span>
+    </div>
+
+    <!-- Candidate Email -->
+    <div class="form-group mb-3">
+        <label asp-for="CandidateEmail" class="form-label">Candidate Email</label>
+        <input asp-for="CandidateEmail" class="form-control" placeholder="user@example.com" />
+        <span asp-validation-for="CandidateEmail" class="text-danger"></span>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Create Candidate</button>
+</form>
+
+@section Scripts {
+    <script>
+        document.getElementById('tenantDropdown').addEventListener('change', async function () {
+            const tenantId = this.value;
+            const electionDropdown = document.getElementById('electionDropdown');
+
+            electionDropdown.innerHTML = '<option value="">Loading elections...</option>';
+
+            if (!tenantId) {
+                electionDropdown.innerHTML = '<option value="">-- Select Tenant First --</option>';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/CandidateSuperAdmin/GetElectionsByTenant?tenantId=${tenantId}`);
+                const data = await response.json();
+
+                electionDropdown.innerHTML = '<option value="">-- Select Election --</option>';
+                data.forEach(election => {
+                    const option = document.createElement('option');
+                    option.value = election.id;
+                    option.textContent = election.title;
+                    electionDropdown.appendChild(option);
+                });
+            } catch (error) {
+                electionDropdown.innerHTML = '<option value="">Error loading elections</option>';
+            }
+        });
+    </script>
+}

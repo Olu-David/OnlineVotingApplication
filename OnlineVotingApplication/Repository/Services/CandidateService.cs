@@ -10,8 +10,10 @@ using Mono.TextTemplating;
 using OnlineVotingApplication.Areas;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
+using OnlineVotingApplication.Enums;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.Services;
 using Slugify;
 using System;
 using System.Text.Json;
@@ -280,15 +282,151 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(
+            ManualCandidateCreationViewModel model,
+            Guid currentTenantId,
+            string officialUserId,
+            string ipAddress)
+        {
+            var response = new ServiceResponse<string>();
 
+            if (model == null || model.ElectionEventId == Guid.Empty)
+            {
+                response.Success = false;
+                response.Message = "Invalid candidate or election data provided.";
+                return response;
+            }
 
+            // 1. Fetch targeted election event
+            var targetElection = await _appDbContext.ElectionEvents
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
+                                       && e.TenantId == currentTenantId
+                                       && !e.IsDeleted);
+
+            if (targetElection == null)
+            {
+                response.Success = false;
+                response.Message = "The selected election does not exist or does not belong to your organization.";
+                return response;
+            }
+
+            // 2. Resolve target user by email
+            var cleanEmail = model.CandidateEmail!.Trim().ToLower();
+            var targetUser = await _UserManager.FindByEmailAsync(cleanEmail);
+
+            if (targetUser == null)
+            {
+                response.Success = false;
+                response.Message = $"No registered account found matching email '{cleanEmail}'.";
+                return response;
+            }
+
+            // 3. Category & Duplicate Check
+            bool isPolitical = targetElection.Category == TenantCategory.Political;
+
+            var candidateExists = await _appDbContext.Candidate
+                .IgnoreQueryFilters()
+                .AnyAsync(x => x.UserId == targetUser.Id && x.ElectionEventId == targetElection.Id);
+
+            if (candidateExists)
+            {
+                response.Success = false;
+                response.Message = "This user is already registered as a candidate for this election event.";
+                return response;
+            }
+
+            var uploadedPhysicalFiles = new List<string>();
+            string targetDatabasePathUrl = "/images/default-candidate.png";
+            string folderPathSegment = "Candidate_Profiles";
+
+            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            try
+            {
+                // 4. Role promotion to Candidate if missing
+                if (!await _UserManager.IsInRoleAsync(targetUser, "Candidate"))
+                {
+                    var addRoleResult = await _UserManager.AddToRoleAsync(targetUser, "Candidate");
+                    if (!addRoleResult.Succeeded)
+                    {
+                        throw new Exception("Failed to upgrade target user permissions to Candidate role.");
+                    }
+                }
+
+                // 5. Image Processing
+                if (model.CandidateImage != null && model.CandidateImage.Length > 0)
+                {
+                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
+                        file: model.CandidateImage,
+                        fileType: Enums.FileType.Image,
+                        uploadFolder: folderPathSegment,
+                        cancellationToken: CancellationToken.None
+                    );
+
+                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
+                    uploadedPhysicalFiles.Add(Path.Combine(_env.WebRootPath, folderPathSegment, allocatedFileName));
+                }
+
+                // 6. Map and Save Entity
+                var fullName = $"{targetUser.FullName}".Trim();
+                var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
+
+                var slugHelper = new SlugHelper();
+                var newCandidate = new Candidate
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = currentTenantId,
+                    ElectionEventId = targetElection.Id,
+                    UserId = targetUser.Id,
+                    Name = candidateName,
+                    Manifesto = model.Manifesto,
+                    CandidateImg = targetDatabasePathUrl,
+                    Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
+                    PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
+
+                    // Political FKs assigned only if political category
+                    PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
+                    StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
+                    LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
+
+                    CreatedAt = DateTime.UtcNow,
+                    isApproved = true,
+                    CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
+                };
+
+                await _appDbContext.Candidate.AddAsync(newCandidate);
+                await _appDbContext.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                response.Data = newCandidate.CandidateID;
+                response.Success = true;
+                response.Message = $"Candidate '{candidateName}' successfully created and assigned to {targetElection.Title}!";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+
+                foreach (var physicalPath in uploadedPhysicalFiles)
+                {
+                    if (File.Exists(physicalPath))
+                    {
+                        try { File.Delete(physicalPath); } catch { }
+                    }
+                }
+
+                response.Success = false;
+                response.Message = $"Save Error: {ex.Message}";
+                return response;
+            }
+        }
         public void ClearCandidateCache(int pageNumber, int pageSize)
         {
             string cacheKey = $"ref_All_Candidates_P{pageNumber}_S{pageSize}";
             _cache.Remove(cacheKey);
         }
-    
-    public async Task<PaginatedListViewModel<CandidateViewModel>> GetAllCandidates(int PageNumber = 1, int PageSize = 10)
+        public async Task<PaginatedListViewModel<CandidateViewModel>> GetAllCandidates(int PageNumber = 1, int PageSize = 10)
         {
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -321,7 +459,7 @@ namespace OnlineVotingApplication.Repository.Services
                 totalCount = int.Parse(cachedCountStr);
             }
 
-            // 2. Fetch or Cache Candidate List with Dynamic Answers Projection
+            // 2. Fetch or Cache Candidate List
             List<CandidateViewModel>? candidateList = null;
             string? cachedListJson = await _Cache.GetStringAsync(cacheKeyItems);
 
@@ -331,29 +469,39 @@ namespace OnlineVotingApplication.Repository.Services
             }
             else
             {
-                candidateList = await baseQuery
+                // Fetch raw database entities with related fields included
+                var rawCandidates = await baseQuery
+                    .Include(m => m.Party)
+                    .Include(m => m.Position)
+                    .Include(m => m.State)
+                    .Include(m => m.CustomValues)
+                    .Include(m => m.GalleryPhotos)
                     .OrderBy(m => m.Name)
                     .Skip(skip)
                     .Take(PageSize)
-                    .Select(m => new CandidateViewModel
-                    {
-                        CandidateID = m.Id,
-                        Name = m.Name,
-                        Manifesto = m.Manifesto,
-                        image = m.CandidateImg,
-                        PartyName = m.Party != null ? m.Party.Name : "Unassigned",
-                        Position = m.Position != null ? m.Position.Name : "Unassigned",
-                        StateName = m.State != null ? m.State.Name : "National",
-
-                        // Mapped dynamic answers key-value pairs
-                        DynamicAnswers = m.CustomValues
-                            .ToDictionary(cv => cv.FieldId, cv => cv.Value),
-
-                        // Mapped gallery photos array
-                        GalleryPhotoss = (ICollection<CandidateGallery>)m.GalleryPhotos.Select(g => g.ImageUrl)
-                    })
                     .ToListAsync();
 
+                // Map view models in-memory (where .ToDictionary and projections work safely)
+                candidateList = rawCandidates.Select(m => new CandidateViewModel
+                {
+                    CandidateID = m.Id,
+                    Name = m.Name,
+                    Manifesto = m.Manifesto,
+                    image = m.CandidateImg,
+                    PartyName = m.Party != null ? m.Party.Name : "Unassigned",
+                    Position = m.Position != null ? m.Position.Name : "Unassigned",
+                    StateName = m.State != null ? m.State.Name : "National",
+
+                    // Mapped dynamic answers key-value pairs safely in-memory
+                    DynamicAnswers = m.CustomValues != null
+            ? m.CustomValues.ToDictionary(cv => cv.FieldId, cv => cv.Value)
+            : new Dictionary<Guid, string>(),
+
+                    // Mapped gallery photos collection safely in-memory
+                    GalleryPhotoss = m.GalleryPhotos != null
+            ? m.GalleryPhotos.ToList()
+            : new List<CandidateGallery>()
+                }).ToList();
                 string jsonToCache = JsonSerializer.Serialize(candidateList);
                 var itemsOptions = new DistributedCacheEntryOptions
                 {
@@ -362,12 +510,13 @@ namespace OnlineVotingApplication.Repository.Services
                 await _Cache.SetStringAsync(cacheKeyItems, jsonToCache, itemsOptions);
             }
 
+            // 3. Return the fully populated paginated view model list
             return new PaginatedListViewModel<CandidateViewModel>
             {
-                Items = candidateList ?? Enumerable.Empty<CandidateViewModel>(),
-                PageSize = PageSize,
+                Items = candidateList ?? new List<CandidateViewModel>(),
+                TotalItems = totalCount,
                 PageNumber = PageNumber,
-                TotalItems = totalCount
+                PageSize = PageSize
             };
         }
         public async Task<ServiceResponse<CandidateViewModel>> GetCandidateByIdAsync(Guid id)

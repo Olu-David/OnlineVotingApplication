@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
+using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using System.Diagnostics;
@@ -69,6 +70,21 @@ namespace OnlineVotingApplication.Controllers
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> SupportTickets(int pageNumber = 1, int pageSize = 10, Guid? tenantId = null)
+        {
+            var paginatedTickets = await _supportService.GetPaginatedTicketsAsync(pageNumber, pageSize, tenantId);
+
+            var response = new ServiceResponse<PaginatedListViewModel<SupportTicket>>
+            {
+                Data = paginatedTickets,
+                Success = true,
+                Message = "Support tickets retrieved successfully."
+            };
+
+            return View(response);
         }
 
         [AllowAnonymous] // Ensures blocked users can actually open this page

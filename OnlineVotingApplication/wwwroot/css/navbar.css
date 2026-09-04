@@ -1,37 +1,172 @@
 ﻿/* ======================================================
-   navbar.css  –  minimal overrides for public navbar
+   navbar.css
+   Public navbar (_Navbar.cshtml) — used for Voter, Candidate,
+   Auditor and signed-out visitors. Loads after site.css so
+   it can use the shared tokens and per-role accent colours.
    ====================================================== */
 
-/* brand colour */
-.navbar-brand {
-    font-weight: 800;
-    color: #fff !important;
+.navbar .navbar-brand {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    letter-spacing: 0.01em;
 }
 
-/* active link styling (Bootstrap's .active is already there) */
-.navbar .nav-link.active {
-    background: rgba(255,255,255,0.12) !important;
-    color: #fff !important;
-    border-radius: 6px;
+.navbar .nav-link {
+    font-family: var(--votex-font-body);
+    font-size: 0.93rem;
+    font-weight: 500;
+    position: relative;
+    padding-bottom: 0.35rem !important;
 }
 
-/* vote link - make it green */
-.vote-link {
-    color: #4ade80 !important;
-    font-weight: 700;
-}
-
-    .vote-link:hover,
-    .vote-link.active {
-        background: rgba(74,222,128,0.15) !important;
+    /* Underline the active link instead of the default bootstrap
+       treatment — small, deliberate, ballot-marker in shape. */
+    .navbar .nav-link.active::after {
+        content: '';
+        position: absolute;
+        left: 0.5rem;
+        right: 0.5rem;
+        bottom: -1px;
+        height: 2px;
+        border-radius: 2px;
+        background: var(--votex-amber);
     }
 
-/* dashboard link - accent */
-.dash-link {
-    color: #f5a623 !important;
+    .navbar .nav-link.vote-link {
+        font-weight: 600;
+    }
+
+.navbar-collapse .d-flex.align-items-center.gap-2 {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
 }
 
-    .dash-link:hover,
-    .dash-link.active {
-        background: rgba(245,166,35,0.15) !important;
+.navbar .dropdown-menu {
+    max-width: calc(100vw - 2rem);
+    font-family: var(--votex-font-body);
+}
+
+/* ─── ROLE BADGE ───
+   One consistent pill shape shared with the sidebar's
+   .sidebar-role-badge, coloured per role instead of the
+   generic bootstrap red/blue/grey set. */
+.role-badge {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--votex-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    color: #fff;
+    background: var(--votex-navy-800);
+}
+
+.role-badge--superadmin {
+    background: var(--votex-role-superadmin);
+    color: #1a1300;
+}
+
+.role-badge--superadmin {
+    background: color-mix(in srgb, var(--votex-role-superadmin) 85%, black);
+    color: #1a1300;
+}
+
+.role-badge--official {
+    background: var(--votex-role-official);
+}
+
+.role-badge--official {
+    background: color-mix(in srgb, var(--votex-role-official) 80%, black);
+}
+
+.role-badge--auditor {
+    background: var(--votex-role-auditor);
+}
+
+.role-badge--auditor {
+    background: color-mix(in srgb, var(--votex-role-auditor) 80%, black);
+}
+
+.role-badge--candidate {
+    background: var(--votex-role-candidate);
+}
+
+.role-badge--candidate {
+    background: color-mix(in srgb, var(--votex-role-candidate) 80%, black);
+}
+
+.role-badge--voter {
+    background: var(--votex-role-voter);
+}
+
+.role-badge--voter {
+    background: color-mix(in srgb, var(--votex-role-voter) 80%, black);
+}
+
+.role-badge--guest {
+    background: rgba(255,255,255,0.15);
+}
+
+@media (max-width: 991.98px) {
+    .navbar-collapse {
+        padding-top: 0.5rem;
     }
+
+    .navbar-nav {
+        margin-bottom: 0.5rem;
+    }
+
+    .navbar .nav-link.active::after {
+        display: none;
+    }
+
+    .navbar .nav-link.active {
+        border-left: 2px solid var(--votex-amber);
+        padding-left: 0.5rem !important;
+    }
+
+    .navbar-collapse .d-flex.align-items-center.gap-2 {
+        width: 100%;
+        justify-content: flex-start;
+        padding-top: 0.5rem;
+        border-top: 1px solid rgba(255,255,255,0.1);
+    }
+}
+
+@media (max-width: 767.98px) {
+    .navbar .navbar-brand {
+        font-size: 1.1rem;
+    }
+
+    .navbar .container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+
+    .navbar-collapse .d-flex.align-items-center.gap-2 > .btn {
+        flex: 1 1 auto;
+    }
+}
+
+@media (max-width: 479.98px) {
+    .navbar .navbar-brand {
+        font-size: 1rem;
+    }
+
+    .navbar-collapse .d-flex.align-items-center.gap-2 {
+        flex-direction: column;
+        align-items: stretch !important;
+    }
+
+        .navbar-collapse .d-flex.align-items-center.gap-2 > .btn,
+        .navbar-collapse .d-flex.align-items-center.gap-2 > .dropdown {
+            width: 100%;
+        }
+
+    .navbar .dropdown-menu {
+        width: 100%;
+        max-width: 100%;
+    }
+}

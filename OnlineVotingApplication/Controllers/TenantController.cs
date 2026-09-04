@@ -6,6 +6,7 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.Repository.Services;
 using System;
 using System.Linq;
 using System.Security.Claims;
@@ -21,19 +22,16 @@ namespace OnlineVotingApplication.Controllers
         private readonly ITenantService _tenantService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IAuditLogService _auditLogService;
+        private readonly iCandidateService _CandidateService;
 
-        public TenantController(
-            AppDbContext context,
-            ITenantProvider tenantProvider,
-            ITenantService tenantService,
-            UserManager<ApplicationUser> userManager,
-            IAuditLogService auditLogService)
+        public TenantController(AppDbContext context, ITenantProvider tenantProvider, ITenantService tenantService, UserManager<ApplicationUser> userManager, IAuditLogService auditLogService, iCandidateService candidateService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _CandidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
         }
 
         // --- REGISTRATION (Public Access) ---
@@ -160,6 +158,74 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.ElectionId = electionId;
 
             return View(candidates);
+        }
+        [HttpGet]
+        [Authorize(Roles = "Official")]
+        public async Task<IActionResult> CreateCandidateOfficial()
+        {
+            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
+
+            // Populate dropdown directly using your existing Election model
+            ViewBag.OfficialElections = await _context.ElectionEvents
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
+                .OrderByDescending(e => e.CreatedAt)
+                .ToListAsync();
+
+            return View(new ManualCandidateCreationViewModel());
+        }
+
+        [HttpPost]
+        [Authorize(Roles = "Official")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCandidateOfficial(ManualCandidateCreationViewModel model)
+        {
+            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
+
+            if (!ModelState.IsValid)
+            {
+                ViewBag.OfficialElections = await _context.ElectionEvents
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync();
+
+                return View(model);
+            }
+
+            var officialUserId = _userManager.GetUserId(User)!;
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            // 1. Call your single clean service method
+            var result = await _CandidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId, ipAddress);
+
+            if (!result.Success)
+            {
+                ModelState.AddModelError(string.Empty, result.Message??"");
+
+                ViewBag.OfficialElections = await _context.ElectionEvents
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync();
+
+                return View(model);
+            }
+
+            // 2. Audit log logged directly in the controller
+            await _auditLogService.LogActivityAsync(
+                userId: officialUserId,
+                action: "Official Candidate Creation",
+                details: $"Official added candidate '{model.CandidateEmail}'",
+                ipAddress: ipAddress,
+                tenantId: currentTenantId != Guid.Empty ? currentTenantId : null
+            );
+
+            TempData["SuccessMessage"] = result.Message;
+            return RedirectToAction("AllCandidate");
         }
     }
 }

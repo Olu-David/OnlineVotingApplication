@@ -34,5 +34,6 @@ namespace OnlineVotingApplication.Models
         public DateTime CreatedAt { get;  set; }
         [ForeignKey(nameof(ElectionId))]
         public virtual ElectionEvent? Election { get;  set; }
+        public bool IsPenalized { get;  set; }
     }
 }

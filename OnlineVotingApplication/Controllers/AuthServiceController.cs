@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Diagnostics.Tracing.Parsers.FrameworkEventSource;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
@@ -297,6 +298,32 @@ namespace OnlineVotingApplication.Controllers
 
             ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken] 
+        public async Task<IActionResult> LogoutUser()
+        {
+            var userId = _userManager.GetUserId(User);
+
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User is not logged in.";
+                return RedirectToAction("Index", "Home"); // Exit early
+            }
+
+            try
+            {
+                // Must await the SignOutAsync task
+                await _signManager.SignOutAsync();
+                TempData["SuccessMessage"] = "Logged out successfully.";
+
+                return RedirectToAction("Index", "Home"); // Action: Index, Controller: Home
+            }
+            catch (Exception ex)
+            {
+                TempData["ErrorMessage"] = "Logout failed: " + ex.Message;
+                return RedirectToAction("Index", "Home");
+            }
         }
 
         [HttpPost]

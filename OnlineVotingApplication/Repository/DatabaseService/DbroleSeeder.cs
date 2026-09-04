@@ -30,7 +30,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 var userManager = serviceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
                 // -------------------------------------------------------------
-                // 2. SEED DEFAULT TENANT FIRST
+                // 2. SEED DEFAULT TENANT & ELECTION EVENT FIRST
                 // -------------------------------------------------------------
                 var defaultTenant = await context.Tenants.FirstOrDefaultAsync(t => t.OrganizationName == "System Root");
 
@@ -53,20 +53,23 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     logger.LogInformation("Default Tenant 'System Root' created with ID: {TenantId}", defaultTenant.Id);
                 }
 
-                var electionEvent = await context.ElectionEvents.FirstOrDefaultAsync(m => m.Title == "AdminVoting");
-
-                if (electionEvent == null && !await context.ElectionEvents.AnyAsync())
+                // Check for existence specifically by title
+                string defaultElectionTitle = "General Presidential Election 2026";
+                var electionEvent = await context.ElectionEvents.IgnoreQueryFilters() .FirstOrDefaultAsync(m => m.Title == defaultElectionTitle);
+                if (electionEvent == null)
                 {
                     var sampleElection = new ElectionEvent
                     {
                         Id = Guid.NewGuid(),
-                        Title = "General Presidential Election 2026",
-                        Category = OnlineVotingApplication.Enums.TenantCategory.Political,
+                        Title = defaultElectionTitle,
+                        Category = TenantCategory.Political,
+                        TenantId = defaultTenant.Id, // <-- Crucial: Tie election to default tenant
                         CreatedAt = DateTime.UtcNow
                     };
 
                     await context.ElectionEvents.AddAsync(sampleElection);
                     await context.SaveChangesAsync();
+                    logger.LogInformation("Default ElectionEvent '{Title}' created.", defaultElectionTitle);
                 }
 
                 // -------------------------------------------------------------
@@ -95,7 +98,6 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 // -------------------------------------------------------------
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
-                    // SuperAdmin explicitly keeps TenantId = null
                     (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "SuperAdmin"),
                     (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Official"),
                     (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Voter"),
@@ -106,58 +108,50 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 // -------------------------------------------------------------
                 // 5. SEED AND UPDATE USERS
                 // -------------------------------------------------------------
-                foreach (var item in users)
+                foreach (var (user, password, role) in users)
                 {
                     try
                     {
-                        ApplicationUser? existingUser = await userManager.FindByEmailAsync(item.User.Email ?? "");
-                        bool isSuperAdmin = item.Role == "SuperAdmin";
+                        var existingUser = await userManager.FindByEmailAsync(user.Email ?? "");
+                        bool isSuperAdmin = role == "SuperAdmin";
 
                         if (existingUser == null)
                         {
-                            // ONLY assign defaultTenant.Id if it is NOT the SuperAdmin
-                            if (!isSuperAdmin)
-                            {
-                                item.User.TenantId = defaultTenant.Id;
-                            }
-                            else
-                            {
-                                item.User.TenantId = null; // Guarantee null for SuperAdmin
-                            }
+                            // SuperAdmin is guaranteed null; standard roles get the defaultTenant.Id
+                            user.TenantId = isSuperAdmin ? null : defaultTenant.Id;
 
-                            var result = await userManager.CreateAsync(item.User, item.Password);
+                            var result = await userManager.CreateAsync(user, password);
                             if (result.Succeeded)
                             {
-                                await userManager.AddToRoleAsync(item.User, item.Role);
-                                logger.LogInformation("Successfully seeded and assigned role to user: {Email}", item.User.Email);
+                                await userManager.AddToRoleAsync(user, role);
+                                logger.LogInformation("Successfully seeded and assigned role to user: {Email}", user.Email);
                             }
                             else
                             {
                                 var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                                logger.LogWarning("Create failed for {Email}: {Errors}", item.User.Email, errors);
+                                logger.LogWarning("Create failed for {Email}: {Errors}", user.Email, errors);
                             }
                         }
                         else
                         {
                             // Sync missing role
-                            if (!await userManager.IsInRoleAsync(existingUser, item.Role))
+                            if (!await userManager.IsInRoleAsync(existingUser, role))
                             {
-                                await userManager.AddToRoleAsync(existingUser, item.Role);
-                                logger.LogInformation("Assigned missing role '{Role}' to existing user: {Email}", item.Role, existingUser.Email);
+                                await userManager.AddToRoleAsync(existingUser, role);
+                                logger.LogInformation("Assigned missing role '{Role}' to existing user: {Email}", role, existingUser.Email);
                             }
 
                             // Sync profile details and handle TenantId carefully
                             bool changed = false;
 
-                            if (existingUser.FullName != item.User.FullName)
+                            if (existingUser.FullName != user.FullName)
                             {
-                                existingUser.FullName = item.User.FullName;
+                                existingUser.FullName = user.FullName;
                                 changed = true;
                             }
 
                             if (isSuperAdmin)
                             {
-                                // SuperAdmin must always have a null TenantId
                                 if (existingUser.TenantId != null)
                                 {
                                     existingUser.TenantId = null;
@@ -166,7 +160,6 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                             }
                             else
                             {
-                                // Standard roles must point to the default tenant ID if unassigned/wrong
                                 if (existingUser.TenantId == Guid.Empty || existingUser.TenantId != defaultTenant.Id)
                                 {
                                     existingUser.TenantId = defaultTenant.Id;
@@ -191,7 +184,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     }
                     catch (Exception ex)
                     {
-                        logger.LogError(ex, "Error processing seeder item for user {Email}", item.User.Email);
+                        logger.LogError(ex, "Error processing seeder item for user {Email}", user.Email);
                     }
                 }
             }

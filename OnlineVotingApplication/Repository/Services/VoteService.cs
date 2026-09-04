@@ -7,7 +7,7 @@ using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.Services;
-using System.Security.Cryptography; // <--- Added for RandomNumberGenerator
+using System.Security.Cryptography;
 using System.Text.Json;
 
 namespace OnlineVotingApplication.Repository.Services
@@ -30,7 +30,7 @@ namespace OnlineVotingApplication.Repository.Services
             try
             {
                 var results = await _context.Votes
-                    .Where(v => v.ElectionId == electionId && v.PositionId == positionId && v.IsConfirmed)
+                    .Where(v => v.ElectionId == electionId && v.PositionId == positionId && v.IsConfirmed && !v.IsPenalized)
                     .GroupBy(v => v.CandidateId)
                     .Select(g => new VoteResultDto
                     {
@@ -58,7 +58,7 @@ namespace OnlineVotingApplication.Repository.Services
             try
             {
                 var data = await _context.Votes
-                    .Where(v => v.ElectionId == electionID && v.PositionId == positionID && v.IsConfirmed)
+                    .Where(v => v.ElectionId == electionID && v.PositionId == positionID && v.IsConfirmed && !v.IsPenalized)
                     .Join(_context.Users, v => v.VoterId, u => u.Id, (v, u) => new
                     {
                         StateId = u.State != null ? u.State.Id : (Guid?)null,
@@ -69,7 +69,7 @@ namespace OnlineVotingApplication.Repository.Services
                     .Select(g => new StateResultDto
                     {
                         StateId = g.Key.StateId ?? Guid.Empty,
-                        State = g.Key.StateId ?? Guid.Empty, // Populating your Guid? State property safely
+                        State = g.Key.StateId ?? Guid.Empty,
                         StateName = g.Key.StateName,
                         CandidateId = g.Key.CandidateId,
                         VoteCount = g.Count()
@@ -89,11 +89,11 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<StateResultDto>> { Success = false, Message = "Failed to retrieve state results." };
             }
         }
+
         public async Task<ServiceResponse<string>> GenerateAndQueueConfirmationCodeAsync(string voterId, Guid electionId)
         {
             try
             {
-                // Updated to call the secure method name
                 string code = GenerateSecureConfirmationCode();
 
                 var voteRecord = await _context.Votes
@@ -108,7 +108,8 @@ namespace OnlineVotingApplication.Repository.Services
                         ElectionId = electionId,
                         ConfirmationCode = code,
                         IsConfirmed = false,
-                        HasVoted = false
+                        HasVoted = false,
+                        IsPenalized = false
                     };
                     _context.Votes.Add(voteRecord);
                 }
@@ -143,9 +144,9 @@ namespace OnlineVotingApplication.Repository.Services
                 var voteRecord = await _context.Votes
                     .FirstOrDefaultAsync(v => v.VoterId == voterId && v.ElectionId == electionId);
 
-                if (voteRecord == null || voteRecord.ConfirmationCode != enteredCode)
+                if (voteRecord == null || voteRecord.ConfirmationCode != enteredCode || voteRecord.IsPenalized)
                 {
-                    return new ServiceResponse<string> { Success = false, Message = "Invalid confirmation code or vote session." };
+                    return new ServiceResponse<string> { Success = false, Message = "Invalid confirmation code, vote session, or voter is penalized." };
                 }
 
                 if (voteRecord.HasVoted)
@@ -175,13 +176,14 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "An error occurred while casting your vote." };
             }
         }
+
         public async Task<ServiceResponse<List<ElectionEvent>>> GetElectionsTakenByVoterAsync(string voterId)
         {
             try
             {
                 var elections = await _context.Votes
-                    .Where(v => v.VoterId == voterId && v.HasVoted && v.Election != null) // <--- Ensure it's not null
-                    .Select(v => v.Election!) // <--- Cast to non-nullable
+                    .Where(v => v.VoterId == voterId && v.HasVoted && !v.IsPenalized && v.Election != null)
+                    .Select(v => v.Election!)
                     .Distinct()
                     .ToListAsync();
 
@@ -237,7 +239,8 @@ namespace OnlineVotingApplication.Repository.Services
                         ElectionId = electionId,
                         ConfirmationCode = "PENALIZED",
                         IsConfirmed = false,
-                        HasVoted = false
+                        HasVoted = false,
+                        IsPenalized = true
                     };
                     _context.Votes.Add(voteRecord);
                 }
@@ -246,6 +249,7 @@ namespace OnlineVotingApplication.Repository.Services
                     voteRecord.ConfirmationCode = "PENALIZED";
                     voteRecord.IsConfirmed = false;
                     voteRecord.HasVoted = false;
+                    voteRecord.IsPenalized = true;
                 }
 
                 await _context.SaveChangesAsync();
@@ -339,7 +343,7 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 var query = _context.Votes
                     .AsNoTracking()
-                    .Where(v => v.ConfirmationCode == "PENALIZED")
+                    .Where(v => v.IsPenalized)
                     .Join(_context.Users, v => v.VoterId, u => u.Id, (v, u) => new PenalizedVoterDto
                     {
                         Id = u.Id,
@@ -377,6 +381,62 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
 
+        public async Task<ServiceResponse<PaginatedListViewModel<VoterPenalizationStatusDto>>> GetVotersWithPenalizationStatusAsync(Guid electionId, string? searchTerm = null, int pageNumber = 1, int pageSize = 10)
+        {
+            try
+            {
+                var query = from u in _context.Users.AsNoTracking()
+                            join v in _context.Votes.Where(vote => vote.ElectionId == electionId)
+                            on u.Id equals v.VoterId into voterVotes
+                            from vote in voterVotes.DefaultIfEmpty()
+                            select new VoterPenalizationStatusDto
+                            {
+                                Id = u.Id,
+                                VoterEmail = u.Email ?? string.Empty,
+                                VoterName = u.UserName ?? string.Empty,
+                                ElectionId = electionId,
+                                IsPenalized = vote != null && vote.IsPenalized
+                            };
+
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    string term = searchTerm.Trim().ToLower();
+                    query = query.Where(x =>
+                        (x.VoterEmail != null && x.VoterEmail.ToLower().Contains(term)) ||
+                        (x.VoterName != null && x.VoterName.ToLower().Contains(term))
+                    );
+                }
+
+                int totalCount = await query.CountAsync();
+
+                var items = await query
+                    .OrderBy(x => x.VoterEmail)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var result = new PaginatedListViewModel<VoterPenalizationStatusDto>
+                {
+                    Items = items,
+                    TotalItems = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+
+                return new ServiceResponse<PaginatedListViewModel<VoterPenalizationStatusDto>>
+                {
+                    Success = true,
+                    Data = result,
+                    Message = "Voters and their penalization status retrieved successfully."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving voters with penalization status for election {ElectionId}", electionId);
+                return new ServiceResponse<PaginatedListViewModel<VoterPenalizationStatusDto>> { Success = false, Message = "Failed to retrieve voter statuses." };
+            }
+        }
+
         public async Task<ServiceResponse<string>> BulkPenalizeVotersAsync(List<string> voterIds, Guid electionId, string reason, string adminId)
         {
             if (voterIds == null || !voterIds.Any())
@@ -404,6 +464,7 @@ namespace OnlineVotingApplication.Repository.Services
                     vote.ConfirmationCode = "PENALIZED";
                     vote.IsConfirmed = false;
                     vote.HasVoted = false;
+                    vote.IsPenalized = true;
                 }
 
                 var newVoterIdsToAdd = safeVoterIds.Where(id => !existingVoterIdsSet.Contains(id)).ToList();
@@ -416,7 +477,8 @@ namespace OnlineVotingApplication.Repository.Services
                         ElectionId = electionId,
                         ConfirmationCode = "PENALIZED",
                         IsConfirmed = false,
-                        HasVoted = false
+                        HasVoted = false,
+                        IsPenalized = true
                     });
                 }
 
@@ -440,6 +502,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "An error occurred during bulk penalization processing." };
             }
         }
+
         private string GenerateSecureConfirmationCode()
         {
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

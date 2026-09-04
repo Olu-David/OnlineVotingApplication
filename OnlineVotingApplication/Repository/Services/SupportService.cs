@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
+using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Hubs;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
@@ -64,6 +65,46 @@ namespace OnlineVotingApplication.Services
             }
 
             return await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
+        }
+
+        public async Task<PaginatedListViewModel<SupportTicket>> GetPaginatedTicketsAsync( int pageNumber = 1,int pageSize = 10,Guid? tenantId = null)
+        {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+            int skip = (pageNumber - 1) * pageSize;
+
+            var query = _context.SupportTickets
+                .AsNoTracking()
+                .AsQueryable();
+
+            // Filter by tenant if explicit tenant ID is supplied
+            if (tenantId.HasValue && tenantId != Guid.Empty)
+            {
+                query = query.Where(t => t.TenantId == tenantId.Value);
+            }
+            else
+            {
+                // Bypass global EF core query filters if SuperAdmin needs to see all tenant tickets
+                query = query.IgnoreQueryFilters();
+            }
+
+            // Get total items count before skipping/taking
+            int totalItems = await query.CountAsync();
+
+            // Get paginated slice
+            var items = await query
+                .OrderByDescending(t => t.CreatedAt)
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync();
+
+            return new PaginatedListViewModel<SupportTicket>
+            {
+                Items = items,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                TotalItems = totalItems
+            };
         }
 
         public async Task ResolveTicketAsync(int ticketId)

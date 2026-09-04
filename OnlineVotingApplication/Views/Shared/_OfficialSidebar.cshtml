@@ -4,21 +4,34 @@
     string initial = !string.IsNullOrEmpty(userName) ? userName.Substring(0, 1).ToUpper() : "U";
 }
 
-<!-- FIXED: Added an outer wrapper with bg-dark and full height so it doesn't show up white -->
-<div class="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark shadow" style="min-height: 100vh; width: 100%;">
+<!-- The floating mobile toggle and backdrop overlay are rendered once in
+     _Layout.cshtml (shared with _SuperAdminSidebar) so both roles use the
+     exact same toggle/overlay instance instead of duplicate ids. -->
 
-    <!-- Large-screen-only collapse-to-icons toggle -->
-    <button class="btn btn-sm btn-outline-light border-0 ms-auto d-none d-lg-inline-flex" id="sidebarCollapseToggle"
-            type="button" aria-label="Collapse sidebar">
-        <i class="fas fa-angles-left"></i>
-    </button>
+<nav class="admin-sidebar admin-sidebar--official bg-dark text-white d-flex flex-column p-3 flex-shrink-0" id="adminSidebar">
+    <!-- Brand -->
+    <div class="sidebar-brand d-flex align-items-center gap-2 mb-3">
+        <div class="brand-icon"><i class="fas fa-vote-yea"></i></div>
+        <div class="brand-text">
+            <span class="d-block fw-bold">VoteZy</span>
+            <small class="text-white-50">Election Office</small>
+        </div>
+
+        <!-- Large-screen-only collapse-to-icons toggle -->
+        <button class="btn btn-sm btn-outline-light border-0 ms-auto d-none d-lg-inline-flex" id="sidebarCollapseToggle"
+                type="button" aria-label="Collapse sidebar">
+            <i class="fas fa-angles-left"></i>
+        </button>
+    </div>
+
+    <div class="sidebar-punch-rule"></div>
 
     <!-- User chip -->
-    <div class="sidebar-user d-flex align-items-center gap-2 p-2 rounded mb-3 bg-secondary bg-opacity-25">
+    <div class="sidebar-user d-flex align-items-center gap-2 p-2 mb-3">
         <span class="avatar-sm">@initial</span>
         <div class="sidebar-user-info small">
             <div class="fw-semibold">@userName</div>
-            <div class="sidebar-role-badge text-muted">Election Official</div>
+            <div class="sidebar-role-badge">Election Official</div>
         </div>
     </div>
 
@@ -27,33 +40,33 @@
     <!-- Navigation -->
     <ul class="nav flex-column flex-grow-1">
 
-        <li class="sidebar-section-label text-muted small fw-bold px-2 mb-1">Overview</li>
+        <li class="sidebar-section-label">Overview</li>
         <li class="nav-item">
             <a asp-controller="Tenant" asp-action="Dashboard"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "Dashboard" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "Dashboard" ? "active" : "")">
                 <i class="fas fa-tachometer-alt me-2"></i><span>Dashboard</span>
             </a>
         </li>
         <li class="nav-item">
             <a asp-controller="Tenant" asp-action="ManageUsers"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "ManageUsers" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "ManageUsers" ? "active" : "")">
                 <i class="fas fa-users-gear me-2"></i><span>Manage Admins</span>
             </a>
         </li>
 
-        <li class="sidebar-section-label text-muted small fw-bold px-2 mt-3 mb-1">Election Management</li>
+        <li class="sidebar-section-label">Election Management</li>
 
         <!-- Election Analytics / Live Results -->
         <li class="nav-item">
             <a asp-controller="Vote" asp-action="LiveResults"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
                 <i class="fas fa-chart-line me-2"></i><span>Election Analytics</span>
             </a>
         </li>
 
         <li class="nav-item">
             <a asp-controller="Vote" asp-action="ManualEntry"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active" : "")">
                 <i class="fas fa-file-pen me-2"></i><span>Manual Entry</span>
             </a>
         </li>
@@ -61,12 +74,12 @@
         <!-- Candidates Management -->
         <li class="nav-item">
             <a asp-controller="Candidate" asp-action="AllCandidate"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "active" : "")">
                 <i class="fas fa-user-tie me-2"></i><span>Candidates</span>
             </a>
         </li>
 
-        <li class="sidebar-section-label text-muted small fw-bold px-2 mt-3 mb-1">Tenant Operations</li>
+        <li class="sidebar-section-label">Tenant Operations</li>
 
         <!-- Collapsible Elections (Create, View, Delete) -->
         <li class="nav-item">
@@ -79,25 +92,25 @@
                 <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Index"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active bg-primary" : "")">
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
                             <i class="fas fa-list me-2"></i><span>All Elections</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Create"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active bg-primary" : "")">
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")">
                             <i class="fas fa-plus-circle me-2"></i><span>Create Election</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Edit"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Edit" ? "active bg-primary" : "")">
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Edit" ? "active" : "")">
                             <i class="fas fa-pen-to-square me-2"></i><span>Edit Election</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Delete"
-                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Delete" ? "active bg-primary" : "")">
+                           class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Delete" ? "active" : "")">
                             <i class="fas fa-trash me-2"></i><span>Delete Election</span>
                         </a>
                     </li>
@@ -107,7 +120,7 @@
 
         <!-- Collapsible Positions (Create, View, Delete) -->
         <li class="nav-item">
-            <a href="#PositionMenu" class='nav-link text-white d-flex justify-content-between align-items-center @(ViewData["Ctrl"]?.ToString() == "Position" ? "active bg-primary" : "")'
+            <a href="#PositionMenu" class='nav-link text-white d-flex justify-content-between align-items-center @(ViewData["Ctrl"]?.ToString() == "Position" ? "active" : "")'
                data-bs-toggle="collapse" aria-expanded="false">
                 <span><i class="fas fa-bullseye me-2"></i> Positions</span>
                 <i class="fas fa-chevron-down small"></i>
@@ -116,19 +129,19 @@
                 <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="Index"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active bg-primary" : "")'>
+                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")'>
                             <i class="fas fa-list me-2"></i><span>All Positions</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="Create"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active bg-primary" : "")'>
+                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active" : "")'>
                             <i class="fas fa-plus-circle me-2"></i><span>Create Position</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="GetAllSoftDelete"
-                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "GetAllSoftDelete" ? "active bg-primary" : "")'>
+                           class='nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "GetAllSoftDelete" ? "active" : "")'>
                             <i class="fas fa-trash-alt me-2"></i><span>Trash / Deleted</span>
                         </a>
                     </li>
@@ -139,7 +152,7 @@
         <!-- Tenant Form Designer / Form Customization -->
         <li class="nav-item mt-2">
             <a asp-controller="TenantFormDesigner" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "TenantFormDesigner" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "TenantFormDesigner" ? "active" : "")">
                 <i class="fas fa-wand-magic-sparkles me-2"></i><span>Form Designer</span>
             </a>
         </li>
@@ -147,7 +160,7 @@
         <!-- Audit Logs -->
         <li class="nav-item">
             <a asp-controller="AuditLog" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "AuditLog" && ViewData["Action"]?.ToString() == "Index" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "AuditLog" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
                 <i class="fas fa-clipboard-list me-2"></i><span>Audit Logs</span>
             </a>
         </li>
@@ -155,10 +168,10 @@
         <!-- Support Service -->
         <li class="nav-item">
             <a asp-controller="Support" asp-action="Index"
-               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Support" && ViewData["Action"]?.ToString() == "Index" ? "active bg-primary" : "")">
+               class="nav-link text-white @(ViewData["Ctrl"]?.ToString() == "Support" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
                 <i class="fas fa-headset me-2"></i><span>Support Service</span>
             </a>
         </li>
 
     </ul>
-</div>
+</nav>

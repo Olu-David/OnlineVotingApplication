@@ -33,6 +33,9 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> Index(Guid tenantId)
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "Index";
+
             var elections = await _context.ElectionEvents
                 .Where(e => e.TenantId == tenantId)
                 .ToListAsync();
@@ -41,10 +44,31 @@ namespace OnlineVotingApplication.Controllers
             return View(elections);
         }
 
+        // GET: /Voter/PenalizedVoters (Lists all penalized voters across elections)
+        // GET: /Voter/PenalizedVoters
+        [HttpGet]
+        [Authorize(Roles = "SuperAdmin,Official")]
+        public async Task<IActionResult> PenalizedVoters()
+        {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "PenalizedVoters";
+
+            var penalizedList = await _context.Votes
+                .Where(v => v.IsPenalized)
+                .Include(v => v.Voter)
+                .Include(v => v.Election)
+                .Include(v => v.Candidate)
+                .ToListAsync();
+
+            return View(penalizedList);
+        }
         // GET: /Voter/Details/5 (Shows election details, positions, and candidates)
         [HttpGet]
         public async Task<IActionResult> Details(Guid id) // id = ElectionId
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "Details";
+
             var election = await _context.ElectionEvents
                 .Include(e => e.Positions!)!
                     .ThenInclude(p => p.Candidates!)
@@ -63,6 +87,9 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId)
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "RequestCode";
+
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
             var response = await _voteService.GenerateAndQueueConfirmationCodeAsync(voterId, electionId);
@@ -115,6 +142,8 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public IActionResult ConfirmationSuccess()
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "ConfirmationSuccess";
             return View();
         }
 
@@ -122,6 +151,9 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> MyHistory()
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "MyHistory";
+
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var response = await _voteService.GetElectionsTakenByVoterAsync(voterId);
 
@@ -139,6 +171,9 @@ namespace OnlineVotingApplication.Controllers
         [Authorize(Roles = "SuperAdmin,Official,Candidate")]
         public async Task<IActionResult> BallotBreakdown(Guid electionId)
         {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "BallotBreakdown";
+
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
             var response = await _voteService.GetVoterBallotHistoryAsync(voterId, electionId);
 
@@ -212,6 +247,8 @@ namespace OnlineVotingApplication.Controllers
         {
             if (!ModelState.IsValid)
             {
+                ViewData["Ctrl"] = "Voter";
+                ViewData["Action"] = "ManualEntry";
                 ViewBag.Elections = await _context.ElectionEvents.Where(e => !e.IsDeleted).ToListAsync();
                 ViewBag.Positions = await _context.Position.ToListAsync();
                 return View(model);

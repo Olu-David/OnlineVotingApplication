@@ -1,5 +1,5 @@
 ﻿@using OnlineVotingApplication.DataTransferView;
-@model  ServiceResponse<PaginatedListViewModel<TenantViewModel>>;
+@model ServiceResponse<PaginatedListViewModel<TenantViewModel>>
 @{
     ViewData["Title"] = "Global Tenant Registry (Super Admin Oversight)";
 }
@@ -64,8 +64,8 @@
                                         </span>
                                     </td>
                                     <td class="text-end pe-4">
-                                        <!-- 🔑 THE SWITCH CONTEXT ENGINE IS EMBEDDED DIRECTLY HERE -->
-                                        <form asp-action="SwitchContext" asp-controller="Tenant" method="post" class="d-inline m-0">
+                                        <!-- SWITCH CONTEXT FORM -->
+                                        <form asp-action="SwitchContext" asp-controller="SuperAdminDashboard" method="post" class="d-inline m-0">
                                             @Html.AntiForgeryToken()
                                             <input type="hidden" name="id" value="@tenant.Id" />
                                             <button type="submit" class="btn btn-sm btn-outline-danger shadow-sm px-3 rounded-pill fw-semibold">
@@ -89,9 +89,10 @@
                 </table>
             </div>
         </div>
+
         @if (Model?.Data?.TotalPages > 1)
         {
-            var p = Model.Data; // Short alias to keep your markup readable
+            var p = Model.Data;
 
             <div class="card-footer bg-white border-0 py-3 d-flex align-items-center justify-content-between">
                 <div class="text-muted small">
@@ -99,27 +100,26 @@
                 </div>
                 <nav aria-label="Tenant directory navigation">
                     <ul class="pagination pagination-sm mb-0 justify-content-end gap-1">
-                        <!-- Previous Button Button Boundary -->
+                        <!-- Previous Page Button -->
                         <li class="page-item @(p.HasPreviousPage ? "" : "disabled")">
-                            <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@(p.PageNumber - 1)">Previous</a>
+                            <a class="page-link rounded" asp-action="AllTenants" asp-route-pageNumber="@(p.PageNumber - 1)">Previous</a>
                         </li>
 
-                        <!-- Dynamic Page Numbers Assembly -->
+                        <!-- Dynamic Page Numbers -->
                         @for (int i = 1; i <= p.TotalPages; i++)
                         {
                             <li class="page-item @(p.PageNumber == i ? "active" : "")">
-                                <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@i">@i</a>
+                                <a class="page-link rounded" asp-action="AllTenants" asp-route-pageNumber="@i">@i</a>
                             </li>
                         }
 
-                        <!-- Next Button Button Boundary -->
+                        <!-- Next Page Button -->
                         <li class="page-item @(p.HasNextPage ? "" : "disabled")">
-                            <a class="page-link rounded" asp-action="AllTenant" asp-route-PageNumber="@(p.PageNumber + 1)">Next</a>
+                            <a class="page-link rounded" asp-action="AllTenants" asp-route-pageNumber="@(p.PageNumber + 1)">Next</a>
                         </li>
                     </ul>
                 </nav>
             </div>
         }
-
     </div>
 </div>

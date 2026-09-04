@@ -1,0 +1,206 @@
+﻿@using OnlineVotingApplication.DataTransferView;
+@using OnlineVotingApplication.Models; @* Adjust namespace to your SupportTicket entity location *@
+@model ServiceResponse<PaginatedListViewModel<SupportTicket>>
+
+@{
+    ViewData["Title"] = "Support Ticket Management Console";
+}
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-0 text-gray-800">
+                <i class="fas fa-headset text-primary me-2"></i>Support Tickets
+            </h1>
+            <p class="text-muted small">Monitor real-time user inquiries and tenant system requests.</p>
+        </div>
+        <div id="connectionStatus" class="badge bg-secondary px-3 py-2">
+            <i class="fas fa-plug me-1"></i> Connecting SignalR...
+        </div>
+    </div>
+
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i> @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- Live Ticket Alert Banner -->
+    <div id="liveAlert" class="alert alert-info border-0 shadow-sm d-none" role="alert">
+        <i class="fas fa-bell me-2"></i><strong>New Ticket Submitted!</strong> Table updated dynamically.
+    </div>
+
+    <div class="card shadow border-0 mb-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0" id="ticketsTable">
+                    <thead class="table-light text-uppercase fs-7 text-muted fw-bold">
+                        <tr>
+                            <th class="ps-4">Requester</th>
+                            <th>Subject</th>
+                            <th>Message Preview</th>
+                            <th>Tenant Context</th>
+                            <th>Submitted</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ticketsList">
+                        @if (Model?.Data?.Items != null && Model.Data.Items.Any())
+                        {
+                            foreach (var ticket in Model.Data.Items)
+                            {
+                                <tr id="ticket-row-@ticket.Id">
+                                    <td class="ps-4">
+                                        <div class="fw-bold text-dark">@ticket.Name</div>
+                                        <div class="text-muted small">@ticket.Email</div>
+                                        <div class="text-muted fs-8">IP: @ticket.IpAdidress</div>
+                                    </td>
+                                    <td>
+                                        <span class="fw-semibold text-dark">@ticket.Subject</span>
+                                    </td>
+                                    <td>
+                                        <span class="text-truncate d-inline-block" style="max-width: 250px;" title="@ticket.Message">
+                                            @ticket.Message
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-light text-dark border px-2 py-1">
+                                            @(ticket.TenantId.HasValue? ticket.TenantId.ToString() : "Global / System")
+                                        </span>
+                                    </td>
+                                    <td class="text-muted small">
+                                        @ticket.CreatedAt.ToString("g")
+                                    </td>
+                                    <td>
+                                        <span class="badge @(ticket.IsResolved ? "bg-success" : "bg-warning text-dark") px-2 py-1 rounded-pill">
+                                            @(ticket.IsResolved ? "Resolved" : "Pending")
+                                        </span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" data-bs-toggle="modal" data-bs-target="#ticketModal-@ticket.Id">
+                                            <i class="fas fa-eye me-1"></i> View
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr id="noTicketsRow">
+                                <td colspan="7" class="text-center py-5 text-muted">
+                                    <i class="fas fa-inbox fa-3x mb-3 text-gray-300"></i>
+                                    <p class="mb-0 fw-semibold">No support tickets found.</p>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @if (Model?.Data?.TotalPages > 1)
+        {
+            var p = Model.Data;
+
+            <div class="card-footer bg-white border-0 py-3 d-flex align-items-center justify-content-between">
+                <div class="text-muted small">
+                    Showing Page <span class="fw-bold">@p.PageNumber</span> of <span class="fw-bold">@p.TotalPages</span> (<span class="fw-bold">@p.TotalItems</span> total tickets)
+                </div>
+                <nav aria-label="Support tickets pagination">
+                    <ul class="pagination pagination-sm mb-0 justify-content-end gap-1">
+                        <!-- Previous Page Button -->
+                        <li class="page-item @(p.HasPreviousPage ? "" : "disabled")">
+                            <a class="page-link rounded" asp-action="SupportTickets" asp-route-pageNumber="@(p.PageNumber - 1)" asp-route-pageSize="@p.PageSize">Previous</a>
+                        </li>
+
+                        <!-- Page Number Links -->
+                        @for (int i = 1; i <= p.TotalPages; i++)
+                        {
+                            <li class="page-item @(p.PageNumber == i ? "active" : "")">
+                                <a class="page-link rounded" asp-action="SupportTickets" asp-route-pageNumber="@i" asp-route-pageSize="@p.PageSize">@i</a>
+                            </li>
+                        }
+
+                        <!-- Next Page Button -->
+                        <li class="page-item @(p.HasNextPage ? "" : "disabled")">
+                            <a class="page-link rounded" asp-action="SupportTickets" asp-route-pageNumber="@(p.PageNumber + 1)" asp-route-pageSize="@p.PageSize">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            </div>
+        }
+    </div>
+</div>
+
+@section Scripts {
+    <!-- SignalR Client Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/7.0.5/signalr.min.js"></script>
+    <script>
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl("/supportHub") // Replace with your actual SignalR Hub endpoint URL
+            .withAutomaticReconnect()
+            .build();
+
+        // Update connection UI indicator
+        connection.start()
+            .then(() => {
+                const statusBadge = document.getElementById("connectionStatus");
+                statusBadge.className = "badge bg-success px-3 py-2";
+                statusBadge.innerHTML = '<i class="fas fa-wifi me-1"></i> Live SignalR Connected';
+            })
+            .catch(err => console.error("SignalR Connection Error: ", err));
+
+        // Real-time broadcast listener
+        connection.on("ReceiveSupportTicket", function (ticket) {
+            // Remove "No tickets" placeholder if present
+            const noTicketsRow = document.getElementById("noTicketsRow");
+            if (noTicketsRow) {
+                noTicketsRow.remove();
+            }
+
+            // Construct table row dynamically for incoming ticket
+            const newRowHtml = `
+                <tr id="ticket-row-${ticket.id}" class="table-warning">
+                    <td class="ps-4">
+                        <div class="fw-bold text-dark">${escapeHtml(ticket.name)}</div>
+                        <div class="text-muted small">${escapeHtml(ticket.email)}</div>
+                        <div class="text-muted fs-8">IP: ${escapeHtml(ticket.ipAddress)}</div>
+                    </td>
+                    <td><span class="fw-semibold text-dark">${escapeHtml(ticket.subject)}</span></td>
+                    <td>
+                        <span class="text-truncate d-inline-block" style="max-width: 250px;" title="${escapeHtml(ticket.message)}">
+                            ${escapeHtml(ticket.message)}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-dark border px-2 py-1">${escapeHtml(ticket.tenantId)}</span>
+                    </td>
+                    <td class="text-muted small">${ticket.createdAt}</td>
+                    <td><span class="badge bg-warning text-dark px-2 py-1 rounded-pill">Pending</span></td>
+                    <td class="text-end pe-4">
+                        <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="alert('${escapeHtml(ticket.message)}')">
+                            <i class="fas fa-eye me-1"></i> View
+                        </button>
+                    </td>
+                </tr>
+            `;
+
+            // Prepend new row to the top of table body
+            const tbody = document.getElementById("ticketsList");
+            tbody.insertAdjacentHTML('afterbegin', newRowHtml);
+
+            // Trigger live alert banner
+            const alertBanner = document.getElementById("liveAlert");
+            alertBanner.classList.remove("d-none");
+            setTimeout(() => alertBanner.classList.add("d-none"), 4000);
+        });
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+}

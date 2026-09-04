@@ -25,6 +25,9 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        builder.Entity<ElectionEvent>()
+    .HasIndex(e => e.Title)
+    .IsUnique();
         builder.Entity<States>(entity =>
         {
             entity.HasKey(s => s.Id);

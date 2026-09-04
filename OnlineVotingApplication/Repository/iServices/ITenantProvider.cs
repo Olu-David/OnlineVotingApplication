@@ -4,5 +4,7 @@
     {
         Guid GetCurrentTenantId();
         void SetTenantContext(Guid tenantId);
+        void ClearTenantContext();
+
     }
 }

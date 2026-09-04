@@ -13,8 +13,6 @@
     // Dynamic Role checks from claims/User principal
     bool isSuperAdmin = User.IsInRole("SuperAdmin");
     bool isOfficial = User.IsInRole("Official");
-    bool isMerchant = User.IsInRole("Merchant");
-    bool isVendor = User.IsInRole("Vendor");
     bool isVoter = User.IsInRole("Voter");
     bool isCandidate = User.IsInRole("Candidate");
     bool isAuditor = User.IsInRole("Auditor");
@@ -23,8 +21,6 @@
     string dashCtrl = "Home";
     if (isSuperAdmin) dashCtrl = "SuperAdminDashboard";
     else if (isOfficial) dashCtrl = "Tenant";
-    else if (isMerchant) dashCtrl = "Merchant";
-    else if (isVendor) dashCtrl = "Vendor";
     else if (isCandidate) dashCtrl = "Candidate";
     else if (isAuditor) dashCtrl = "Auditor";
     else if (isVoter) dashCtrl = "Voter";
@@ -38,10 +34,14 @@
                        isAuditor ? "Auditor" :
                        isVoter ? "Voter" : "User";
 
-    string roleColor = isSuperAdmin ? "danger" :
-                       isOfficial ? "warning text-dark" :
-                       isCandidate ? "info text-dark" :
-                       isAuditor ? "primary" : "secondary";
+    // Maps to the role-badge--* colour variants defined in navbar.css,
+    // shared with the sidebar's per-role accent so a role reads the
+    // same everywhere it appears in the app.
+    string roleBadgeClass = isSuperAdmin ? "role-badge--superadmin" :
+                       isOfficial ? "role-badge--official" :
+                       isCandidate ? "role-badge--candidate" :
+                       isAuditor ? "role-badge--auditor" :
+                       isVoter ? "role-badge--voter" : "role-badge--guest";
 
     string userName = User.Identity?.Name ?? "User";
     string nameInitial = !string.IsNullOrEmpty(userName) ? userName.Substring(0, 1).ToUpper() : "?";
@@ -151,7 +151,7 @@
             <div class="d-flex align-items-center gap-2">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
-                    <span class="badge bg-@roleColor">@roleBadge</span>
+                    <span class="role-badge @roleBadgeClass">@roleBadge</span>
 
                     <div class="dropdown">
                         <button class="btn btn-outline-light d-flex align-items-center gap-2 dropdown-toggle"

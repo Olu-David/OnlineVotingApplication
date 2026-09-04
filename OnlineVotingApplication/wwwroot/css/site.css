@@ -1,23 +1,44 @@
 ﻿/* ======================================================
-   site.css – minimal custom styles & layout
+   site.css
+   Design tokens, shared admin shell, and the Super Admin
+   sidebar theme, plus the public marketing (home) page.
+
+   File map for this app:
+     site.css             -> tokens, admin shell, Super Admin theme, home page
+     official-sidebar.css -> Official role theme (loads after site.css)
+     navbar.css            -> public navbar (Voter / Candidate / Auditor / guest)
    ====================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
 
 :root {
+    /* -- base palette -- */
     --votex-navy-900: #0f1a38;
     --votex-navy-800: #16295a;
     --votex-amber: #f5a623;
     --votex-paper: #f7f5f0;
     --votex-ink: #12172a;
     --votex-green: #2f9e6e;
+    /* -- one accent per role, used across sidebar + navbar so a
+          role reads consistently everywhere it appears -- */
+    --votex-role-superadmin: var(--votex-amber);
+    --votex-role-official: var(--votex-green);
+    --votex-role-auditor: #6c63b5;
+    --votex-role-candidate: #c1553d;
+    --votex-role-voter: #2f7dd8;
+    /* -- type -- */
+    --votex-font-display: 'Fraunces', serif;
+    --votex-font-body: 'Inter', sans-serif;
+    --votex-font-mono: 'IBM Plex Mono', monospace;
 }
 
 /* ==========================================
-   ADMIN LAYOUT & SHELL CONFIGURATION
+   SHARED ADMIN SHELL
+   Used by both Super Admin and Official layouts.
+   Role-specific colour is layered on via
+   .admin-sidebar--superadmin / .admin-sidebar--official
    ========================================== */
 
-/* ─── BASE SHELL ─── */
 .admin-shell {
     display: flex;
     min-height: 100vh;
@@ -28,19 +49,21 @@
 
 /* ─── DESKTOP SIDEBAR ─── */
 .admin-sidebar {
+    --sidebar-accent: var(--votex-amber);
     width: 260px;
     height: 100vh;
     position: sticky;
     top: 0;
     z-index: 100;
     background: #111e3c;
-    transition: width 0.22s ease, transform 0.22s ease;
+    font-family: var(--votex-font-body);
+    transition: width 0.22s ease, box-shadow 0.22s ease;
     overflow-y: auto;
     overflow-x: hidden;
     flex-shrink: 0;
 }
 
-    /* Collapsed state on desktop */
+    /* Collapsed rail on desktop */
     .admin-sidebar.collapsed {
         width: 70px;
     }
@@ -67,6 +90,37 @@
         .admin-sidebar.collapsed .collapse {
             display: none !important;
         }
+
+        /* Hover-expand: the collapsed rail temporarily widens into a
+           full flyout while the cursor is over it, so no functionality
+           is lost by collapsing on a large screen. */
+        .admin-sidebar.collapsed.sidebar-hover-expanded {
+            width: 260px;
+            box-shadow: 10px 0 32px rgba(0, 0, 0, 0.35);
+        }
+
+            .admin-sidebar.collapsed.sidebar-hover-expanded .brand-text,
+            .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-user-info,
+            .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-section-label,
+            .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link span,
+            .admin-sidebar.collapsed.sidebar-hover-expanded .fa-chevron-down {
+                display: revert !important;
+            }
+
+            .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link {
+                justify-content: flex-start !important;
+                padding-left: 0.75rem !important;
+                padding-right: 0.75rem !important;
+            }
+
+                .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link i {
+                    margin-right: 0.5rem !important;
+                    font-size: 1rem;
+                }
+
+            .admin-sidebar.collapsed.sidebar-hover-expanded .collapse.show {
+                display: block !important;
+            }
 
 /* ─── MAIN BODY AREA ─── */
 .admin-main {
@@ -100,7 +154,7 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 99;
+    z-index: 1049;
 }
 
     .sidebar-overlay.show {
@@ -113,7 +167,7 @@
     position: fixed;
     top: 14px;
     left: 14px;
-    z-index: 210;
+    z-index: 1060;
     width: 42px;
     height: 42px;
     border-radius: 10px;
@@ -128,7 +182,7 @@
 }
 
     .sidebar-floating-toggle:hover {
-        background: #16295a;
+        background: var(--votex-navy-800);
     }
 
 /* Hide toggle on desktop screens */
@@ -138,13 +192,58 @@
     }
 }
 
-/* ─── SIDEBAR UI COMPONENTS ─── */
+/* ─── SIDEBAR BRAND ─── */
+.sidebar-brand .brand-text span {
+    font-family: var(--votex-font-display);
+    letter-spacing: 0.01em;
+}
+
+/* Ballot-stub perforation motif, echoing the marketing page's
+   torn ballot stub, used once here as the sidebar's signature detail. */
+.sidebar-punch-rule {
+    position: relative;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.12);
+    margin: 0 0 1rem;
+}
+
+    .sidebar-punch-rule::before {
+        content: '';
+        position: absolute;
+        left: -0.75rem;
+        top: 50%;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--votex-navy-900);
+        transform: translateY(-50%);
+    }
+
+    .sidebar-punch-rule::after {
+        content: '';
+        position: absolute;
+        right: -0.75rem;
+        top: 50%;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--votex-navy-900);
+        transform: translateY(-50%);
+    }
+
+.admin-sidebar.collapsed .sidebar-punch-rule::before,
+.admin-sidebar.collapsed .sidebar-punch-rule::after {
+    display: none;
+}
+
+/* ─── SIDEBAR UI COMPONENTS (shared shape, role colours below) ─── */
 .sidebar-section-label {
-    font-size: 0.7rem;
+    font-family: var(--votex-font-mono);
+    font-size: 0.68rem;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 1rem;
+    letter-spacing: 0.08em;
+    color: rgba(255, 255, 255, 0.38);
+    margin-top: 1.1rem;
     margin-bottom: 0.4rem;
     padding-left: 0.75rem;
 }
@@ -152,45 +251,59 @@
 .sidebar-user {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
 }
 
 .sidebar-role-badge {
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
+    display: inline-block;
+    font-family: var(--votex-font-mono);
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 0.15rem;
 }
 
-/* Active Nav States */
+/* Nav links: quiet by default, a left accent bar + tinted fill when
+   active — replaces the flat bootstrap-blue highlight with each
+   role's own colour (set by --sidebar-accent). */
 .admin-sidebar .nav-link {
-    border-radius: 6px;
+    border-radius: 8px;
     transition: background 0.15s ease, color 0.15s ease;
-    color: rgba(255, 255, 255, 0.8);
+    color: rgba(255, 255, 255, 0.72);
+    border-left: 3px solid transparent;
+    font-size: 0.92rem;
 }
 
     .admin-sidebar .nav-link:hover {
-        background: rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.07);
         color: #fff;
     }
 
     .admin-sidebar .nav-link.active {
-        background: #0d6efd !important;
+        background: rgba(255, 255, 255, 0.12) !important; /* fallback for browsers without color-mix() */
+        background: color-mix(in srgb, var(--sidebar-accent) 16%, transparent) !important;
+        border-left-color: var(--sidebar-accent);
         color: #fff !important;
+        font-weight: 600;
     }
 
-/* Brand Icon */
+/* Brand icon */
 .brand-icon {
     width: 36px;
     height: 36px;
     border-radius: 9px;
-    background: #f5a623;
+    background: var(--sidebar-accent, var(--votex-amber));
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--votex-navy-900);
     flex-shrink: 0;
 }
 
-/* ─── AVATAR (circle) ─── */
+/* Avatar (circle) */
 .avatar-sm {
     width: 32px;
     height: 32px;
@@ -199,10 +312,16 @@
     align-items: center;
     justify-content: center;
     font-weight: 700;
-    color: #fff;
-    background: linear-gradient(135deg, #f5a623, #d4891a);
+    color: var(--votex-navy-900);
+    background: var(--sidebar-accent, var(--votex-amber)); /* fallback for browsers without color-mix() */
+    background: linear-gradient(135deg, var(--sidebar-accent, var(--votex-amber)), color-mix(in srgb, var(--sidebar-accent, var(--votex-amber)) 70%, black));
     font-size: 0.85rem;
     flex-shrink: 0;
+}
+
+/* ─── SUPER ADMIN THEME ─── */
+.admin-sidebar--superadmin {
+    --sidebar-accent: var(--votex-role-superadmin);
 }
 
 /* ─── RESPONSIVE BREAKPOINTS (SIDEBAR DRAWER) ─── */
@@ -269,75 +388,6 @@
 }
 
 /* ======================================================
-   PUBLIC NAVBAR (_Navbar.cshtml) – responsive rules
-   ====================================================== */
-
-.navbar .navbar-brand {
-    font-size: 1.25rem;
-}
-
-.navbar-collapse .d-flex.align-items-center.gap-2 {
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
-}
-
-.navbar .dropdown-menu {
-    max-width: calc(100vw - 2rem);
-}
-
-@media (max-width: 991.98px) {
-    .navbar-collapse {
-        padding-top: 0.5rem;
-    }
-
-    .navbar-nav {
-        margin-bottom: 0.5rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 {
-        width: 100%;
-        justify-content: flex-start;
-        padding-top: 0.5rem;
-        border-top: 1px solid rgba(255,255,255,0.1);
-    }
-}
-
-@media (max-width: 767.98px) {
-    .navbar .navbar-brand {
-        font-size: 1.1rem;
-    }
-
-    .navbar .container {
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 > .btn {
-        flex: 1 1 auto;
-    }
-}
-
-@media (max-width: 479.98px) {
-    .navbar .navbar-brand {
-        font-size: 1rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 {
-        flex-direction: column;
-        align-items: stretch !important;
-    }
-
-        .navbar-collapse .d-flex.align-items-center.gap-2 > .btn,
-        .navbar-collapse .d-flex.align-items-center.gap-2 > .dropdown {
-            width: 100%;
-        }
-
-    .navbar .dropdown-menu {
-        width: 100%;
-        max-width: 100%;
-    }
-}
-/* ======================================================
    HOW IT WORKS STEPS STYLES
    ====================================================== */
 .home-steps {
@@ -346,7 +396,7 @@
 }
 
 .home-section-title {
-    font-family: 'Fraunces', serif;
+    font-family: var(--votex-font-display);
     font-weight: 600;
     font-size: 2.25rem;
     color: var(--votex-navy-900);
@@ -354,7 +404,6 @@
     margin-bottom: 3.5rem;
 }
 
-/* Lines up the 3 items side-by-side */
 .home-steps-list {
     display: flex;
     justify-content: space-between;
@@ -371,9 +420,8 @@
         align-items: flex-start;
     }
 
-/* Large numbers styling */
 .home-step-no {
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--votex-font-mono);
     font-size: 2.5rem;
     font-weight: 700;
     color: var(--votex-amber);
@@ -382,7 +430,7 @@
 }
 
 .home-steps-list h3 {
-    font-family: 'Fraunces', serif;
+    font-family: var(--votex-font-display);
     font-weight: 600;
     font-size: 1.25rem;
     color: var(--votex-navy-900);
@@ -390,7 +438,7 @@
 }
 
 .home-steps-list p {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--votex-font-body);
     font-size: 0.95rem;
     color: #4b5563;
     line-height: 1.5;
@@ -401,11 +449,10 @@
    ====================================================== */
 .home-trust {
     padding: 4.5rem 0;
-    background: #f8fafc; /* Subtle off-white to isolate section bounds */
+    background: #f8fafc;
     border-top: 1px solid #e2e8f0;
 }
 
-/* Configures the 3 core benefits columns */
 .home-trust-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -414,7 +461,7 @@
 }
 
     .home-trust-grid h4 {
-        font-family: 'Fraunces', serif;
+        font-family: var(--votex-font-display);
         font-weight: 600;
         font-size: 1.2rem;
         color: var(--votex-navy-900);
@@ -422,17 +469,13 @@
     }
 
     .home-trust-grid p {
-        font-family: 'Inter', sans-serif;
+        font-family: var(--votex-font-body);
         font-size: 0.95rem;
         color: #64748b;
         line-height: 1.5;
     }
 
-/* ======================================================
-   RESPONSIVE DESIGN BREAKPOINTS (MOBILE AND TABLETS)
-   ====================================================== */
 @media (max-width: 991.98px) {
-    /* Stacks steps vertically safely on iPad or smaller */
     .home-steps-list {
         flex-direction: column;
         gap: 2.5rem;
@@ -440,8 +483,7 @@
         margin: 0 auto;
     }
 
-    /* Stacks features grid into 1 neat vertical column */
-    .home-trust-grid {e
+    .home-trust-grid {
         grid-template-columns: 1fr;
         gap: 2rem;
         max-width: 32rem;
@@ -468,7 +510,7 @@
 
 .home-eyebrow {
     display: inline-block;
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--votex-font-mono);
     font-size: 0.75rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -477,7 +519,7 @@
 }
 
 .home-headline {
-    font-family: 'Fraunces', serif;
+    font-family: var(--votex-font-display);
     font-weight: 600;
     font-size: clamp(2.1rem, 4vw, 3.25rem);
     line-height: 1.12;
@@ -485,7 +527,7 @@
 }
 
 .home-sub {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--votex-font-body);
     font-size: 1.05rem;
     color: rgba(255,255,255,0.75);
     max-width: 34rem;
@@ -544,7 +586,7 @@
     justify-content: space-between;
     align-items: baseline;
     padding: 1.25rem 1.5rem;
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--votex-font-mono);
 }
 
 .ballot-stub-tear {
@@ -579,7 +621,7 @@
 }
 
 .ballot-stat-value {
-    font-family: 'IBM Plex Mono', monospace;
+    font-family: var(--votex-font-mono);
     font-weight: 600;
     font-size: 1.6rem;
     color: var(--votex-navy-900);
@@ -587,500 +629,7 @@
 }
 
 .ballot-stat-label {
-    font-family: 'Inter', sans-serif;
-    font-size: 0.75rem;
-    color: #6b7280;
-    margin-top: 0.35rem;
-}
-
-@media (max-width: 991.98px) {
-    .home-hero-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .ballot-stub {
-        margin: 2.5rem auto 0;
-    }
-}
-/* ======================================================
-   site.css – minimal custom styles & layout
-   ====================================================== */
-
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap');
-
-:root {
-    --votex-navy-900: #0f1a38;
-    --votex-navy-800: #16295a;
-    --votex-amber: #f5a623;
-    --votex-paper: #f7f5f0;
-    --votex-ink: #12172a;
-    --votex-green: #2f9e6e;
-}
-
-/* ==========================================
-   ADMIN LAYOUT & SHELL CONFIGURATION
-   ========================================== */
-
-/* ─── BASE SHELL ─── */
-.admin-shell {
-    display: flex;
-    min-height: 100vh;
-    width: 100%;
-    overflow-x: hidden;
-    position: relative;
-}
-
-/* ─── DESKTOP SIDEBAR ─── */
-.admin-sidebar {
-    width: 260px;
-    height: 100vh;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: #111e3c;
-    transition: width 0.22s ease, transform 0.22s ease;
-    overflow-y: auto;
-    overflow-x: hidden;
-    flex-shrink: 0;
-}
-
-    /* Collapsed state on desktop */
-    .admin-sidebar.collapsed {
-        width: 70px;
-    }
-
-        .admin-sidebar.collapsed .brand-text,
-        .admin-sidebar.collapsed .sidebar-user-info,
-        .admin-sidebar.collapsed .sidebar-section-label,
-        .admin-sidebar.collapsed .nav-link span,
-        .admin-sidebar.collapsed .fa-chevron-down {
-            display: none !important;
-        }
-
-        .admin-sidebar.collapsed .nav-link {
-            justify-content: center !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-        }
-
-            .admin-sidebar.collapsed .nav-link i {
-                margin-right: 0 !important;
-                font-size: 1.2rem;
-            }
-
-        .admin-sidebar.collapsed .collapse {
-            display: none !important;
-        }
-
-/* ─── MAIN BODY AREA ─── */
-.admin-main {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-}
-
-/* ─── ADMIN TOPBAR ─── */
-.admin-topbar {
-    height: 60px;
-    background: #fff;
-    border-bottom: 1px solid #e8eaf0;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-    position: sticky;
-    top: 0;
-    z-index: 90;
-}
-
-/* ─── MAIN CONTENT ─── */
-.admin-content {
-    min-height: calc(100vh - 60px);
-    background: #f0f2f8;
-    padding: 1.5rem;
-}
-
-/* ─── MOBILE BACKDROP OVERLAY ─── */
-.sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    z-index: 99;
-}
-
-    .sidebar-overlay.show {
-        display: block;
-    }
-
-/* ─── FLOATING SIDEBAR TOGGLE (MOBILE) ─── */
-.sidebar-floating-toggle {
-    display: flex;
-    position: fixed;
-    top: 14px;
-    left: 14px;
-    z-index: 210;
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    border: none;
-    background: #111e3c;
-    color: #fff;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.25);
-    align-items: center;
-    justify-content: center;
-    font-size: 1.1rem;
-    cursor: pointer;
-}
-
-    .sidebar-floating-toggle:hover {
-        background: #16295a;
-    }
-
-/* Hide toggle on desktop screens */
-@media (min-width: 992px) {
-    .sidebar-floating-toggle {
-        display: none;
-    }
-}
-
-/* ─── SIDEBAR UI COMPONENTS ─── */
-.sidebar-section-label {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: rgba(255, 255, 255, 0.4);
-    margin-top: 1rem;
-    margin-bottom: 0.4rem;
-    padding-left: 0.75rem;
-}
-
-.sidebar-user {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255,255,255,0.08);
-}
-
-.sidebar-role-badge {
-    font-size: 0.7rem;
-    color: rgba(255, 255, 255, 0.5);
-    text-transform: uppercase;
-}
-
-/* Active Nav States */
-.admin-sidebar .nav-link {
-    border-radius: 6px;
-    transition: background 0.15s ease, color 0.15s ease;
-    color: rgba(255, 255, 255, 0.8);
-}
-
-    .admin-sidebar .nav-link:hover {
-        background: rgba(255, 255, 255, 0.08);
-        color: #fff;
-    }
-
-    .admin-sidebar .nav-link.active {
-        background: #0d6efd !important;
-        color: #fff !important;
-    }
-
-/* Brand Icon */
-.brand-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 9px;
-    background: #f5a623;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #fff;
-    flex-shrink: 0;
-}
-
-/* ─── AVATAR (circle) ─── */
-.avatar-sm {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-weight: 700;
-    color: #fff;
-    background: linear-gradient(135deg, #f5a623, #d4891a);
-    font-size: 0.85rem;
-    flex-shrink: 0;
-}
-
-/* ─── RESPONSIVE BREAKPOINTS (SIDEBAR DRAWER) ─── */
-
-@media (max-width: 991.98px) {
-    .admin-shell {
-        display: block;
-        height: auto;
-    }
-
-    /* Completely hide sidebar off-screen by default */
-    .admin-sidebar {
-        position: fixed;
-        top: 0;
-        left: 0;
-        height: 100vh;
-        width: 260px;
-        transform: translateX(-100%);
-        z-index: 1050;
-        transition: transform 0.25s ease-in-out;
-    }
-
-        /* Slides sidebar into view when toggled */
-        .admin-sidebar.mobile-open {
-            transform: translateX(0) !important;
-        }
-
-    .admin-content {
-        min-height: 100vh;
-    }
-}
-
-@media (max-width: 767.98px) {
-    .admin-sidebar {
-        width: 240px;
-    }
-
-    .admin-topbar {
-        height: 55px;
-    }
-
-    .admin-content {
-        min-height: calc(100vh - 55px);
-        padding: 0.75rem !important;
-    }
-}
-
-@media (max-width: 479.98px) {
-    .admin-sidebar {
-        width: 85vw;
-        max-width: 260px;
-    }
-
-    .admin-topbar {
-        height: 50px;
-        padding-left: 0.5rem !important;
-        padding-right: 0.5rem !important;
-    }
-
-    .admin-content {
-        min-height: calc(100vh - 50px);
-        padding: 0.5rem !important;
-    }
-}
-
-/* ======================================================
-   PUBLIC NAVBAR (_Navbar.cshtml) – responsive rules
-   ====================================================== */
-
-.navbar .navbar-brand {
-    font-size: 1.25rem;
-}
-
-.navbar-collapse .d-flex.align-items-center.gap-2 {
-    flex-wrap: wrap;
-    row-gap: 0.5rem;
-}
-
-.navbar .dropdown-menu {
-    max-width: calc(100vw - 2rem);
-}
-
-@media (max-width: 991.98px) {
-    .navbar-collapse {
-        padding-top: 0.5rem;
-    }
-
-    .navbar-nav {
-        margin-bottom: 0.5rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 {
-        width: 100%;
-        justify-content: flex-start;
-        padding-top: 0.5rem;
-        border-top: 1px solid rgba(255,255,255,0.1);
-    }
-}
-
-@media (max-width: 767.98px) {
-    .navbar .navbar-brand {
-        font-size: 1.1rem;
-    }
-
-    .navbar .container {
-        padding-left: 0.75rem;
-        padding-right: 0.75rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 > .btn {
-        flex: 1 1 auto;
-    }
-}
-
-@media (max-width: 479.98px) {
-    .navbar .navbar-brand {
-        font-size: 1rem;
-    }
-
-    .navbar-collapse .d-flex.align-items-center.gap-2 {
-        flex-direction: column;
-        align-items: stretch !important;
-    }
-
-        .navbar-collapse .d-flex.align-items-center.gap-2 > .btn,
-        .navbar-collapse .d-flex.align-items-center.gap-2 > .dropdown {
-            width: 100%;
-        }
-
-    .navbar .dropdown-menu {
-        width: 100%;
-        max-width: 100%;
-    }
-}
-
-/* ======================================================
-   HOME PAGE STYLES
-   ====================================================== */
-
-.home-hero {
-    background: var(--votex-navy-900);
-    color: #fff;
-    padding: 4.5rem 0 5rem;
-}
-
-.home-hero-grid {
-    display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 3rem;
-    align-items: center;
-}
-
-.home-eyebrow {
-    display: inline-block;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 0.75rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--votex-amber);
-    margin-bottom: 1rem;
-}
-
-.home-headline {
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    font-size: clamp(2.1rem, 4vw, 3.25rem);
-    line-height: 1.12;
-    margin-bottom: 1.25rem;
-}
-
-.home-sub {
-    font-family: 'Inter', sans-serif;
-    font-size: 1.05rem;
-    color: rgba(255,255,255,0.75);
-    max-width: 34rem;
-    margin-bottom: 2rem;
-}
-
-.home-cta-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.9rem;
-    align-items: center;
-}
-
-.home-btn-primary {
-    background: var(--votex-amber);
-    border-color: var(--votex-amber);
-    color: var(--votex-navy-900);
-    font-weight: 600;
-    padding: 0.7rem 1.5rem;
-}
-
-    .home-btn-primary:hover {
-        background: #e0951c;
-        border-color: #e0951c;
-        color: var(--votex-navy-900);
-    }
-
-.home-btn-ghost {
-    border: 1px solid rgba(255,255,255,0.3);
-    color: #fff;
-    font-weight: 500;
-    padding: 0.7rem 1.5rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-    .home-btn-ghost:hover {
-        border-color: var(--votex-amber);
-        color: var(--votex-amber);
-    }
-
-/* Ballot Stub */
-.ballot-stub {
-    background: var(--votex-paper);
-    color: var(--votex-ink);
-    border-radius: 14px;
-    box-shadow: 0 20px 45px rgba(0,0,0,0.35);
-    max-width: 380px;
-    margin-left: auto;
-    overflow: hidden;
-}
-
-.ballot-stub-top {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding: 1.25rem 1.5rem;
-    font-family: 'IBM Plex Mono', monospace;
-}
-
-.ballot-stub-tear {
-    position: relative;
-    height: 0;
-    border-top: 2px dashed rgba(18,23,42,0.2);
-}
-
-    .ballot-stub-tear::before,
-    .ballot-stub-tear::after {
-        content: '';
-        position: absolute;
-        top: -8px;
-        width: 16px;
-        height: 16px;
-        background: var(--votex-navy-900);
-        border-radius: 50%;
-    }
-
-    .ballot-stub-tear::before {
-        left: -8px;
-    }
-
-    .ballot-stub-tear::after {
-        right: -8px;
-    }
-
-.ballot-stub-bottom {
-    display: flex;
-    padding: 1.5rem;
-    gap: 1.5rem;
-}
-
-.ballot-stat-value {
-    font-family: 'IBM Plex Mono', monospace;
-    font-weight: 600;
-    font-size: 1.6rem;
-    color: var(--votex-navy-900);
-    line-height: 1;
-}
-
-.ballot-stat-label {
-    font-family: 'Inter', sans-serif;
+    font-family: var(--votex-font-body);
     font-size: 0.75rem;
     color: #6b7280;
     margin-top: 0.35rem;

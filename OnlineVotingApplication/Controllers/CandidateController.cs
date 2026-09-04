@@ -154,57 +154,84 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
         }
 
+        // ─────────────────────────────────────────────
+        // GET: Candidate Registration Form
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> CreateCandidate(Guid electionEventId)
+        [Authorize(Roles = "Voter,Candidate")]
+        public async Task<IActionResult> CreateCandidate(Guid electionEventId, string token)
         {
-            _logger.LogInformation("CreateCandidate GET called with electionEventId={ElectionEventId}", electionEventId);
+            _logger.LogInformation("CreateCandidate GET called for ElectionEventId={ElectionEventId}", electionEventId);
 
-            if (electionEventId == Guid.Empty)
+            // 1. Get current tenant context
+            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
+
+            if (string.IsNullOrWhiteSpace(token))
             {
-                var latestElection = await _context.ElectionEvents
-                    .IgnoreQueryFilters()
-                    .AsNoTracking()
-                    .Where(e => !e.IsDeleted)
-                    .OrderByDescending(e => e.CreatedAt)
-                    .FirstOrDefaultAsync();
-
-                if (latestElection != null)
-                {
-                    electionEventId = latestElection.Id;
-                }
-                else
-                {
-                    TempData["ErrorMessage"] = "No elections found in the system. Please create an election first.";
-                    return RedirectToAction("AllElections", "Election");
-                }
+                TempData["ErrorMessage"] = "A secure invitation link is required to access candidate registration.";
+                return RedirectToAction("AllElections", "Election");
             }
 
+            // 2. Validate Invitation Token against TenantId & ElectionEventId
+            var invitation = await _context.candidateInvitations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(i => i.Token == token
+                                       && i.ElectionEventId == electionEventId
+                                       && i.TenantId == currentTenantId
+                                       && !i.IsUsed);
+
+            if (invitation == null)
+            {
+                TempData["ErrorMessage"] = "This registration link is invalid, expired, or does not belong to this tenant organization.";
+                return RedirectToAction("AllElections", "Election");
+            }
+
+            // 3. Fetch Election Event validating Foreign Key (TenantId)
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
+                .FirstOrDefaultAsync(e => e.Id == electionEventId
+                                       && e.TenantId == currentTenantId
+                                       && !e.IsDeleted);
 
             if (election == null)
             {
-                _logger.LogWarning("No active ElectionEvent found for Id={ElectionEventId}", electionEventId);
-                TempData["ErrorMessage"] = "Specified election event could not be found or has been deleted.";
+                TempData["ErrorMessage"] = "The specified election event could not be found for this tenant or has been disabled.";
                 return RedirectToAction("AllElections", "Election");
+            }
+
+            // 4. Fetch current user to bind identity
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                return RedirectToAction("Login", "Account");
+            }
+
+            var fullName = $"{user.FullName}".Trim();
+            if (string.IsNullOrWhiteSpace(fullName))
+            {
+                fullName = user.UserName ?? user.Email ?? "Candidate";
             }
 
             await PopulateCreateDropdownsAsync(election, null);
 
+            ViewBag.InviteToken = token;
+            ViewBag.LockedCandidateName = fullName;
+
             var viewModel = new CandidateViewModel
             {
-                ElectionEventId = electionEventId
+                ElectionEventId = electionEventId,
+                Name = fullName
             };
 
             return View(viewModel);
         }
 
         // ─────────────────────────────────────────────
-        // POST: Create Candidate (Passes Token to Service)
+        // POST: Candidate Self-Registration Submission
         // ─────────────────────────────────────────────
         [HttpPost]
+        [Authorize(Roles = "Voter,Candidate")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string token)
         {
@@ -214,16 +241,31 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("AllElections", "Election");
             }
 
+            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var user = await _userManager.GetUserAsync(User);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "Your session has expired. Please log in again.";
+                return RedirectToAction("Login", "Account");
+            }
+
+            // Lock Candidate Name to Identity Claims
+            var fullName = $"{user.FullName}".Trim();
+            model.Name = string.IsNullOrWhiteSpace(fullName) ? user.UserName! : fullName;
+
+            // Validate Election Event exists for current TenantId FK
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .Include(e => e.CustomFields)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId && !e.IsDeleted);
+                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
+                                       && e.TenantId == currentTenantId
+                                       && !e.IsDeleted);
 
             if (election == null)
             {
-                _logger.LogWarning("Targeted election event not found for Id={ElectionEventId}", model.ElectionEventId);
-                TempData["ErrorMessage"] = "Targeted election event could not be found.";
+                TempData["ErrorMessage"] = "Targeted election event could not be found for this tenant.";
                 return RedirectToAction("AllElections", "Election");
             }
 
@@ -239,56 +281,46 @@ namespace OnlineVotingApplication.Controllers
                     .SelectMany(v => v.Errors)
                     .Select(e => e.ErrorMessage));
 
-                _logger.LogWarning("Validation failed for ElectionId {ElectionId}: {Errors}",
-                    model.ElectionEventId, validationErrors);
+                _logger.LogWarning("Validation failed for ElectionId {ElectionId} on Tenant {TenantId}: {Errors}",
+                    model.ElectionEventId, currentTenantId, validationErrors);
 
                 TempData["ErrorMessage"] = $"Validation Errors: {validationErrors}";
-
-                ModelState.SetModelValue(nameof(model.ElectionEventId), new Microsoft.AspNetCore.Mvc.ModelBinding.ValueProviderResult(model.ElectionEventId.ToString()));
-
                 ViewBag.InviteToken = token;
+                ViewBag.LockedCandidateName = model.Name;
+
                 await PopulateCreateDropdownsAsync(election, model.StateId);
                 return View(model);
             }
 
-            var userId = _userManager.GetUserId(User);
-            if (string.IsNullOrEmpty(userId))
-            {
-                _logger.LogWarning("Unauthenticated user context encountered during candidate post.");
-                TempData["ErrorMessage"] = "Your session has expired. Please log in again.";
-                return RedirectToAction("Login", "Account");
-            }
-
-            var result = await _candidateService.CreateCandidateAsync(model, userId, token);
+            // Pass tenantId or rely on tenant provider in service
+            var result = await _candidateService.CreateCandidateAsync(model, user.Id, token);
 
             if (!result.Success)
             {
                 ModelState.AddModelError(string.Empty, result.Message ?? "An error occurred while saving candidate.");
                 TempData["ErrorMessage"] = result.Message;
 
-                ModelState.SetModelValue(nameof(model.ElectionEventId), new Microsoft.AspNetCore.Mvc.ModelBinding.ValueProviderResult(model.ElectionEventId.ToString()));
-
                 ViewBag.InviteToken = token;
+                ViewBag.LockedCandidateName = model.Name;
+
                 await PopulateCreateDropdownsAsync(election, model.StateId);
                 return View(model);
             }
 
-            // --- AUDIT LOGGING ---
+            // Audit Logging
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
-                userId: userId,
-                action: "Candidate Created",
-                details: $"Created candidate profile '{model.Name}' for election ID: {model.ElectionEventId}",
+                userId: user.Id,
+                action: "Candidate Self-Registered",
+                details: $"Candidate profile '{model.Name}' created for election ID: {model.ElectionEventId}",
                 ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
+                tenantId: currentTenantId != Guid.Empty ? currentTenantId : null
             );
 
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate));
         }
-
         // ─────────────────────────────────────────────
         // AJAX Endpoints
         // ─────────────────────────────────────────────

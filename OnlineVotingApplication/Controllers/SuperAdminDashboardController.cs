@@ -12,6 +12,7 @@ using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.Repository.Services;
 using System;
 using System.Linq;
+using System.Security.Claims;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -27,24 +28,32 @@ namespace OnlineVotingApplication.Controllers
         private readonly ITenantProvider _tenantProvider;
         private readonly IDistributedCache _cache;
         private readonly IEmailService _emailService;
+        private readonly IAuditLogService _auditLogService;
 
         public SuperAdminDashboardController(
             HybridFormBuilderService formBuilderService,
             AppDbContext context,
             NotificationChannel channel,
             ITenantProvider tenantProvider,
-            IDistributedCache cache, IEmailService emailService)
+            IDistributedCache cache,
+            IEmailService emailService,
+            IAuditLogService auditLogService)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _channel = channel ?? throw new ArgumentNullException(nameof(channel));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
-            _emailService = emailService;
+            _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
+            _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
         }
+
         [HttpGet]
         public async Task<IActionResult> Dashboard()
         {
+            ViewData["Ctrl"] = "SuperAdminDashboard";
+            ViewData["Action"] = "Dashboard";
+
             string cacheKeyActiveCount = "SuperAdmin_Dashboard_ActiveTenants_Count";
             string cacheKeyPendingCount = "SuperAdmin_Dashboard_PendingTenants_Count";
 
@@ -95,13 +104,16 @@ namespace OnlineVotingApplication.Controllers
                 PendingTenantsCount = pendingCount
             };
 
-            return View("~/Views/SuperAdminDashboard/Dashboard.cshtml", viewModel);
+            return View(nameof(Dashboard), viewModel);
         }
-        // --- GLOBAL FORM BUILDER ---
 
+        // --- GLOBAL FORM BUILDER ---
+        
         [HttpGet]
         public IActionResult BuildGlobalForm()
         {
+            ViewData["Ctrl"] = "SuperAdminDashboard";
+            ViewData["Action"] = "BuildGlobalForm";
             return View();
         }
 
@@ -117,15 +129,25 @@ namespace OnlineVotingApplication.Controllers
 
             await _formBuilderService.CreateGlobalCategoryFieldAsync(fieldName, fieldType, tenantCategory, csvChoices, isRequired);
 
+            // Audit log tracking
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            await _auditLogService.LogActivityAsync(
+                userId: userId ?? "",
+                action: "Global Form Field Created",
+                details: $"Created global template field '{fieldName}' of type '{fieldType}' for category '{tenantCategory}'",
+                ipAddress: ipAddress,
+                tenantId: null
+            );
+
             TempData["SuccessMessage"] = "Global template field published successfully.";
             return RedirectToAction("BuildGlobalForm");
         }
-
-        // --- GLOBAL TENANT LISTING & CONTEXT SWITCHING ---
-
-        [HttpGet]
         public async Task<IActionResult> AllTenants(int pageNumber = 1, int pageSize = 10)
         {
+            ViewData["Ctrl"] = "SuperAdminDashboard";
+            ViewData["Action"] = "AllTenants";
+
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
             int skip = (pageNumber - 1) * pageSize;
@@ -133,11 +155,13 @@ namespace OnlineVotingApplication.Controllers
             string cacheKeyList = $"SuperAdmin_AllTenants_List_P{pageNumber}_S{pageSize}";
             string cacheKeyCount = "SuperAdmin_AllTenants_Count";
 
+            // 1. Fetch or Cache Total Count
             int totalCount;
             string? cachedCountStr = await _cache.GetStringAsync(cacheKeyCount);
 
             if (string.IsNullOrEmpty(cachedCountStr))
             {
+                // IgnoreQueryFilters() ensures SuperAdmin sees all tenants globally
                 totalCount = await _context.Tenants
                     .IgnoreQueryFilters()
                     .Where(m => m.IsApproved == true)
@@ -154,6 +178,7 @@ namespace OnlineVotingApplication.Controllers
                 totalCount = int.TryParse(cachedCountStr, out int parsedCount) ? parsedCount : 0;
             }
 
+            // 2. Fetch or Cache Paginated List
             List<TenantViewModel> tenantList;
             string? cachedListJson = await _cache.GetStringAsync(cacheKeyList);
 
@@ -164,7 +189,7 @@ namespace OnlineVotingApplication.Controllers
             else
             {
                 tenantList = await _context.Tenants
-                    .IgnoreQueryFilters()
+                    .IgnoreQueryFilters() // Bypass tenant isolation filters for SuperAdmin global listing
                     .Where(m => m.IsApproved == true)
                     .AsNoTracking()
                     .OrderByDescending(m => m.CreatedAt)
@@ -172,7 +197,9 @@ namespace OnlineVotingApplication.Controllers
                     .Take(pageSize)
                     .Select(m => new TenantViewModel
                     {
+                        Id = m.Id,
                         OrganizationName = m.OrganizationName,
+                        Slug = m.Slug, // Added Slug projection required by View
                         SubscriptionPlan = m.SubscriptionPlan,
                         CreatedAt = m.CreatedAt,
                         IsActive = m.IsActive,
@@ -188,6 +215,7 @@ namespace OnlineVotingApplication.Controllers
                 await _cache.SetStringAsync(cacheKeyList, jsonToCache, listCacheOption);
             }
 
+            // 3. Assemble Paginated Result
             var paginatedResult = new PaginatedListViewModel<TenantViewModel>
             {
                 Items = tenantList,
@@ -196,26 +224,69 @@ namespace OnlineVotingApplication.Controllers
                 PageSize = pageSize
             };
 
-            return View("~/Views/SuperAdminDashboard/AllTenants.cshtml", paginatedResult);
+            // 4. Wrap inside ServiceResponse to match Razor View @model expectation
+            var response = new ServiceResponse<PaginatedListViewModel<TenantViewModel>>
+            {
+                Data = paginatedResult,
+                Success = true,
+                Message = "Tenants retrieved successfully."
+            };
+
+            return View(nameof(AllTenants), response);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public IActionResult SwitchContext(Guid id)
+        public async Task<IActionResult> SwitchContext(Guid id)
         {
             if (id == Guid.Empty) return BadRequest("Invalid Tenant ID.");
 
             _tenantProvider.SetTenantContext(id);
 
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId ?? "",
+                action: "Tenant Context Switched",
+                details: $"SuperAdmin switched active context to tenant ID {id}",
+                ipAddress: ipAddress,
+                tenantId: id
+            );
+
             TempData["SuccessMessage"] = "Switched tenant context successfully.";
             return RedirectToAction("Dashboard", "Tenant");
         }
 
-        // --- PENDING TENANT REGISTRATION APPROVALS ---
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ClearTenantContext()
+        {
+            _tenantProvider.ClearTenantContext();
 
-        [HttpGet]
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+
+            await _auditLogService.LogActivityAsync(
+                userId: userId ?? "",
+                action: "Tenant Context Cleared",
+                details: "SuperAdmin restored default context view.",
+                ipAddress: ipAddress,
+                tenantId: Guid.Empty
+            );
+
+            TempData["SuccessMessage"] = "Returned to SuperAdmin context.";
+            return RedirectToAction("Dashboard", "SuperAdmin");
+        }
+    
+
+// --- PENDING TENANT REGISTRATION APPROVALS ---
+           [HttpGet]
         public async Task<IActionResult> GetAllPendingTenants(int pageNumber = 1, int pageSize = 20)
         {
+            ViewData["Ctrl"] = "SuperAdminDashboard";
+            ViewData["Action"] = "GetAllPendingTenants";
+
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
             int skip = (pageNumber - 1) * pageSize;
@@ -277,7 +348,7 @@ namespace OnlineVotingApplication.Controllers
                 TotalItems = totalCount
             };
 
-            return View("~/Views/SuperAdminDashboard/PendingTenants.cshtml", paginatedResult);
+            return View(nameof(GetAllPendingTenants), paginatedResult);
         }
 
         [HttpPost]
@@ -295,14 +366,17 @@ namespace OnlineVotingApplication.Controllers
             tenant.IsApproved = true;
             await _context.SaveChangesAsync();
 
-            var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.TenantId == id);
+            var adminUser = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.TenantId == id);
+
             if (adminUser != null)
             {
                 adminUser.IsApproved = true;
 
                 string subject = "Tenant Account Approved";
                 string message = $@"<p>Hello {adminUser.UserName},</p>
-                            <p>Your organization <strong>{tenant.OrganizationName}</strong> has been successfully approved.</p>";
+                                    <p>Your organization <strong>{tenant.OrganizationName}</strong> has been successfully approved.</p>";
 
                 await _emailService.EmailSendAsync(adminUser.Email ?? "Unknown", subject, message);
 
@@ -310,6 +384,17 @@ namespace OnlineVotingApplication.Controllers
             }
 
             await _cache.RemoveAsync("PendingTenant_TotalCount");
+
+            // Audit log tracking
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            await _auditLogService.LogActivityAsync(
+                userId: userId ?? "",
+                action: "Tenant Approved",
+                details: $"Approved organization '{tenant.OrganizationName}'",
+                ipAddress: ipAddress,
+                tenantId: id != Guid.Empty ? id : null
+            );
 
             TempData["SuccessMessage"] = $"Organization '{tenant.OrganizationName}' has been successfully approved.";
             return RedirectToAction(nameof(GetAllPendingTenants));
@@ -330,18 +415,31 @@ namespace OnlineVotingApplication.Controllers
             tenant.IsActive = false;
             await _context.SaveChangesAsync();
 
-            // Fetch the admin user associated with this tenant
-            var adminUser = await _context.Users.FirstOrDefaultAsync(u => u.TenantId == id);
+            var adminUser = await _context.Users
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(u => u.TenantId == id);
+
             if (adminUser != null)
             {
                 string subject = "Tenant Account Registration Rejected";
                 string message = $@"<p>Hello {adminUser.UserName},</p>
-                            <p>We regret to inform you that your organization registration for <strong>{tenant.OrganizationName}</strong> has been rejected.</p>";
+                                    <p>We regret to inform you that your organization registration for <strong>{tenant.OrganizationName}</strong> has been rejected.</p>";
 
                 await _emailService.EmailSendAsync(adminUser.Email ?? "Unknown", subject, message);
             }
 
             await _cache.RemoveAsync("PendingTenant_TotalCount");
+
+            // Audit log tracking
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            await _auditLogService.LogActivityAsync(
+                userId: userId ?? "",
+                action: "Tenant Rejected",
+                details: $"Rejected organization registration for '{tenant.OrganizationName}'",
+                ipAddress: ipAddress,
+                tenantId: id != Guid.Empty ? id : null
+            );
 
             TempData["ErrorMessage"] = $"Organization '{tenant.OrganizationName}' registration was rejected.";
             return RedirectToAction(nameof(GetAllPendingTenants));

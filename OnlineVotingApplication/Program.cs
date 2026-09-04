@@ -31,6 +31,7 @@ namespace OnlineVotingApplication
             }
          
             builder.Services.AddCustomIdentityAndSecurity();
+
             builder.Services.AddSession(options =>
             {
                 options.IdleTimeout = TimeSpan.FromMinutes(30);

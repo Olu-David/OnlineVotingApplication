@@ -342,7 +342,7 @@ namespace OnlineVotingApplication.Repository.Services
 
                 var query = _context.ElectionEvents
                     .IgnoreQueryFilters()
-                    .Where(e => e.TenantId == targetTenantId);
+                    .Where(e => e.TenantId == targetTenantId && e.IsDeleted==false&& e.IsActive==true );
 
                 int totalCount = await query.CountAsync();
 

@@ -23,7 +23,7 @@
                             <th>User ID</th>
                             <th>Action Type</th>
                             <th>Details</th>
-                            <th>IP Address</th>
+                            <th class="text-nowrap">IP Address</th>
                             <th class="pe-4">Tenant ID</th>
                         </tr>
                     </thead>
@@ -45,7 +45,8 @@
                                         <span class="badge bg-secondary-subtle text-dark fw-bold">@log.Action</span>
                                     </td>
                                     <td>@log.Details</td>
-                                    <td><code class="text-info">@log.IpAddress</code></td>
+                                    <!-- Added text-nowrap here -->
+                                    <td class="text-nowrap"><code class="text-info">@log.IpAddress</code></td>
                                     <td class="pe-4"><small class="text-muted">@(log.TenantId.HasValue? log.TenantId.ToString() : "Global")</small></td>
                                 </tr>
                             }
@@ -101,7 +102,8 @@
                 <td><code>${log.userId}</code></td>
                 <td><span class="badge bg-secondary-subtle text-dark fw-bold">${log.action}</span></td>
                 <td>${log.details}</td>
-                <td><code class="text-info">${log.ipAddress}</code></td>
+                <!-- Added text-nowrap here as well -->
+                <td class="text-nowrap"><code class="text-info">${log.ipAddress}</code></td>
                 <td class="pe-4"><small class="text-muted">${log.tenantId}</small></td>
             `;
 

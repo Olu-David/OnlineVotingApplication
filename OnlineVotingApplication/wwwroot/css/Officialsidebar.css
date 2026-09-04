@@ -1,0 +1,29 @@
+﻿/* ======================================================
+   official-sidebar.css
+   Theme layer for the Election Official sidebar.
+   Loads AFTER site.css — only sets the role accent and a
+   couple of Official-only touches; all shape/behaviour
+   (collapse, mobile drawer, hover-expand) comes from the
+   shared .admin-sidebar rules in site.css.
+   ====================================================== */
+
+.admin-sidebar--official {
+    --sidebar-accent: var(--votex-role-official);
+}
+
+/* Election Official reads as "the local office": a slightly
+   warmer surface than Super Admin's pure navy, and a small
+   verification tick before the role badge instead of a plain
+   label, since Officials are the ones certifying results. */
+.admin-sidebar--official {
+    background: linear-gradient(180deg, #14213f 0%, #111e3c 60%);
+}
+
+    .admin-sidebar--official .sidebar-role-badge::before {
+        content: '\f00c';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        font-size: 0.6rem;
+        margin-right: 0.3rem;
+        color: var(--votex-role-official);
+    }

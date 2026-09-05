@@ -7,7 +7,7 @@ namespace OnlineVotingApplication.Config;
 
 public static class DatabaseMigrationExtensions
 {
-    public static async Task InitializeAndSeedDatabaseAsync(this WebApplication app)
+    public static async Task InitializeAndSeedDatabaseAsync(this WebApplication app, IWebHostEnvironment environment)
     {
         using var scope = app.Services.CreateScope();
         var services = scope.ServiceProvider;
@@ -24,14 +24,16 @@ public static class DatabaseMigrationExtensions
                 return;
             }
 
-            // 2. Safely check if a connection string is present
+            // 2. Safely check if a connection string is present based on the environment
             var configuration = services.GetRequiredService<IConfiguration>();
-            var connectionString = configuration.GetConnectionString("DefaultConnection");
+            var connectionString = environment.IsDevelopment()
+                ? (configuration.GetConnectionString("LocalConnection") ?? configuration.GetConnectionString("DefaultConnection"))
+                : configuration.GetConnectionString("DefaultConnection");
 
             if (string.IsNullOrWhiteSpace(connectionString))
             {
-                logger?.LogWarning("[DATABASE WARNING] 'DefaultConnection' string is missing or empty. Skipping migrations and seeding.");
-                Console.WriteLine("[DATABASE WARNING] 'DefaultConnection' string is missing or empty. Skipping migrations and seeding.");
+                logger?.LogWarning("[DATABASE WARNING] Connection string is missing or empty. Skipping migrations and seeding.");
+                Console.WriteLine("[DATABASE WARNING] Connection string is missing or empty. Skipping migrations and seeding.");
                 return;
             }
 

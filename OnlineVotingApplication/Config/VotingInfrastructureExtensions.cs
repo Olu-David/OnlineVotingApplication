@@ -15,11 +15,14 @@ public static class VotingInfrastructureExtensions
 {
     public static IServiceCollection AddVotingInfrastructure(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        // Automatically use "LocalConnection" when running locally, and "DefaultConnection" (Supabase) in production
+        var connectionString = environment.IsDevelopment()
+            ? (configuration.GetConnectionString("LocalConnection") ?? configuration.GetConnectionString("DefaultConnection"))
+            : configuration.GetConnectionString("DefaultConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException("Connection string 'DefaultConnection' is null or empty!");
+            throw new InvalidOperationException("Connection string is null or empty!");
         }
 
         // ─── SAFE DATABASE URI PARSING ────────────────────────────────────────
@@ -37,7 +40,7 @@ public static class VotingInfrastructureExtensions
             }
             else
             {
-                throw new InvalidOperationException($"The 'DefaultConnection' environment variable starts with a postgres protocol, but the URI is malformed and cannot be parsed: '{connectionString}'");
+                throw new InvalidOperationException($"The connection string starts with a postgres protocol, but the URI is malformed and cannot be parsed: '{connectionString}'");
             }
         }
 
@@ -54,7 +57,7 @@ public static class VotingInfrastructureExtensions
 
             if (!usePostgres && !looksLikeSqlServer)
             {
-                throw new InvalidOperationException("Could not determine database provider from 'DefaultConnection'. Set 'DatabaseProvider' explicitly.");
+                throw new InvalidOperationException("Could not determine database provider from connection string. Set 'DatabaseProvider' explicitly.");
             }
         }
 
@@ -131,15 +134,18 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<ITenantService, TenantService>();
         services.AddScoped<ISupportService, SupportService>();
         services.AddScoped<IAuditLogService, AuditLogService>();
+        services.AddScoped<IGoogleAuthService, GoogleAuthService>();
+        services.AddScoped<iFileService, FileService>();
+        services.AddScoped<IAppleAuthService, AppleAuthService>();
+        services.AddScoped<iExternalAuthService, ExternalAuthService>();
         services.AddScoped<HybridFormBuilderService>();
 
-        // Real-Time & Redis Cache (Safeguarded)
+        // Real-Time & Redis Cache (Safeguarded for Upstash/Render)
         services.AddSignalR();
         var redisConnectionString = configuration["REDIS_URL"] ?? configuration.GetConnectionString("RedisConnection");
 
         services.AddStackExchangeRedisCache(options =>
         {
-            // Fallback gracefully or configure only if string is valid
             options.Configuration = !string.IsNullOrWhiteSpace(redisConnectionString) ? redisConnectionString : "localhost:6379";
             options.InstanceName = "VotezyCache_";
         });

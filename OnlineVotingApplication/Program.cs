@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.RateLimiting;
+﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Config;
@@ -36,8 +37,15 @@ namespace OnlineVotingApplication
 
             builder.Services.AddVotingInfrastructure(builder.Configuration, builder.Environment);
 
-            // 4. Identity, Security (Called ONCE here)
+            // 4. Identity, Security & Google Auth Middleware
             builder.Services.AddCustomIdentityAndSecurity();
+
+            builder.Services.AddAuthentication()
+                .AddGoogle(googleOptions =>
+                {
+                    googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+                    googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+                });
 
             // 5. Session Setup
             builder.Services.AddSession(options =>
@@ -47,7 +55,7 @@ namespace OnlineVotingApplication
                 options.Cookie.IsEssential = true;
             });
 
-            // 6. Google & Apple API Client Registrations
+            // 6. External Auth Service Registrations (AppleAuth.NET used inside AppleAuthService)
             builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>(client =>
             {
                 client.BaseAddress = new Uri("https://www.googleapis.com/");
@@ -102,7 +110,8 @@ namespace OnlineVotingApplication
 
             if (app.Environment.EnvironmentName != "Testing")
             {
-                await app.InitializeAndSeedDatabaseAsync();
+                // Passed app.Environment here so it checks LocalConnection safely during development!
+                await app.InitializeAndSeedDatabaseAsync(app.Environment);
             }
 
             app.UseHttpsRedirection();
@@ -111,6 +120,8 @@ namespace OnlineVotingApplication
             app.UseSession();
 
             app.UseRateLimiter();
+
+            // Middleware execution order
             app.UseAuthentication();
             app.UseAuthorization();
 

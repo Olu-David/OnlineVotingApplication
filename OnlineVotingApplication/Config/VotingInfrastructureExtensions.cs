@@ -22,13 +22,18 @@ public static class VotingInfrastructureExtensions
             throw new InvalidOperationException("Connection string 'DefaultConnection' is null or empty!");
         }
 
+        // Automatically convert cloud URI connection strings (like those from Render/Supabase) 
+        // into keyword format, keeping local development strings completely untouched.
         if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            throw new InvalidOperationException(
-                "Connection string is in URI format. Use keyword format: Host=...;Port=5432;Database=...;Username=...;Password=...;SSL Mode=Require;Trust Server Certificate=true;");
+            var uri = new Uri(connectionString);
+            var userInfo = uri.UserInfo.Split(':');
+
+            connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
         }
 
+        
         var providerConfig = configuration["DatabaseProvider"];
         bool usePostgres = !string.IsNullOrEmpty(providerConfig)
             ? providerConfig.Equals("Postgres", StringComparison.OrdinalIgnoreCase)

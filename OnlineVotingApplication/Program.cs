@@ -102,6 +102,13 @@ namespace OnlineVotingApplication
             // ==========================================
             var app = builder.Build();
 
+            // Respect X-Forwarded headers from Render's load balancer
+            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            {
+                ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+                                   Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            });
+
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Home/Error");
@@ -110,7 +117,7 @@ namespace OnlineVotingApplication
 
             if (app.Environment.EnvironmentName != "Testing")
             {
-                // Passed app.Environment here so it checks LocalConnection safely during development!
+                // Ensures migrations and seeding execute on Render container boot
                 await app.InitializeAndSeedDatabaseAsync(app.Environment);
             }
 

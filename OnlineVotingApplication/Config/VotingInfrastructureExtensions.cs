@@ -15,7 +15,7 @@ public static class VotingInfrastructureExtensions
 {
     public static IServiceCollection AddVotingInfrastructure(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
-        // Automatically use "LocalConnection" when running locally, and "DefaultConnection" (Supabase) in production
+        // Automatically use "LocalConnection" when running locally, and "DefaultConnection" in production
         var connectionString = environment.IsDevelopment()
             ? (configuration.GetConnectionString("LocalConnection") ?? configuration.GetConnectionString("DefaultConnection"))
             : configuration.GetConnectionString("DefaultConnection");
@@ -31,12 +31,20 @@ public static class VotingInfrastructureExtensions
         if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
+            // Strip out any query string parameters (e.g., ?sslmode=require) before parsing
+            var queryIndex = connectionString.IndexOf('?');
+            if (queryIndex >= 0)
+            {
+                connectionString = connectionString.Substring(0, queryIndex);
+            }
+
             if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
             {
                 var userInfo = uri.UserInfo.Split(':');
                 var dbName = uri.AbsolutePath.TrimStart('/');
+                var port = uri.Port > 0 ? uri.Port : 5432;
 
-                connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={dbName};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
+                connectionString = $"Host={uri.Host};Port={port};Database={dbName};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
             }
             else
             {

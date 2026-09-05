@@ -26,47 +26,48 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         base.OnModelCreating(builder);
 
         builder.Entity<ElectionEvent>()
-    .HasIndex(e => e.Title)
-    .IsUnique();
+            .HasIndex(e => e.Title)
+            .IsUnique();
+
         builder.Entity<States>(entity =>
         {
             entity.HasKey(s => s.Id);
-            entity.Property(s => s.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(s => s.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(s => s.Name).IsRequired().HasMaxLength(100);
         });
 
         builder.Entity<LGA>(entity =>
         {
             entity.HasKey(l => l.Id);
-            entity.Property(l => l.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(l => l.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(l => l.Name).IsRequired().HasMaxLength(100);
         });
 
         builder.Entity<Party>(entity =>
         {
             entity.HasKey(p => p.Id);
-            entity.Property(p => p.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(p => p.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(p => p.Name).IsRequired().HasMaxLength(150);
         });
 
         builder.Entity<Positions>(entity =>
         {
             entity.HasKey(pos => pos.Id);
-            entity.Property(pos => pos.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(pos => pos.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(pos => pos.Name).IsRequired().HasMaxLength(100);
         });
 
         builder.Entity<ElectionEvent>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(e => e.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(e => e.TenantId).IsRequired(false);
         });
 
         builder.Entity<Candidate>(entity =>
         {
             entity.HasKey(c => c.Id);
-            entity.Property(c => c.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(c => c.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(c => c.Name).IsRequired().HasMaxLength(200);
             entity.HasIndex(c => c.Slug).IsUnique();
         });
@@ -173,7 +174,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
         builder.Entity<CandidateInvitation>(entity =>
         {
             entity.HasKey(ci => ci.Id);
-            entity.Property(ci => ci.Id).HasDefaultValueSql("NEWID()");
+            entity.Property(ci => ci.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(ci => ci.TenantId).IsRequired(false);
 
             // Relation to ElectionEvent
@@ -235,6 +236,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<PendingEmail> PendingEmails { get; set; }
     public DbSet<PendingFile> PendingFiles { get; set; }
     public DbSet<CandidateGallery> CandidateGalleries { get; set; }
-    public DbSet<SupportTicket>SupportTickets { get; set; }
+    public DbSet<SupportTicket> SupportTickets { get; set; }
     public DbSet<AuditLog> Audits { get; set; }
 }

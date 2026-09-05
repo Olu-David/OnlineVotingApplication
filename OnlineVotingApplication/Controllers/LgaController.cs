@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -54,6 +55,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects LGA creation from automated spam or script abuse
         public async Task<IActionResult> CreateLga(LgaDTO model)
         {
             if (!ModelState.IsValid)
@@ -148,6 +150,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects deletion actions against rapid bulk operations/spam
         public async Task<IActionResult> ConfirmDelete(LgaDTO model)
         {
             var userId = _userManager.GetUserId(User);

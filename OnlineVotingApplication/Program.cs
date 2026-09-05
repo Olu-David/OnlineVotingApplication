@@ -1,6 +1,9 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Config;
+using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.Repository.Services;
 using Resend;
 
 namespace OnlineVotingApplication
@@ -11,10 +14,6 @@ namespace OnlineVotingApplication
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // ==========================================
-            // REGISTER SERVICES (Toolbox Configuration)
-            // ==========================================
-
             // 1. Add MVC Controllers & Views
             builder.Services.AddControllersWithViews();
 
@@ -24,26 +23,25 @@ namespace OnlineVotingApplication
             builder.Services.Configure<ResendClientOptions>(o =>
             {
                 o.ApiToken = builder.Configuration["Resend:ApiKey"]
-                             ?? builder.Configuration["ResendApiKey"]
-                             ?? string.Empty;
+                           ?? builder.Configuration["ResendApiKey"]
+                           ?? string.Empty;
             });
 
-            // 3. Check if running under an automated xUnit test runner session
+            // 3. Infrastructure & Database setup
             if (builder.Environment.IsEnvironment("Testing"))
             {
-                // Register In-Memory provider for testing
                 builder.Services.AddDbContext<AppDbContext>(options =>
                     options.UseInMemoryDatabase("OnlineVotingApplicationTestDb"));
-
-                builder.Services.AddVotingInfrastructure(builder.Configuration);
-            }
-            else
-            {
-                // Standard production infrastructure setup
-                builder.Services.AddVotingInfrastructure(builder.Configuration);
             }
 
+            // Register infrastructure services (channels, background workers, app services)
+            // Note: VotingInfrastructureExtensions will now safely skip overriding the DbContext if environment is "Testing"
+            builder.Services.AddVotingInfrastructure(builder.Configuration, builder.Environment);
+
+            // 4. Identity, Security & Unified Rate Limiter
             builder.Services.AddCustomIdentityAndSecurity();
+
+            // 5. Session Setup
             builder.Services.AddSession(options =>
             {
                 options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -51,14 +49,34 @@ namespace OnlineVotingApplication
                 options.Cookie.IsEssential = true;
             });
 
-            // ==========================================
-            // BUILD THE APPLICATION
-            // ==========================================
-            var app = builder.Build(); 
+            // 6. Google & Apple API Client Registrations
+            builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>(client =>
+            {
+                client.BaseAddress = new Uri("https://www.googleapis.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+            });
+
+            builder.Services.AddHttpClient<IAppleAuthService, AppleAuthService>(client =>
+            {
+                client.BaseAddress = new Uri("https://appleid.apple.com/");
+                client.DefaultRequestHeaders.Add("Accept", "application/json");
+            });
+
+            // Register the "StandardPolicy" required by your endpoints
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.AddFixedWindowLimiter("StandardPolicy", opt =>
+                {
+                    opt.PermitLimit = 100;
+                    opt.Window = TimeSpan.FromMinutes(1);
+                    opt.QueueLimit = 2;
+                });
+            });
 
             // ==========================================
-            // EXECUTE TASKS & MIDDLEWARE (Runtime)
+            // BUILD THE APPLICATION (Called ONLY ONCE)
             // ==========================================
+            var app = builder.Build();
 
             if (!app.Environment.IsDevelopment())
             {
@@ -66,7 +84,6 @@ namespace OnlineVotingApplication
                 app.UseHsts();
             }
 
-            // Prevent SQL Server migrations during integration tests
             if (app.Environment.EnvironmentName != "Testing")
             {
                 await app.InitializeAndSeedDatabaseAsync();
@@ -76,7 +93,10 @@ namespace OnlineVotingApplication
             app.UseStaticFiles();
             app.UseRouting();
             app.UseSession();
+
+            // Must be placed after UseRouting and before UseAuthentication/Authorization
             app.UseRateLimiter();
+
             app.UseAuthentication();
             app.UseAuthorization();
 

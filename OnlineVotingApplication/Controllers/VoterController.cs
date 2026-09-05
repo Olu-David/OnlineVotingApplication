@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -10,6 +11,7 @@ using System.Security.Claims;
 namespace OnlineVotingApplication.Controllers
 {
     [Authorize]
+    [EnableRateLimiting("StandardPolicy")]
     public class VoterController : Controller
     {
         private readonly AppDbContext _context;
@@ -36,8 +38,22 @@ namespace OnlineVotingApplication.Controllers
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Index";
 
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+
+            if (tenantId == Guid.Empty)
+            {
+                tenantId = activeTenantId;
+            }
+
+            if (!isSuperAdmin && tenantId != activeTenantId)
+            {
+                TempData["ErrorMessage"] = "Unauthorized tenant access.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var elections = await _context.ElectionEvents
-                .Where(e => e.TenantId == tenantId)
+                .Where(e => e.TenantId == tenantId && !e.IsDeleted)
                 .ToListAsync();
 
             ViewBag.TenantId = tenantId;
@@ -45,7 +61,6 @@ namespace OnlineVotingApplication.Controllers
         }
 
         // GET: /Voter/PenalizedVoters (Lists all penalized voters across elections)
-        // GET: /Voter/PenalizedVoters
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official")]
         public async Task<IActionResult> PenalizedVoters()
@@ -62,12 +77,16 @@ namespace OnlineVotingApplication.Controllers
 
             return View(penalizedList);
         }
+
         // GET: /Voter/Details/5 (Shows election details, positions, and candidates)
         [HttpGet]
         public async Task<IActionResult> Details(Guid id) // id = ElectionId
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Details";
+
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
             var election = await _context.ElectionEvents
                 .Include(e => e.Positions!)!
@@ -80,17 +99,29 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
+            if (!isSuperAdmin && election.TenantId != activeTenantId)
+            {
+                TempData["ErrorMessage"] = "Unauthorized access to election details.";
+                return RedirectToAction(nameof(Index), new { tenantId = activeTenantId });
+            }
+
             return View(election);
         }
 
         // GET: /Voter/RequestCode?electionId=xxx&candidateId=yyy&positionId=zzz
         [HttpGet]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "RequestCode";
 
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            if (string.IsNullOrEmpty(voterId))
+            {
+                TempData["ErrorMessage"] = "User session expired.";
+                return RedirectToAction("Index", "Home");
+            }
 
             var response = await _voteService.GenerateAndQueueConfirmationCodeAsync(voterId, electionId);
 
@@ -111,9 +142,15 @@ namespace OnlineVotingApplication.Controllers
         // POST: /Voter/ConfirmAndVote
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ConfirmAndVote(Guid electionId, Guid candidateId, Guid positionId, string enteredCode)
         {
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            if (string.IsNullOrEmpty(voterId))
+            {
+                TempData["ErrorMessage"] = "User session expired.";
+                return RedirectToAction("Index", "Home");
+            }
 
             var response = await _voteService.ConfirmAndCastVoteAsync(voterId, electionId, enteredCode, candidateId, positionId);
 
@@ -155,6 +192,12 @@ namespace OnlineVotingApplication.Controllers
             ViewData["Action"] = "MyHistory";
 
             string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            if (string.IsNullOrEmpty(voterId))
+            {
+                TempData["ErrorMessage"] = "User session expired.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var response = await _voteService.GetElectionsTakenByVoterAsync(voterId);
 
             if (!response.Success)
@@ -243,6 +286,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "SuperAdmin,Official,Tenant")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ManualEntry(ManualResultViewModel model)
         {
             if (!ModelState.IsValid)
@@ -310,6 +354,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "SuperAdmin,Official")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> PenalizeVoter(string voterId, Guid electionId, string reason, Guid returnElectionId)
         {
             string adminId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;

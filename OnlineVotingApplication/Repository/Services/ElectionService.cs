@@ -12,6 +12,7 @@ using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Enums;
+using OnlineVotingApplication.SupaBase; // Ensure this namespace matches your Supabase service
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -22,7 +23,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IMemoryCache _cache;
         private readonly IHttpContextAccessor _accessor;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly iFileService _FileService;
+        private readonly ISupaBaseFileService _supabaseService; // Swapped out local file service
         private readonly ITenantProvider _tenantProvider;
         private readonly IWebHostEnvironment _env;
 
@@ -32,7 +33,9 @@ namespace OnlineVotingApplication.Repository.Services
             IMemoryCache cache,
             ITenantProvider tenantProvider,
             IHttpContextAccessor accessor,
-            UserManager<ApplicationUser> userManager, iFileService FileService, IWebHostEnvironment env)
+            UserManager<ApplicationUser> userManager,
+            ISupaBaseFileService supabaseService, // Injected Supabase service
+            IWebHostEnvironment env)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -40,11 +43,9 @@ namespace OnlineVotingApplication.Repository.Services
             _accessor = accessor ?? throw new ArgumentNullException(nameof(accessor));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
-            _FileService= FileService?? throw new ArgumentNullException(nameof(FileService));
+            _supabaseService = supabaseService ?? throw new ArgumentNullException(nameof(supabaseService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
         }
-
-  
 
         public async Task<ServiceResponse<ElectionDto>> CreateElectionAsync(ElectionDto model, string userId)
         {
@@ -88,15 +89,23 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            string TargetUrl = "/Election_Image/Profiles";
-            string TargetFolder = "Election_Image";
+            string targetDatabasePathUrl = "/images/default-election.png"; // Fallback if no image
+            string folderPathSegment = "Election_Image"; // Your Supabase bucket name
+            string? uploadedFileUrlPath = null;
+
             await using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
                 if (model.UrlImage != null && model.UrlImage.Length > 0)
                 {
-                    string AllocatedName = await _FileService.RegisterAndQueueUploadAsync(model.UrlImage, FileType.Image, TargetFolder, CancellationToken.None);
-                    TargetUrl = $"/{TargetFolder}/{AllocatedName}";
+                    using var stream = model.UrlImage.OpenReadStream();
+                    targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        model.UrlImage.FileName,
+                        stream,
+                        model.UrlImage.ContentType
+                    );
+                    uploadedFileUrlPath = targetDatabasePathUrl;
                 }
 
                 var election = new ElectionEvent
@@ -110,7 +119,7 @@ namespace OnlineVotingApplication.Repository.Services
                     IsActive = false,
                     TenantId = currentTenant.Id,
                     Category = currentTenant.TenantCategory,
-                    ImageUrl = TargetUrl
+                    ImageUrl = targetDatabasePathUrl
                 };
 
                 await _context.ElectionEvents.AddAsync(election);
@@ -122,12 +131,11 @@ namespace OnlineVotingApplication.Repository.Services
                 if (request != null)
                 {
                     var baseUrl = $"{request.Scheme}://{request.Host}";
-                    // Points directly to the Candidate controller registration endpoint carrying the event ID
                     model.RegistrationLink = $"{baseUrl}/Candidate/CreateCandidate?electionEventId={election.Id}";
                 }
 
                 model.Id = election.Id;
-                model.PhotoImage = TargetUrl;
+                model.PhotoImage = targetDatabasePathUrl;
                 response.Data = model;
                 response.Success = true;
                 response.Message = "Election workspace successfully generated.";
@@ -136,6 +144,20 @@ namespace OnlineVotingApplication.Repository.Services
             catch (Exception ex)
             {
                 await transaction.RollbackAsync();
+
+                // Cleanup uploaded image from Supabase if transaction fails
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                {
+                    try
+                    {
+                        await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                    }
+                    catch
+                    {
+                        /* Suppress cleanup failure logs */
+                    }
+                }
+
                 _logger.LogError(ex, "Fatal error inside CreateElectionAsync for User {UserId}", userId);
 
                 response.Success = false;
@@ -144,10 +166,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+
         // Helper Method: Get Active Election by ID or Category (Cross-Tenant Aware)
         public async Task<ElectionEvent?> GetElectionByIdOrCategoryAsync(Guid electionId, TenantCategory? category = null)
         {
-            // 1. Primary Lookup by explicit ID (ignoring tenant filters)
             if (electionId != Guid.Empty)
             {
                 var election = await _context.ElectionEvents
@@ -158,7 +180,6 @@ namespace OnlineVotingApplication.Repository.Services
                 if (election != null) return election;
             }
 
-            // 2. Fallback Lookup by Category
             if (category.HasValue)
             {
                 var categoryElection = await _context.ElectionEvents
@@ -169,7 +190,6 @@ namespace OnlineVotingApplication.Repository.Services
                 if (categoryElection != null) return categoryElection;
             }
 
-            // 3. System Fallback to Root Seeded Election
             return await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -199,7 +219,6 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                // Added .IgnoreQueryFilters() to locate election cross-tenant
                 var election = await _context.ElectionEvents
                     .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(x => x.Id == electionId);
@@ -262,7 +281,6 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                // Added .IgnoreQueryFilters() to locate election cross-tenant
                 var election = await _context.ElectionEvents
                     .IgnoreQueryFilters()
                     .FirstOrDefaultAsync(x => x.Id == electionId);
@@ -300,6 +318,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+
         public async Task<ServiceResponse<List<ElectionEvent>>> GetPastElectionsAsync(Guid? tenantId = null)
         {
             var response = new ServiceResponse<List<ElectionEvent>>();
@@ -308,15 +327,16 @@ namespace OnlineVotingApplication.Repository.Services
                 var targetTenantId = tenantId ?? _tenantProvider.GetCurrentTenantId();
 
                 var pastElections = await _context.ElectionEvents
-                  .IgnoreQueryFilters()
-              .Where(e => e.TenantId == targetTenantId &&
-                   e.EndDate >= e.StartDate &&
-                   e.EndDate <= DateTime.UtcNow &&
-                   !e.IsActive)
-                .OrderByDescending(e => e.EndDate)
-                .Take(5)
-                .AsNoTracking()
-                 .ToListAsync();
+                    .IgnoreQueryFilters()
+                    .Where(e => e.TenantId == targetTenantId &&
+                           e.EndDate >= e.StartDate &&
+                           e.EndDate <= DateTime.UtcNow &&
+                           !e.IsActive)
+                    .OrderByDescending(e => e.EndDate)
+                    .Take(5)
+                    .AsNoTracking()
+                    .ToListAsync();
+
                 response.Success = true;
                 response.Data = pastElections;
                 response.Message = "Past elections retrieved successfully.";
@@ -330,19 +350,20 @@ namespace OnlineVotingApplication.Repository.Services
             }
             return response;
         }
+
         public async Task<ServiceResponse<PaginatedListViewModel<ElectionEvent>>> GetPagedElectionsAsync(int pageNumber, int pageSize, Guid? tenantId = null)
         {
             var response = new ServiceResponse<PaginatedListViewModel<ElectionEvent>>();
             try
             {
                 pageNumber = pageNumber < 1 ? 1 : pageNumber;
-                 pageSize = pageSize < 1 ? 10 : pageSize;
+                pageSize = pageSize < 1 ? 10 : pageSize;
 
                 var targetTenantId = tenantId ?? _tenantProvider.GetCurrentTenantId();
 
                 var query = _context.ElectionEvents
                     .IgnoreQueryFilters()
-                    .Where(e => e.TenantId == targetTenantId && e.IsDeleted==false&& e.IsActive==true );
+                    .Where(e => e.TenantId == targetTenantId && e.IsDeleted == false && e.IsActive == true);
 
                 int totalCount = await query.CountAsync();
 
@@ -373,8 +394,8 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Errors = new List<string> { ex.Message };
             }
             return response;
-
         }
+
         public async Task<ServiceResponse<List<ElectionEvent>>> GetElectionsTakenByVoterAsync(string voterId)
         {
             try
@@ -438,7 +459,6 @@ namespace OnlineVotingApplication.Repository.Services
 
                 if (voterRecord == null)
                 {
-                    // If they haven't interacted yet, create a penalty record tracker row
                     voterRecord = new Vote
                     {
                         Id = Guid.NewGuid(),
@@ -450,13 +470,10 @@ namespace OnlineVotingApplication.Repository.Services
                     _context.Votes.Add(voterRecord);
                 }
 
-                // If you have a penalty property on your model, mark them. 
-                // Alternatively, you can invalidate their active codes and flag them.
                 voterRecord.ConfirmationCode = "PENALIZED";
                 voterRecord.IsConfirmed = false;
-                voterRecord.HasVoted = false; // Block voting rights
+                voterRecord.HasVoted = false;
 
-                // Optional: Log penalization audit event
                 _logger.LogWarning("⚠️ Admin {AdminId} penalized voter {VoterId} for election {ElectionId}. Reason: {Reason}",
                     adminId, voterId, electionId, reason);
 

@@ -9,6 +9,7 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.SupaBase;
 using System;
 using System.Linq;
 using System.Net.WebSockets;
@@ -28,10 +29,11 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ILogger<TenantService> _logger;
         private readonly ITenantProvider _tenantProvider;
         private readonly IDistributedCache _Cache;
-        private readonly iFileService _iFileService;
+        //private readonly iFileService _iFileService;
+        private readonly ISupaBaseFileService _supaBase;
         private readonly IWebHostEnvironment _env;
 
-        public TenantService(AppDbContext dbContext, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, iAuthService authService, IHttpContextAccessor httpContextAccessor, ILogger<TenantService> logger, ITenantProvider tenantProvider, IDistributedCache cache, iFileService iFileService, IWebHostEnvironment env)
+        public TenantService(AppDbContext dbContext, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, iAuthService authService, IHttpContextAccessor httpContextAccessor, ILogger<TenantService> logger, ITenantProvider tenantProvider, IDistributedCache cache, ISupaBaseFileService supaBaseFileService, IWebHostEnvironment env)
         {
             _dbContext = dbContext;
             _userManager = userManager;
@@ -41,7 +43,8 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _tenantProvider = tenantProvider;
             _Cache = cache;
-            _iFileService = iFileService;
+            //_iFileService = iFileService;
+            _supaBase = supaBaseFileService;
             _env = env;
         }
 
@@ -87,19 +90,21 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             string tenantUrl = "/images/default-tenant.png";
-            string tenantFolder = "Tenant_ProfilePictures";
+            string tenantFolder = "Tenant_ProfilePictures"; // Your Supabase storage bucket name
+            string? uploadedFileUrlPath = null;
+
             try
             {
                 if (model.ProfilePicture != null && model.ProfilePicture.Length > 0)
                 {
-                    string allocatedFileName = await _iFileService.RegisterAndQueueUploadAsync(
-                        file: model.ProfilePicture,
-                        fileType: Enums.FileType.Image,
-                        uploadFolder: tenantFolder,
-                        cancellationToken: CancellationToken.None
+                    using var stream = model.ProfilePicture.OpenReadStream();
+                    tenantUrl = await _supaBase.UploadFileAsync(
+                        tenantFolder,
+                        model.ProfilePicture.FileName,
+                        stream,
+                        model.ProfilePicture.ContentType
                     );
-
-                    tenantUrl = $"/{tenantFolder}/{allocatedFileName}";
+                    uploadedFileUrlPath = tenantUrl;
                 }
             }
             catch (Exception fileEx)
@@ -183,11 +188,17 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 await transaction.RollbackAsync();
 
-                // Cleanup file system if db commit operation crashes out midway
-                if (tenantUrl != "/images/default-tenant.png")
+                // Cleanup uploaded image from Supabase if db commit operation crashes out midway
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                 {
-                    string baseAvatarPath = Path.Combine(_env.WebRootPath, tenantFolder, Path.GetFileName(tenantUrl));
-                    if (File.Exists(baseAvatarPath)) File.Delete(baseAvatarPath);
+                    try
+                    {
+                        await _supaBase.DeleteFileAsync(uploadedFileUrlPath, tenantFolder);
+                    }
+                    catch
+                    {
+                        /* Suppress cleanup failure logs */
+                    }
                 }
 
                 _logger.LogError(ex, "Fatal error provisioning organization {OrganizationName}", model.OrganizationName);

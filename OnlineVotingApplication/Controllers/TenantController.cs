@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -43,7 +44,9 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects public organization registration from bot spam
         public async Task<IActionResult> CreateOrganization(TenantRegistrationViewModel model)
         {
             if (!ModelState.IsValid)
@@ -95,7 +98,8 @@ namespace OnlineVotingApplication.Controllers
                 email = model.AdminEmail
             });
         }
-        // --- TENANT DASHBOARD & MANAGEMENT (Official / SuperAdmin) ---
+
+        // --- TENANT DASHBOARD & MANAGEMENT ---
 
         [HttpGet]
         public async Task<IActionResult> Dashboard()
@@ -159,13 +163,13 @@ namespace OnlineVotingApplication.Controllers
 
             return View(candidates);
         }
+
         [HttpGet]
         [Authorize(Roles = "Official")]
         public async Task<IActionResult> CreateCandidateOfficial()
         {
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
-            // Populate dropdown directly using your existing Election model
             ViewBag.OfficialElections = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -179,6 +183,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "Official")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects official candidate creation from rapid script spamming
         public async Task<IActionResult> CreateCandidateOfficial(ManualCandidateCreationViewModel model)
         {
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
@@ -198,12 +203,11 @@ namespace OnlineVotingApplication.Controllers
             var officialUserId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-            // 1. Call your single clean service method
             var result = await _CandidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId);
 
             if (!result.Success)
             {
-                ModelState.AddModelError(string.Empty, result.Message??"");
+                ModelState.AddModelError(string.Empty, result.Message ?? "");
 
                 ViewBag.OfficialElections = await _context.ElectionEvents
                     .IgnoreQueryFilters()
@@ -215,7 +219,6 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // 2. Audit log logged directly in the controller
             await _auditLogService.LogActivityAsync(
                 userId: officialUserId,
                 action: "Official Candidate Creation",

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -123,6 +124,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects against rapid creation spam
         public async Task<IActionResult> Create(ElectionViewModel model)
         {
             if (model.EndDate <= model.StartDate)
@@ -217,6 +219,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects against excessive edits/spam
         public async Task<IActionResult> Edit(ElectionViewModel model)
         {
             if (model.EndDate <= model.StartDate)
@@ -276,6 +279,7 @@ namespace OnlineVotingApplication.Controllers
         // ─────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects delete actions from abuse
         public async Task<IActionResult> SoftDelete(Guid id)
         {
             var election = await _context.ElectionEvents
@@ -364,6 +368,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects restore actions from abuse
         public async Task<IActionResult> Restore(Guid id)
         {
             var election = await _context.ElectionEvents

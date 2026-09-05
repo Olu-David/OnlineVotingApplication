@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -15,6 +16,7 @@ using System.Threading.Tasks;
 namespace OnlineVotingApplication.Controllers
 {
     [Authorize(Roles = "Official,SuperAdmin")]
+    [EnableRateLimiting("StandardPolicy")]
     public class PositionController : Controller
     {
         private readonly AppDbContext _context;
@@ -44,7 +46,6 @@ namespace OnlineVotingApplication.Controllers
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // If no electionId is supplied, default to the first available election for this tenant/admin
             if (string.IsNullOrEmpty(electionId))
             {
                 var firstElection = await _context.ElectionEvents
@@ -62,8 +63,6 @@ namespace OnlineVotingApplication.Controllers
             }
 
             ViewBag.ElectionId = electionId;
-
-            // Fetch paginated positions via the service
             var paginatedPositions = await _positionService.GetAllPositionsAsync(electionId, pageNumber, pageSize);
 
             return View(paginatedPositions);
@@ -80,6 +79,7 @@ namespace OnlineVotingApplication.Controllers
         // --- POST: CREATE POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> Create(PositionDTO model)
         {
             string userId = _userManager.GetUserId(User)!;
@@ -151,7 +151,6 @@ namespace OnlineVotingApplication.Controllers
                 return NotFound();
             }
 
-            // Enforce tenant boundary check
             if (!isSuperAdmin)
             {
                 if (position.ElectionEvent == null || position.ElectionEvent.TenantId != activeTenantId)
@@ -174,7 +173,8 @@ namespace OnlineVotingApplication.Controllers
         // --- POST: EDIT POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditPosition(EditPositionModel model)
+        [EnableRateLimiting("StrictPolicy")]
+        public async Task<IActionResult> Edit(EditPositionModel model)
         {
             if (!ModelState.IsValid)
             {
@@ -190,7 +190,6 @@ namespace OnlineVotingApplication.Controllers
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // Enforce tenant boundary check on postback
             if (!isSuperAdmin)
             {
                 var positionToCheck = await _context.Position
@@ -206,7 +205,6 @@ namespace OnlineVotingApplication.Controllers
             }
 
             string userId = _userManager.GetUserId(User)!;
-
             var result = await _positionService.UpdatePosition(model, userId);
 
             if (!result.Success)
@@ -234,12 +232,12 @@ namespace OnlineVotingApplication.Controllers
         // --- POST: DELETE POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> Delete(Guid id, Guid electionId)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // Enforce tenant boundary check before deletion
             if (!isSuperAdmin)
             {
                 var positionToCheck = await _context.Position
@@ -250,7 +248,7 @@ namespace OnlineVotingApplication.Controllers
                 if (positionToCheck == null || positionToCheck.ElectionEvent == null || positionToCheck.ElectionEvent.TenantId != activeTenantId)
                 {
                     TempData["ErrorMessage"] = "Unauthorized to delete this position.";
-                    return RedirectToAction(nameof(Index), new { electionId = electionId });
+                    return RedirectToAction(nameof(Index), new { electionId });
                 }
             }
 
@@ -278,7 +276,7 @@ namespace OnlineVotingApplication.Controllers
                 TempData["SuccessMessage"] = result.Message;
             }
 
-            return RedirectToAction(nameof(Index), new { electionId = electionId });
+            return RedirectToAction(nameof(Index), new { electionId });
         }
 
         // --- HELPER METHOD TO POPULATE ELECTION DROPDOWN ---

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.RateLimiting;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Repository.DatabaseService;
+using System.Threading.RateLimiting;
 
 namespace OnlineVotingApplication.Config;
 
@@ -12,12 +13,38 @@ public static class IdentityAndSecurityExtensions
         // 1. DDoS and Brute Force Protection Engine (Rate Limiter)
         services.AddRateLimiter(options =>
         {
-            options.AddSlidingWindowLimiter("StrictPolicy", opt =>
+            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+            // Global sliding window limiter (Protects all general routes by IP)
+            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
             {
-                opt.PermitLimit = 5;
-                opt.Window = TimeSpan.FromMinutes(30);
-                opt.SegmentsPerWindow = 5;
-                opt.QueueLimit = 0;
+                var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+                return RateLimitPartition.GetSlidingWindowLimiter(clientIp, _ =>
+                    new SlidingWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromMinutes(1),
+                        SegmentsPerWindow = 4,
+                        QueueLimit = 5
+                    });
+            });
+
+            // Strict policy for critical/sensitive actions (Voting, Registration, Auth endpoints)
+            options.AddPolicy("StrictPolicy", httpContext =>
+            {
+                var identifier = httpContext.User.Identity?.IsAuthenticated == true
+                    ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                      ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                    : httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+                return RateLimitPartition.GetFixedWindowLimiter(identifier, _ =>
+                    new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 10,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0
+                    });
             });
 
             options.OnRejected = async (context, token) =>
@@ -27,7 +54,7 @@ public static class IdentityAndSecurityExtensions
                 await context.HttpContext.Response.WriteAsJsonAsync(new
                 {
                     success = false,
-                    message = "Too many failed attempts. For security, your 2FA verification is locked for 10 minutes."
+                    message = "Too many failed attempts or requests. Please try again later."
                 }, token);
             };
         });

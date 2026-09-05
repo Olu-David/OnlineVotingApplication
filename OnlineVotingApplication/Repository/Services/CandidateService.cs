@@ -14,18 +14,21 @@ using OnlineVotingApplication.Enums;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.Services;
+using OnlineVotingApplication.SupaBase;
 using Slugify;
 using System;
 using System.Text.Json;
 
 namespace OnlineVotingApplication.Repository.Services
 {
+
     public class CandidateService : iCandidateService
     {
         private readonly AppDbContext _appDbContext;
-        private readonly iFileService _fileService;
+        // private readonly iFileService _fileService;
+        private readonly ISupaBaseFileService _supabaseService;
         private readonly IDistributedCache _Cache;
-        private readonly UserManager<ApplicationUser> _UserManager;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly IHttpContextAccessor _httpContext;
         private readonly IMemoryCache _cache;
         private readonly ILogger<CandidateService> _logger;
@@ -33,13 +36,24 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ITenantProvider _tenantProvider;
         private readonly IEmailService _emailService;
 
-
-        public CandidateService(AppDbContext appDbContext, iFileService fileService, IDistributedCache Cache, UserManager<ApplicationUser> userManager, IHttpContextAccessor httpContext, IMemoryCache cache, ILogger<CandidateService> logger, IWebHostEnvironment env, ITenantProvider tenantProvider, IEmailService emailService)
+        public CandidateService(
+            AppDbContext appDbContext,
+            // iFileService fileService, 
+            ISupaBaseFileService supabaseService,
+            IDistributedCache Cache,
+            UserManager<ApplicationUser> userManager,
+            IHttpContextAccessor httpContext,
+            IMemoryCache cache,
+            ILogger<CandidateService> logger,
+            IWebHostEnvironment env,
+            ITenantProvider tenantProvider,
+            IEmailService emailService)
         {
             _appDbContext = appDbContext;
-            _fileService = fileService;
+            // _fileService = fileService;
+            _supabaseService = supabaseService;
             _cache = cache;
-            _UserManager = userManager;
+            _userManager = userManager;
             _httpContext = httpContext;
             _Cache = Cache;
             _logger = logger;
@@ -47,7 +61,6 @@ namespace OnlineVotingApplication.Repository.Services
             _tenantProvider = tenantProvider;
             _emailService = emailService;
         }
-
         // ─────────────────────────────────────────────
         // 1. BUSINESS LOGIC: SEND CANDIDATE INVITE
         // ─────────────────────────────────────────────
@@ -65,7 +78,6 @@ namespace OnlineVotingApplication.Repository.Services
 
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
 
-            // 1. Verify the election exists, belongs to this tenant, and is active
             var election = await _appDbContext.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -78,7 +90,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 2. Check if an active, unused invite already exists for this email in this tenant and election
             bool exists = await _appDbContext.candidateInvitations
                 .AnyAsync(i => i.TenantId == tenantId && i.ElectionEventId == model.ElectionEventId && i.CandidateEmail == cleanEmail && !i.IsUsed);
 
@@ -96,20 +107,33 @@ namespace OnlineVotingApplication.Repository.Services
                 CandidateEmail = cleanEmail
             };
 
-            _appDbContext.candidateInvitations.Add(invitation);
-            await _appDbContext.SaveChangesAsync();
+            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            try
+            {
+                _appDbContext.candidateInvitations.Add(invitation);
+                await _appDbContext.SaveChangesAsync();
 
-            // Send email
-            string subject = "Your Secure Candidate Registration Invitation";
-            string message = $"Hello,\n\nYou have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({cleanEmail}) and can only be used once.";
+                string subject = "Your Secure Candidate Registration Invitation";
+                string message = $"Hello,\n\nYou have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({cleanEmail}) and can only be used once.";
 
-            await _emailService.EmailSendAsync(cleanEmail, subject, message);
+                await _emailService.EmailSendAsync(cleanEmail, subject, message);
 
-            response.Success = true;
-            response.Message = $"Secure invitation link successfully generated and emailed to {cleanEmail}.";
-            response.Data = invitation.Token;
-            return response;
+                await transaction.CommitAsync();
+
+                response.Success = true;
+                response.Message = $"Secure invitation link successfully generated and emailed to {cleanEmail}.";
+                response.Data = invitation.Token;
+                return response;
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                response.Success = false;
+                response.Message = $"Failed to send invite: {ex.Message}";
+                return response;
+            }
         }
+
         // ─────────────────────────────────────────────
         // 2. BUSINESS LOGIC: CREATE CANDIDATE & PROMOTE ROLE
         // ─────────────────────────────────────────────
@@ -124,7 +148,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 1. Fetch Election
             var targetElection = await _appDbContext.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -137,7 +160,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var user = await _UserManager.FindByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 response.Success = false;
@@ -145,7 +168,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 2. Validate Token & Email-Lock Security
             CandidateInvitation? invitation = null;
             if (!string.IsNullOrEmpty(token))
             {
@@ -166,7 +188,6 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                // Strict Email-Lock Check
                 if (!string.Equals(user.Email, invitation.CandidateEmail, StringComparison.OrdinalIgnoreCase))
                 {
                     response.Success = false;
@@ -183,12 +204,11 @@ namespace OnlineVotingApplication.Repository.Services
 
             Guid? effectiveTenantId = targetElection.TenantId;
 
-            // 3. Check duplicate candidate
             var candidateExists = await _appDbContext.Candidate
                 .IgnoreQueryFilters()
                 .AnyAsync(x => x.Name == model.Name
-                            && x.ElectionEventId == model.ElectionEventId
-                            && x.TenantId == effectiveTenantId);
+                                && x.ElectionEventId == model.ElectionEventId
+                                && x.TenantId == effectiveTenantId);
 
             if (candidateExists)
             {
@@ -197,35 +217,34 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var uploadedPhysicalFiles = new List<string>();
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string? uploadedFileUrlPath = null;
+            bool roleAdded = false;
 
             await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
             try
             {
-                // ── 4. AUTOMATIC ROLE PROMOTION: Voter -> Candidate ──
-                if (await _UserManager.IsInRoleAsync(user, "Voter"))
+                if (await _userManager.IsInRoleAsync(user, "Voter"))
                 {
-                    var addRoleResult = await _UserManager.AddToRoleAsync(user, "Candidate");
+                    var addRoleResult = await _userManager.AddToRoleAsync(user, "Candidate");
                     if (!addRoleResult.Succeeded)
                     {
                         throw new Exception("Failed to upgrade user profile permissions to candidate.");
                     }
+                    roleAdded = true;
                 }
 
-                // Profile Image Upload
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
                 {
-                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
-                        file: model.CandidateImageUrl,
-                        fileType: Enums.FileType.Image,
-                        uploadFolder: folderPathSegment,
-                        cancellationToken: CancellationToken.None
+                    using var stream = model.CandidateImageUrl.OpenReadStream();
+                    targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        model.CandidateImageUrl.FileName,
+                        stream,
+                        model.CandidateImageUrl.ContentType
                     );
-
-                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
-                    uploadedPhysicalFiles.Add(Path.Combine(_env.WebRootPath, folderPathSegment, allocatedFileName));
+                    uploadedFileUrlPath = targetDatabasePathUrl;
                 }
 
                 var slugHelper = new SlugHelper();
@@ -250,7 +269,6 @@ namespace OnlineVotingApplication.Repository.Services
 
                 await _appDbContext.Candidate.AddAsync(newCandidate);
 
-                // 5. BURN THE TOKEN SO IT CANNOT BE REUSED
                 if (invitation != null)
                 {
                     invitation.IsUsed = true;
@@ -269,12 +287,14 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 await transaction.RollbackAsync();
 
-                foreach (var physicalPath in uploadedPhysicalFiles)
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                 {
-                    if (File.Exists(physicalPath))
-                    {
-                        try { File.Delete(physicalPath); } catch { }
-                    }
+                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
+                }
+
+                if (roleAdded && await _userManager.IsInRoleAsync(user, "Candidate"))
+                {
+                    await _userManager.RemoveFromRoleAsync(user, "Candidate");
                 }
 
                 response.Success = false;
@@ -282,7 +302,11 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
-        public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId,string officialUserId)
+
+        // ─────────────────────────────────────────────
+        // 3. BUSINESS LOGIC: CREATE CANDIDATE BY OFFICIAL
+        // ─────────────────────────────────────────────
+        public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId)
         {
             var response = new ServiceResponse<string>();
 
@@ -293,7 +317,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 1. Fetch targeted election event
             var targetElection = await _appDbContext.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -308,9 +331,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 2. Resolve target user by email
             var cleanEmail = model.CandidateEmail!.Trim().ToLower();
-            var targetUser = await _UserManager.FindByEmailAsync(cleanEmail);
+            var targetUser = await _userManager.FindByEmailAsync(cleanEmail);
 
             if (targetUser == null)
             {
@@ -319,7 +341,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 3. Category & Duplicate Check
             bool isPolitical = targetElection.Category == TenantCategory.Political;
 
             var candidateExists = await _appDbContext.Candidate
@@ -333,38 +354,36 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var uploadedPhysicalFiles = new List<string>();
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string? uploadedFileUrlPath = null;
+            bool roleAdded = false;
 
             await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
             try
             {
-                // 4. Role promotion to Candidate if missing
-                if (!await _UserManager.IsInRoleAsync(targetUser, "Candidate"))
+                if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
                 {
-                    var addRoleResult = await _UserManager.AddToRoleAsync(targetUser, "Candidate");
+                    var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
                     if (!addRoleResult.Succeeded)
                     {
                         throw new Exception("Failed to upgrade target user permissions to Candidate role.");
                     }
+                    roleAdded = true;
                 }
 
-                // 5. Image Processing
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
                 {
-                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
-                        file: model.CandidateImage,
-                        fileType: Enums.FileType.Image,
-                        uploadFolder: folderPathSegment,
-                        cancellationToken: CancellationToken.None
+                    using var stream = model.CandidateImage.OpenReadStream();
+                    targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        model.CandidateImage.FileName,
+                        stream,
+                        model.CandidateImage.ContentType
                     );
-
-                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
-                    uploadedPhysicalFiles.Add(Path.Combine(_env.WebRootPath, folderPathSegment, allocatedFileName));
+                    uploadedFileUrlPath = targetDatabasePathUrl;
                 }
 
-                // 6. Map and Save Entity
                 var fullName = $"{targetUser.FullName}".Trim();
                 var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
 
@@ -380,12 +399,9 @@ namespace OnlineVotingApplication.Repository.Services
                     CandidateImg = targetDatabasePathUrl,
                     Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
                     PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
-
-                    // Political FKs assigned only if political category
                     PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
                     StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
                     LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
-
                     CreatedAt = DateTime.UtcNow,
                     isApproved = true,
                     CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
@@ -404,12 +420,14 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 await transaction.RollbackAsync();
 
-                foreach (var physicalPath in uploadedPhysicalFiles)
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                 {
-                    if (File.Exists(physicalPath))
-                    {
-                        try { File.Delete(physicalPath); } catch { }
-                    }
+                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
+                }
+
+                if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                {
+                    await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
                 }
 
                 response.Success = false;
@@ -417,6 +435,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+
+        // ─────────────────────────────────────────────
+        // 4. BUSINESS LOGIC: CREATE CANDIDATE BY SUPER ADMIN
+        // ─────────────────────────────────────────────
         public async Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model)
         {
             var response = new ServiceResponse<string>();
@@ -428,7 +450,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 1. Fetch targeted election event under specified TenantId
             var targetElection = await _appDbContext.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -443,9 +464,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 2. Resolve target user by email
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
-            var targetUser = await _UserManager.FindByEmailAsync(cleanEmail);
+            var targetUser = await _userManager.FindByEmailAsync(cleanEmail);
 
             if (targetUser == null)
             {
@@ -454,7 +474,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // 3. Category & Duplicate Check
             bool isPolitical = targetElection.Category == TenantCategory.Political;
 
             var candidateExists = await _appDbContext.Candidate
@@ -468,38 +487,36 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var uploadedPhysicalFiles = new List<string>();
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string? uploadedFileUrlPath = null;
+            bool roleAdded = false;
 
             await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
             try
             {
-                // 4. Role promotion to Candidate if missing
-                if (!await _UserManager.IsInRoleAsync(targetUser, "Candidate"))
+                if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
                 {
-                    var addRoleResult = await _UserManager.AddToRoleAsync(targetUser, "Candidate");
+                    var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
                     if (!addRoleResult.Succeeded)
                     {
                         throw new Exception("Failed to upgrade target user permissions to Candidate role.");
                     }
+                    roleAdded = true;
                 }
 
-                // 5. Image Processing
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
                 {
-                    string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
-                        file: model.CandidateImage,
-                        fileType: Enums.FileType.Image,
-                        uploadFolder: folderPathSegment,
-                        cancellationToken: CancellationToken.None
+                    using var stream = model.CandidateImage.OpenReadStream();
+                    targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        model.CandidateImage.FileName,
+                        stream,
+                        model.CandidateImage.ContentType
                     );
-
-                    targetDatabasePathUrl = $"/{folderPathSegment}/{allocatedFileName}";
-                    uploadedPhysicalFiles.Add(Path.Combine(_env.WebRootPath, folderPathSegment, allocatedFileName));
+                    uploadedFileUrlPath = targetDatabasePathUrl;
                 }
 
-                // 6. Map and Save Candidate Entity
                 var fullName = $"{targetUser.FullName}".Trim();
                 var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
 
@@ -515,12 +532,9 @@ namespace OnlineVotingApplication.Repository.Services
                     CandidateImg = targetDatabasePathUrl,
                     Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
                     PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
-
-                    // Political FKs assigned only if election category is political
                     PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
                     StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
                     LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
-
                     CreatedAt = DateTime.UtcNow,
                     isApproved = true,
                     CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
@@ -539,12 +553,14 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 await transaction.RollbackAsync();
 
-                foreach (var physicalPath in uploadedPhysicalFiles)
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                 {
-                    if (File.Exists(physicalPath))
-                    {
-                        try { File.Delete(physicalPath); } catch { }
-                    }
+                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
+                }
+
+                if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                {
+                    await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
                 }
 
                 response.Success = false;
@@ -552,6 +568,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+
         public void ClearCandidateCache(int pageNumber, int pageSize)
         {
             string cacheKey = $"ref_All_Candidates_P{pageNumber}_S{pageSize}";
@@ -1096,7 +1113,7 @@ namespace OnlineVotingApplication.Repository.Services
             var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            var user = await _UserManager.FindByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 response.Success = false;
@@ -1104,7 +1121,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            bool isAdmin = await _UserManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
             if (!isAdmin)
             {
                 response.Success = false;
@@ -1187,7 +1204,7 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<ServiceResponse<bool>> RestoreCandidateDeleteAsync(Guid Id, string UserId)
         {
             var response = new ServiceResponse<bool>();
-            var user = await _UserManager.FindByIdAsync(UserId);
+            var user = await _userManager.FindByIdAsync(UserId);
 
             if (user == null)
             {
@@ -1196,8 +1213,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            bool isAdmin = await _UserManager.IsInRoleAsync(user, "SuperAdmin");
-            bool isOfficial = await _UserManager.IsInRoleAsync(user, "Official");
+            bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
 
             if (!isAdmin && !isOfficial)
             {
@@ -1255,7 +1272,7 @@ namespace OnlineVotingApplication.Repository.Services
             var response = new ServiceResponse<bool>();
 
             // 1. Fetch user and their roles in one single query, eliminating the separate DbContext lookup
-            var user = await _UserManager.FindByIdAsync(userId);
+            var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
                 response.Success = false;
@@ -1265,8 +1282,8 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             // 2. Validate roles efficiently
-            bool isAdmin = await _UserManager.IsInRoleAsync(user, "SuperAdmin");
-            bool isOfficial = await _UserManager.IsInRoleAsync(user, "Official");
+            bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
 
             if (!isAdmin && !isOfficial)
             {
@@ -1300,11 +1317,10 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
 
-
         public async Task<ServiceResponse<string>> UpdateCandidateAsync(UpdateCandidateViewModel model, string Id, CancellationToken token)
         {
             var response = new ServiceResponse<string>();
-            var user = await _UserManager.FindByIdAsync(Id);
+            var user = await _userManager.FindByIdAsync(Id);
 
             if (user == null)
             {
@@ -1313,8 +1329,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            bool isAdmin = await _UserManager.IsInRoleAsync(user, "SuperAdmin");
-            bool isOfficial = await _UserManager.IsInRoleAsync(user, "Official");
+            bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
 
             if (!isAdmin && !isOfficial)
             {
@@ -1344,39 +1360,43 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            string folderPathSegment = "Candidate_Profiles";
+
             if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
             {
-                // 1. Let the service handle uploading the NEW image and return the actual file name
-                string allocatedFileName = await _fileService.RegisterAndQueueUploadAsync(
-                    file: model.CandidateImageUrl,
-                    fileType: Enums.FileType.Image,
-                    uploadFolder: "Candidate_Profiles", // Matches your creation folder exactly
-                    cancellationToken: CancellationToken.None
-                );
-
-                // 2. Temporarily hold onto the OLD path string before overwriting it
+                // 1. Temporarily hold onto the OLD image URL/path before overwriting it
                 string oldPathFromDb = existingCandidate.CandidateImg ?? "";
 
-                // 3. Update the database property with the clean web URL matching the creation pattern
-                existingCandidate.CandidateImg = $"/Candidate_Profiles/{allocatedFileName}";
+                // 2. Upload the new image to Supabase Storage
+                string newPublicUrl;
+                using (var stream = model.CandidateImageUrl.OpenReadStream())
+                {
+                    newPublicUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        model.CandidateImageUrl.FileName,
+                        stream,
+                        model.CandidateImageUrl.ContentType
+                    );
+                }
 
-                // 4. NOW safely clean up the old physical file from disk
+                // 3. Update the database property with the new public URL returned by Supabase
+                existingCandidate.CandidateImg = newPublicUrl;
+
+                // 4. Clean up the old file from Supabase storage if it's not a default fallback image
                 if (!string.IsNullOrEmpty(oldPathFromDb)
                     && !oldPathFromDb.Contains("default-candidate.png")
                     && !oldPathFromDb.Contains("default.png"))
                 {
-                    // Trim leading slash to safely combine paths on any operating system
-                    string relativePath = oldPathFromDb.TrimStart('/');
-
-                    // Reconstruct the exact physical file path on the server disk
-                    string oldFilePath = Path.Combine(_env.WebRootPath, relativePath);
-
-                    // Delete the old file from storage
-                    _fileService.DeleteFile(oldFilePath);
+                    try
+                    {
+                        // Pass both the old file URL/path and the bucket name to your Supabase service
+                        await _supabaseService.DeleteFileAsync(oldPathFromDb, folderPathSegment);
+                    }
+                    catch
+                    {
+                        // Suppress cleanup failures so they don't block the profile update
+                    }
                 }
-
-
-
             }
 
             // 3. UPDATE OTHER FIELDS
@@ -1395,5 +1415,6 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
     }
-
 }
+
+    

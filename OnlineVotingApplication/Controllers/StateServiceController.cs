@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -10,6 +11,8 @@ using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
 {
+    [Authorize]
+    [EnableRateLimiting("StandardPolicy")]
     public class StateServiceController : Controller
     {
         private readonly iStateService _StateService;
@@ -35,21 +38,23 @@ namespace OnlineVotingApplication.Controllers
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
 
+        [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
 
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public IActionResult CreateState()
         {
             return View();
         }
 
-        [Authorize(Roles = "SuperAdmin")]
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> CreateState(StateDTO model)
         {
             string? userId = _userManager.GetUserId(User);
@@ -62,27 +67,16 @@ namespace OnlineVotingApplication.Controllers
             if (!ModelState.IsValid)
             {
                 TempData["ErrorMessage"] = "Unable to create state due to validation errors.";
-
-                foreach (var item in ModelState)
-                {
-                    var fieldname = item.Key;
-                    var errors = item.Value.Errors;
-
-                    foreach (var error in errors)
-                    {
-                        System.Diagnostics.Debug.WriteLine($"Field: {fieldname} - Error: {error.ErrorMessage}");
-                    }
-                }
                 return View(model);
             }
 
-            if (model.Id == null)
+            if (model.Id == null || model.Id == Guid.Empty)
             {
                 model.Id = Guid.NewGuid();
             }
 
             var result = await _StateService.CreateStateAsync(model, userId);
-            if (result == false)
+            if (!result)
             {
                 TempData["ErrorMessage"] = "Unable to create state details database record.";
                 return View(model);
@@ -101,16 +95,17 @@ namespace OnlineVotingApplication.Controllers
             );
 
             TempData["SuccessMessage"] = "State created successfully!";
-            return RedirectToAction(nameof(AllState), new { id = model.Id });
+            return RedirectToAction(nameof(AllState));
         }
 
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public async Task<IActionResult> EditState(Guid id)
         {
             var user = _userManager.GetUserId(User);
             if (user == null)
             {
-                TempData["ErrorMessage"] = "User Unauthorized to perform this task. Only Admins or Officials can.";
+                TempData["ErrorMessage"] = "User unauthorized to perform this task.";
                 return RedirectToAction("Index", "Home");
             }
 
@@ -130,16 +125,24 @@ namespace OnlineVotingApplication.Controllers
             return View(model);
         }
 
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditState(string Id, UpdateStateDto model)
+        [EnableRateLimiting("StrictPolicy")]
+        public async Task<IActionResult> EditState(Guid id, UpdateStateDto model)
         {
+            if (id != model.Id)
+            {
+                TempData["ErrorMessage"] = "State ID mismatch.";
+                return View(model);
+            }
+
             if (!ModelState.IsValid)
             {
                 return View(model);
             }
 
-            var result = await _StateService.UpdateStateAsync(model, Id);
+            var result = await _StateService.UpdateStateAsync(model, id.ToString());
             if (!result)
             {
                 TempData["ErrorMessage"] = "Unable to Edit State";
@@ -159,8 +162,8 @@ namespace OnlineVotingApplication.Controllers
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
-            TempData["SucessMessage"] = "State Update Successful";
-            return RedirectToAction(nameof(AllState), new { model.Id });
+            TempData["SuccessMessage"] = "State Update Successful";
+            return RedirectToAction(nameof(AllState));
         }
 
         [HttpGet]
@@ -169,44 +172,47 @@ namespace OnlineVotingApplication.Controllers
             var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (user == null)
             {
-                TempData["ErrorMessage"] = "User not Found";
+                TempData["ErrorMessage"] = "User not found";
                 return RedirectToAction("Index", "Home");
             }
 
-            int Allstate = await _context.States.CountAsync();
-            ViewBag.StateCount = Allstate;
+            int allStateCount = await _context.States.CountAsync();
+            ViewBag.StateCount = allStateCount;
             var result = await _StateService.GetAllStatesAsync();
 
-            if (result.Count == 0)
+            if (result == null || result.Count == 0)
             {
                 TempData["ErrorMessage"] = "State search returned nothing";
-                return View(result);
             }
 
             return View(result);
         }
 
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public IActionResult ConfirmSoftDelete()
         {
             return View();
         }
 
+        [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
-        public async Task<IActionResult> ConfirmStateDelete(Guid Id)
+        [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
+        public async Task<IActionResult> ConfirmStateDelete(Guid id)
         {
             var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (user == null)
             {
-                TempData["ErrorMessage"] = "User not found/Unathorized to perform this function";
+                TempData["ErrorMessage"] = "User not found / Unauthorized to perform this function";
                 return RedirectToAction("Index", "Home");
             }
 
-            var result = await _StateService.DeleteStateAsync(Id);
+            var result = await _StateService.DeleteStateAsync(id);
             if (!result)
             {
-                TempData["ErrorMessage"] = "State deleted unsuccessful";
-                return View();
+                TempData["ErrorMessage"] = "State deletion unsuccessful";
+                return RedirectToAction(nameof(AllState));
             }
 
             // --- AUDIT LOGGING ---
@@ -216,12 +222,13 @@ namespace OnlineVotingApplication.Controllers
             await _auditLogService.LogActivityAsync(
                 userId: user,
                 action: "State Deleted",
-                details: $"Deleted state ID: {Id}",
+                details: $"Deleted state ID: {id}",
                 ipAddress: ipAddress,
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
-            return View(nameof(AllState));
+            TempData["SuccessMessage"] = "State deleted successfully.";
+            return RedirectToAction(nameof(AllState));
         }
     }
 }

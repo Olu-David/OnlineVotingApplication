@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using OnlineVotingApplication.Areas.Identity.Data;
@@ -40,7 +41,8 @@ namespace OnlineVotingApplication.Controllers
             ITenantProvider tenantProvider,
             IDistributedCache cache,
             IEmailService emailService,
-            IAuditLogService auditLogService, iCandidateService candidateService)
+            IAuditLogService auditLogService,
+            iCandidateService candidateService)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -123,6 +125,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects global form schema modifications against rapid spam
         public async Task<IActionResult> BuildGlobalForm(string fieldName, ElectionFieldType fieldType, TenantCategory tenantCategory, string? csvChoices, bool isRequired)
         {
             if (string.IsNullOrWhiteSpace(fieldName))
@@ -147,6 +150,8 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Global template field published successfully.";
             return RedirectToAction("BuildGlobalForm");
         }
+
+        [HttpGet]
         public async Task<IActionResult> AllTenants(int pageNumber = 1, int pageSize = 10)
         {
             ViewData["Ctrl"] = "SuperAdminDashboard";
@@ -241,6 +246,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant context session switching from rapid switching abuse
         public async Task<IActionResult> SwitchContext(Guid id)
         {
             if (id == Guid.Empty) return BadRequest("Invalid Tenant ID.");
@@ -264,6 +270,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects state clearance actions against automated spam
         public async Task<IActionResult> ClearTenantContext()
         {
             _tenantProvider.ClearTenantContext();
@@ -282,7 +289,6 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Returned to SuperAdmin context.";
             return RedirectToAction("Dashboard", "SuperAdmin");
         }
-
 
         // --- PENDING TENANT REGISTRATION APPROVALS ---
         [HttpGet]
@@ -357,6 +363,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant approval actions from bulk automation/spam
         public async Task<IActionResult> AcceptTenant(Guid id)
         {
             if (id == Guid.Empty) return BadRequest();
@@ -406,6 +413,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant rejection actions from rapid spam clicks
         public async Task<IActionResult> RejectTenant(Guid id)
         {
             if (id == Guid.Empty) return BadRequest();
@@ -487,6 +495,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")] // Protects global candidate creation from script injections and form spam
         public async Task<IActionResult> CreateCandidateSuperAdmin(SuperAdminCandidateCreationViewModel model)
         {
             // 1. Resolve User ID directly as string or Guid without premature returns

@@ -24,7 +24,7 @@ namespace OnlineVotingApplication.Controllers
             _supportService = supportService;
         }
 
-
+        [HttpGet]
         public async Task<IActionResult> Index()
         {
             // 1. Fetch elections list
@@ -32,9 +32,6 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.PastElections = pastElectionsResponse.Success && pastElectionsResponse.Data != null
                 ? pastElectionsResponse.Data
                 : new List<ElectionEvent>();
-
-            // 2. Fetch vote count using No-Tracking to avoid opening heavy transaction contexts
-            ViewBag.ElectionCount = await _Context.Votes.AsNoTracking().CountAsync();
 
             return View();
         }

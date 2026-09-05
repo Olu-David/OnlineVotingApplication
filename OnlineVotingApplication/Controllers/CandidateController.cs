@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -102,6 +103,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "SuperAdmin,Official")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
         {
             if (string.IsNullOrWhiteSpace(model.CandidateEmail))
@@ -233,6 +235,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "Voter,Candidate")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string token)
         {
             if (model == null || model.ElectionEventId == Guid.Empty)
@@ -348,6 +351,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SoftDelete(Guid id)
         {
             var userId = _userManager.GetUserId(User);
@@ -384,6 +388,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> RestoreCandidate(Guid id)
         {
             var userId = _userManager.GetUserId(User);
@@ -645,6 +650,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> UpdateCandidate(UpdateCandidateViewModel model, CancellationToken cancellationToken)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
@@ -676,6 +682,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> ResetCacheSoftDelete(Guid candidateId, int pageNumber = 1, int pageSize = 10)
         {
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";

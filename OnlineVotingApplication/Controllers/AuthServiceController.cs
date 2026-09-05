@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Diagnostics.Tracing.Parsers.FrameworkEventSource;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
@@ -10,6 +10,7 @@ using System.Text;
 
 namespace OnlineVotingApplication.Controllers
 {
+    [EnableRateLimiting("StandardPolicy")] // Default policy for controller actions
     public class AuthServiceController : Controller
     {
         private readonly iAuthService _AuthService;
@@ -42,6 +43,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")] // Protect registration against bot spam
         public async Task<IActionResult> UserRegistration(RegistrationViewModel model, string roles = "Voter")
         {
             if (!ModelState.IsValid)
@@ -134,6 +136,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [AllowAnonymous]
+        [EnableRateLimiting("StrictPolicy")] // Critical protection against brute-force password guessing
         public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
         {
             returnUrl ??= Url.Content("~/");
@@ -165,7 +168,6 @@ namespace OnlineVotingApplication.Controllers
                         return RedirectToAction("Index", "Candidate");
                     if (await _userManager.IsInRoleAsync(user, "Auditor"))
                         return RedirectToAction("Index", "Auditor");
-
                 }
 
                 return LocalRedirect(returnUrl);
@@ -203,6 +205,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")] // Prevent automated 2FA code guessing
         public async Task<IActionResult> LoginWith2fa(LoginWith2faViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
@@ -228,6 +231,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")] // Prevent denial-of-service / email-flooding attacks via password recovery
         public async Task<IActionResult> ForgotPassword(ForgotPasswordVM model)
         {
             if (!ModelState.IsValid) return View(model);
@@ -258,6 +262,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")] // Prevent rapid-fire password reset attempts
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
@@ -299,8 +304,9 @@ namespace OnlineVotingApplication.Controllers
             ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
         }
+
         [HttpPost]
-        [ValidateAntiForgeryToken] 
+        [ValidateAntiForgeryToken]
         public async Task<IActionResult> LogoutUser()
         {
             var userId = _userManager.GetUserId(User);
@@ -308,16 +314,15 @@ namespace OnlineVotingApplication.Controllers
             if (string.IsNullOrEmpty(userId))
             {
                 TempData["ErrorMessage"] = "User is not logged in.";
-                return RedirectToAction("Index", "Home"); // Exit early
+                return RedirectToAction("Index", "Home");
             }
 
             try
             {
-                // Must await the SignOutAsync task
                 await _signManager.SignOutAsync();
                 TempData["SuccessMessage"] = "Logged out successfully.";
 
-                return RedirectToAction("Index", "Home"); // Action: Index, Controller: Home
+                return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
             {

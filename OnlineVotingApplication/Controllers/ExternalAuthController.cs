@@ -15,8 +15,8 @@ namespace OnlineVotingApplication.Controllers
     public class ExternalAuthController : Controller
     {
         private readonly iExternalAuthService _externalAuthService;
-        private readonly IAppleAuthService _appleAuthService; // Added missing dependency
-        private readonly UserManager<ApplicationUser> _userManager; // Added missing dependency
+        private readonly IAppleAuthService _appleAuthService;
+        private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<ExternalAuthController> _logger;
 
@@ -34,10 +34,33 @@ namespace OnlineVotingApplication.Controllers
             _logger = logger;
         }
 
+        // ─── INITIAL CHALLENGE ACTIONS (Fixes the 404 Error) ─────────────
+
+        [HttpPost]
+        [AllowAnonymous]
+        public IActionResult GoogleAuth(string? returnUrl = null)
+        {
+            // Request a redirect to Google's authentication page
+            var redirectUrl = Url.Action("ExternalLoginCallback", "ExternalAuth", new { returnUrl });
+            var properties = _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
+            return Challenge(properties, "Google");
+        }
+
+        [HttpPost]
+        [AllowAnonymous]
+        public IActionResult AppleAuth(string? returnUrl = null)
+        {
+            // Request a redirect to Apple's authentication page
+            var redirectUrl = Url.Action("ExternalLoginCallback", "ExternalAuth", new { returnUrl });
+            var properties = _signInManager.ConfigureExternalAuthenticationProperties("Apple", redirectUrl);
+            return Challenge(properties, "Apple");
+        }
+
+        // ─── CALLBACKS ───────────────────────────────────────────────────
+
         [HttpPost("google-callback")]
         public async Task<IActionResult> GoogleCallback(string accessToken)
         {
-            // If you are using your custom external auth service pipeline:
             var authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(accessToken, "Voter");
 
             if (!authResponse.Success || authResponse.Data == null)
@@ -57,14 +80,14 @@ namespace OnlineVotingApplication.Controllers
             if (remoteError != null)
             {
                 TempData["Error"] = $"Error from external provider: {remoteError}";
-                return RedirectToAction("Login", "AuthService");
+                return RedirectToAction("Login", "Account"); // Pointing to standard account login route
             }
 
             var info = await _signInManager.GetExternalLoginInfoAsync();
             if (info == null)
             {
                 TempData["Error"] = "Error loading external login information.";
-                return RedirectToAction("Login", "AuthService");
+                return RedirectToAction("Login", "Account");
             }
 
             var email = info.Principal.FindFirstValue(ClaimTypes.Email);
@@ -75,7 +98,7 @@ namespace OnlineVotingApplication.Controllers
             if (string.IsNullOrEmpty(email))
             {
                 TempData["Error"] = "External provider did not return an email address.";
-                return RedirectToAction("Login", "AuthService");
+                return RedirectToAction("Login", "Account");
             }
 
             ServiceResponse<ApplicationUser> authResponse;
@@ -92,7 +115,7 @@ namespace OnlineVotingApplication.Controllers
             if (!authResponse.Success || authResponse.Data == null)
             {
                 TempData["Error"] = authResponse.Message;
-                return RedirectToAction("Login", "AuthService");
+                return RedirectToAction("Login", "Account");
             }
 
             await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
@@ -134,7 +157,6 @@ namespace OnlineVotingApplication.Controllers
                     return BadRequest(new { success = false, message = "Could not extract email from Apple token." });
                 }
 
-                // Parse Apple's first name/last name block if passed on first signup
                 string firstName = "Apple";
                 string lastName = "User";
                 if (!string.IsNullOrEmpty(user))
@@ -151,7 +173,6 @@ namespace OnlineVotingApplication.Controllers
                     catch { /* Fallback name tracking */ }
                 }
 
-                // Route through your established custom service layer handling
                 var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(appleSubId ?? email, firstName, lastName, "Voter");
 
                 if (!authResponse.Success || authResponse.Data == null)
@@ -171,8 +192,6 @@ namespace OnlineVotingApplication.Controllers
 
         private string GenerateAppleClientSecret()
         {
-            // TODO: Implement your Apple JWT client_secret generator using your 
-            // Team ID, Service ID (Client ID), Key ID, and private .p8 file.
             return "YOUR_GENERATED_APPLE_CLIENT_SECRET_JWT";
         }
     }

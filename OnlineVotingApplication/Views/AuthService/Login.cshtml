@@ -2,6 +2,7 @@
 
 @{
     ViewData["Title"] = "Sign In";
+    Layout = "_AuthLayout"; // <-- This forces the page to use your clean auth layout
 }
 
 @section Styles {
@@ -104,13 +105,11 @@
             const submitBtn = document.getElementById("submitBtn");
 
             form.addEventListener("submit", function (e) {
-                // Check if jQuery validation passes before showing loading overlay
                 if ($(form).valid()) {
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");
                     submitBtn.disabled = true;
                 } else {
-                    // Prevent submission if validation fails
                     e.preventDefault();
                 }
             });

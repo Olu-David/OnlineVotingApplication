@@ -17,23 +17,30 @@ public static class VotingInfrastructureExtensions
     {
         var connectionString = configuration.GetConnectionString("DefaultConnection");
 
-        if (string.IsNullOrEmpty(connectionString))
+        if (string.IsNullOrWhiteSpace(connectionString))
         {
             throw new InvalidOperationException("Connection string 'DefaultConnection' is null or empty!");
         }
 
-        // Automatically convert cloud URI connection strings (like those from Render/Supabase) 
-        // into keyword format, keeping local development strings completely untouched.
+        // ─── SAFE DATABASE URI PARSING ────────────────────────────────────────
+        // Automatically convert cloud URI connection strings (Render/Supabase) 
+        // into keyword format without crashing the app if formatting is off.
         if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
-            var uri = new Uri(connectionString);
-            var userInfo = uri.UserInfo.Split(':');
+            if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
+            {
+                var userInfo = uri.UserInfo.Split(':');
+                var dbName = uri.AbsolutePath.TrimStart('/');
 
-            connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={uri.AbsolutePath.TrimStart('/')};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
+                connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={dbName};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
+            }
+            else
+            {
+                throw new InvalidOperationException($"The 'DefaultConnection' environment variable starts with a postgres protocol, but the URI is malformed and cannot be parsed: '{connectionString}'");
+            }
         }
 
-        
         var providerConfig = configuration["DatabaseProvider"];
         bool usePostgres = !string.IsNullOrEmpty(providerConfig)
             ? providerConfig.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
@@ -126,12 +133,14 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<IAuditLogService, AuditLogService>();
         services.AddScoped<HybridFormBuilderService>();
 
-        // Real-Time & Redis Cache
+        // Real-Time & Redis Cache (Safeguarded)
         services.AddSignalR();
         var redisConnectionString = configuration["REDIS_URL"] ?? configuration.GetConnectionString("RedisConnection");
+
         services.AddStackExchangeRedisCache(options =>
         {
-            options.Configuration = redisConnectionString;
+            // Fallback gracefully or configure only if string is valid
+            options.Configuration = !string.IsNullOrWhiteSpace(redisConnectionString) ? redisConnectionString : "localhost:6379";
             options.InstanceName = "VotezyCache_";
         });
 

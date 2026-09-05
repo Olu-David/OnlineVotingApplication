@@ -77,7 +77,7 @@
 
                     <div class="row g-2">
                         <div class="col-6">
-                            <form asp-controller="Account" asp-action="ExternalLogin" asp-route-provider="Google" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-google text-danger"></i>
                                     <span class="small fw-semibold">Google</span>
@@ -85,7 +85,7 @@
                             </form>
                         </div>
                         <div class="col-6">
-                            <form asp-controller="Account" asp-action="ExternalLogin" asp-route-provider="Apple" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-apple"></i>
                                     <span class="small fw-semibold">Apple</span>
@@ -117,6 +117,8 @@
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");
                     submitBtn.disabled = true;
+                } else {
+                    event.preventDefault();
                 }
             });
         });

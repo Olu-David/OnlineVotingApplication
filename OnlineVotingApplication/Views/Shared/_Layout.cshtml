@@ -51,14 +51,22 @@
 
     bool isAdminShell = isSuperAdmin || isOfficial;
 
-    // ─── FETCH PAST ELECTIONS FOR LAYOUT ─────────────────────────────
+    // ─── FETCH PAST ELECTIONS FOR PUBLIC FOOTER ONLY ─────────────────
     List<ElectionEvent> pastElectionsList = new();
-    if (isAuth)
+    if (!isAdminShell && isAuth)
     {
-        var pastResponse = await ElectionService.GetPastElectionsAsync();
-        if (pastResponse.Success && pastResponse.Data != null)
+        try
         {
-            pastElectionsList = pastResponse.Data;
+            var pastResponse = await ElectionService.GetPastElectionsAsync();
+            if (pastResponse != null && pastResponse.Success && pastResponse.Data != null)
+            {
+                pastElectionsList = pastResponse.Data;
+            }
+        }
+        catch
+        {
+            // Fail silently on layout database queries to prevent crashing page views
+            pastElectionsList = new();
         }
     }
 

@@ -34,11 +34,9 @@ namespace OnlineVotingApplication
                     options.UseInMemoryDatabase("OnlineVotingApplicationTestDb"));
             }
 
-            // Register infrastructure services (channels, background workers, app services)
-            // Note: VotingInfrastructureExtensions will now safely skip overriding the DbContext if environment is "Testing"
             builder.Services.AddVotingInfrastructure(builder.Configuration, builder.Environment);
 
-            // 4. Identity, Security & Unified Rate Limiter
+            // 4. Identity, Security (Called ONCE here)
             builder.Services.AddCustomIdentityAndSecurity();
 
             // 5. Session Setup
@@ -62,19 +60,37 @@ namespace OnlineVotingApplication
                 client.DefaultRequestHeaders.Add("Accept", "application/json");
             });
 
-            // Register the "StandardPolicy" required by your endpoints
+            // 7. Advanced Rate Limiter Policy Setup
             builder.Services.AddRateLimiter(options =>
             {
-                options.AddFixedWindowLimiter("StandardPolicy", opt =>
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+                options.AddSlidingWindowLimiter("StandardPolicy", opt =>
                 {
                     opt.PermitLimit = 100;
                     opt.Window = TimeSpan.FromMinutes(1);
-                    opt.QueueLimit = 2;
+                    opt.SegmentsPerWindow = 4;
+                    opt.QueueLimit = 5;
+                    opt.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
                 });
+
+                options.OnRejected = async (context, cancellationToken) =>
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    if (context.HttpContext.Request.Headers["X-Requested-With"] == "XMLHttpRequest")
+                    {
+                        await context.HttpContext.Response.WriteAsJsonAsync(new { error = "Too many requests. Please try again later." }, cancellationToken);
+                    }
+                    else
+                    {
+                        context.HttpContext.Response.ContentType = "text/plain";
+                        await context.HttpContext.Response.WriteAsync("Too many requests. Please slow down.", cancellationToken);
+                    }
+                };
             });
 
             // ==========================================
-            // BUILD THE APPLICATION (Called ONLY ONCE)
+            // BUILD THE APPLICATION
             // ==========================================
             var app = builder.Build();
 
@@ -94,9 +110,7 @@ namespace OnlineVotingApplication
             app.UseRouting();
             app.UseSession();
 
-            // Must be placed after UseRouting and before UseAuthentication/Authorization
             app.UseRateLimiter();
-
             app.UseAuthentication();
             app.UseAuthorization();
 

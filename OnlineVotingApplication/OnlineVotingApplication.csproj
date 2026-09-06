@@ -16,6 +16,7 @@
     <PackageReference Include="Hashids.net" Version="1.7.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Google" Version="9.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.EntityFrameworkCore" Version="9.0.0" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="9.0.12" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="9.0.12" />
     <PackageReference Include="Microsoft.CodeAnalysis.Common" Version="4.14.0" />

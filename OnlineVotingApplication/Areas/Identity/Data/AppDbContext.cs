@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+﻿using Microsoft.AspNetCore.DataProtection.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Models;
@@ -6,10 +7,11 @@ using OnlineVotingApplication.Repository.iServices;
 
 namespace OnlineVotingApplication.Areas.Identity.Data;
 
-public class AppDbContext : IdentityDbContext<ApplicationUser>
+public class AppDbContext : IdentityDbContext<ApplicationUser>, IDataProtectionKeyContext
 {
     private readonly ITenantProvider _tenantProvider;
 
+    // FIXED: Removed the erroneous IDataProtectionKeyContext parameter from the constructor
     public AppDbContext(DbContextOptions<AppDbContext> options, ITenantProvider tenantProvider)
         : base(options)
     {
@@ -246,4 +248,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<CandidateGallery> CandidateGalleries { get; set; }
     public DbSet<SupportTicket> SupportTickets { get; set; }
     public DbSet<AuditLog> Audits { get; set; }
+
+    // REQUIRED: DbSet for Data Protection keys to persist encryption keys in Postgres
+    public DbSet<DataProtectionKey> DataProtectionKeys { get; set; } = null!;
 }

@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Channels;
 using OnlineVotingApplication.Repository.BackGroundServices;
@@ -153,7 +154,9 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<IAppleAuthService, AppleAuthService>();
         services.AddScoped<iExternalAuthService, ExternalAuthService>();
         services.AddScoped<HybridFormBuilderService>();
-
+        // Store data protection keys in your Supabase PostgreSQL database
+        services.AddDataProtection()
+            .PersistKeysToDbContext<AppDbContext>();
         services.AddSignalR();
         var redisConnectionString = configuration["REDIS_URL"] ?? configuration.GetConnectionString("RedisConnection");
 

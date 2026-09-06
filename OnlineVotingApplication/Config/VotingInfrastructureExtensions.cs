@@ -8,6 +8,7 @@ using OnlineVotingApplication.Repository.Services;
 using OnlineVotingApplication.Repository.Settings;
 using OnlineVotingApplication.Services;
 using OnlineVotingApplication.SupaBase;
+using System.Text.RegularExpressions;
 
 namespace OnlineVotingApplication.Config;
 
@@ -15,22 +16,41 @@ public static class VotingInfrastructureExtensions
 {
     public static IServiceCollection AddVotingInfrastructure(this IServiceCollection services, IConfiguration configuration, IWebHostEnvironment environment)
     {
-        // Automatically use "LocalConnection" when running locally, and "DefaultConnection" (Supabase) in production
-        var connectionString = environment.IsDevelopment()
-            ? (configuration.GetConnectionString("LocalConnection") ?? configuration.GetConnectionString("DefaultConnection"))
-            : configuration.GetConnectionString("DefaultConnection");
+        var providerConfig = configuration["DatabaseProvider"];
+        bool forcePostgres = !string.IsNullOrEmpty(providerConfig) && providerConfig.Equals("Postgres", StringComparison.OrdinalIgnoreCase);
+
+        // Fixed: Directly target DefaultConnection/DATABASE_URL first, bypassing local connection overrides
+        var connectionString = configuration.GetConnectionString("DefaultConnection")
+                               ?? configuration["DATABASE_URL"]
+                               ?? configuration.GetConnectionString("LocalConnection");
 
         if (string.IsNullOrWhiteSpace(connectionString))
         {
-            throw new InvalidOperationException("Connection string is null or empty!");
+            throw new InvalidOperationException("Connection string is null or empty! Ensure DATABASE_URL or DefaultConnection is configured.");
         }
 
-        // ─── SAFE DATABASE URI PARSING ────────────────────────────────────────
-        // Automatically convert cloud URI connection strings (Render/Supabase) 
-        // into keyword format without crashing the app if formatting is off.
+        // Sanitize and strip out accidental tcp:// prefix on the WHOLE string
+        if (connectionString.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+        {
+            connectionString = connectionString.Substring(6);
+        }
+
+        // Strip any scheme prefix immediately after "Host="
+        connectionString = Regex.Replace(
+            connectionString,
+            @"(Host\s*=\s*)(?:tcp|https?|postgres(?:ql)?)://",
+            "$1",
+            RegexOptions.IgnoreCase);
+
         if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
             connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
         {
+            var queryIndex = connectionString.IndexOf('?');
+            if (queryIndex >= 0)
+            {
+                connectionString = connectionString.Substring(0, queryIndex);
+            }
+
             if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
             {
                 var userInfo = uri.UserInfo.Split(':');
@@ -44,11 +64,11 @@ public static class VotingInfrastructureExtensions
             }
         }
 
-        var providerConfig = configuration["DatabaseProvider"];
-        bool usePostgres = !string.IsNullOrEmpty(providerConfig)
-            ? providerConfig.Equals("Postgres", StringComparison.OrdinalIgnoreCase)
-            : (connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) ||
-               connectionString.Contains("Username=", StringComparison.OrdinalIgnoreCase));
+        bool usePostgres = forcePostgres ||
+            !string.IsNullOrEmpty(providerConfig) && providerConfig.Equals("Postgres", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("Host=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("Username=", StringComparison.OrdinalIgnoreCase) ||
+            connectionString.Contains("postgres://", StringComparison.OrdinalIgnoreCase);
 
         if (string.IsNullOrEmpty(providerConfig))
         {
@@ -61,7 +81,6 @@ public static class VotingInfrastructureExtensions
             }
         }
 
-        // Database Context
         services.AddDbContext<AppDbContext>(options =>
         {
             if (usePostgres)
@@ -82,25 +101,21 @@ public static class VotingInfrastructureExtensions
             }
         });
 
-        // Utilities & MVC
         services.AddMemoryCache();
         services.AddHttpContextAccessor();
         services.AddControllersWithViews();
 
-        // Settings & Channels
         services.Configure<EmailSettings>(configuration.GetSection("EmailSettings"));
         services.AddSingleton<NotificationChannel>();
         services.AddSingleton<FileChannel>();
         services.AddSingleton<VotingChannel>();
         services.AddSingleton<DeleteChannel>();
 
-        // Background Services
         services.AddHostedService<NotificationBackgroundService>();
         services.AddHostedService<FileProcessingBackgroundService>();
         services.AddHostedService<VoteBackgroundService>();
         services.AddHostedService<DeleteBackGroundService>();
 
-        // Supabase Client
         services.AddScoped<Supabase.Client>(provider =>
         {
             var config = provider.GetRequiredService<IConfiguration>();
@@ -119,7 +134,6 @@ public static class VotingInfrastructureExtensions
             });
         });
 
-        // Application Services
         services.AddScoped<iAuthService, AuthService>();
         services.AddScoped<iCandidateService, CandidateService>();
         services.AddScoped<ISupaBaseFileService, SupabaseFileService>();
@@ -140,7 +154,6 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<iExternalAuthService, ExternalAuthService>();
         services.AddScoped<HybridFormBuilderService>();
 
-        // Real-Time & Redis Cache (Safeguarded for Upstash/Render)
         services.AddSignalR();
         var redisConnectionString = configuration["REDIS_URL"] ?? configuration.GetConnectionString("RedisConnection");
 

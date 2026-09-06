@@ -14,6 +14,7 @@ namespace OnlineVotingApplication
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
+            Console.WriteLine("###### RUNNING UPDATED CODE ######");
 
             // 1. Add MVC Controllers & Views
             builder.Services.AddControllersWithViews();
@@ -55,7 +56,7 @@ namespace OnlineVotingApplication
                 options.Cookie.IsEssential = true;
             });
 
-            // 6. External Auth Service Registrations (AppleAuth.NET used inside AppleAuthService)
+            // 6. External Auth Service Registrations
             builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>(client =>
             {
                 client.BaseAddress = new Uri("https://www.googleapis.com/");
@@ -108,7 +109,8 @@ namespace OnlineVotingApplication
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
                                    Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
             });
-            if(app.Environment.IsDevelopment())
+
+            if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
             }
@@ -120,7 +122,7 @@ namespace OnlineVotingApplication
 
             if (app.Environment.EnvironmentName != "Testing")
             {
-                // Ensures migrations and seeding execute on Render container boot
+                // Ensures migrations and seeding execute smoothly using native configuration
                 await app.InitializeAndSeedDatabaseAsync(app.Environment);
             }
 

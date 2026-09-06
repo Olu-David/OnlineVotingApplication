@@ -2,6 +2,7 @@
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.DatabaseService;
+using System.Text.RegularExpressions;
 
 namespace OnlineVotingApplication.Config
 {
@@ -15,19 +16,12 @@ namespace OnlineVotingApplication.Config
 
             try
             {
-                var context = services.GetRequiredService<AppDbContext>();
-
-                // 1. In-Memory execution path for testing environment
-                if (context.Database.IsInMemory())
-                {
-                    await context.Database.EnsureCreatedAsync();
-                    return;
-                }
-
-                // 2. Safely check if a connection string is present based on the environment
                 var configuration = services.GetRequiredService<IConfiguration>();
+
+                // FIXED: Now checks DefaultConnection, DATABASE_URL, and LocalConnection uniformly
                 var connectionString = configuration.GetConnectionString("DefaultConnection")
-                                       ?? configuration.GetConnectionString("LocalConnection");
+                                    ?? configuration["DATABASE_URL"]
+                                    ?? configuration.GetConnectionString("LocalConnection");
 
                 if (string.IsNullOrWhiteSpace(connectionString))
                 {
@@ -36,14 +30,57 @@ namespace OnlineVotingApplication.Config
                     return;
                 }
 
-                // Safe metadata extraction (prevents provider formatting crashes)
-                string dbName = "Unknown Database";
+                // Clean up tcp:// prefix if present
+                if (connectionString.StartsWith("tcp://", StringComparison.OrdinalIgnoreCase))
+                {
+                    connectionString = connectionString.Substring(6);
+                }
+
+                // Strip any scheme prefix immediately after "Host="
+                connectionString = Regex.Replace(
+                    connectionString,
+                    @"(Host\s*=\s*)(?:tcp|https?|postgres(?:ql)?)://",
+                    "$1",
+                    RegexOptions.IgnoreCase);
+
+                // Handle Supabase/Postgres URI format if passed directly
+                if (connectionString.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase) ||
+                    connectionString.StartsWith("postgresql://", StringComparison.OrdinalIgnoreCase))
+                {
+                    var queryIndex = connectionString.IndexOf('?');
+                    if (queryIndex >= 0)
+                    {
+                        connectionString = connectionString.Substring(0, queryIndex);
+                    }
+
+                    if (Uri.TryCreate(connectionString, UriKind.Absolute, out var uri))
+                    {
+                        var userInfo = uri.UserInfo.Split(':');
+                        var dbName = uri.AbsolutePath.TrimStart('/');
+
+                        connectionString = $"Host={uri.Host};Port={(uri.Port > 0 ? uri.Port : 5432)};Database={dbName};Username={userInfo[0]};Password={(userInfo.Length > 1 ? userInfo[1] : "")};SSL Mode=Require;Trust Server Certificate=true;";
+                    }
+                }
+
+                // FORCE the DbContext to use the clean configuration string
+                var context = services.GetRequiredService<AppDbContext>();
+                context.Database.SetConnectionString(connectionString);
+
+                // 1. In-Memory execution path for testing environment
+                if (context.Database.IsInMemory())
+                {
+                    await context.Database.EnsureCreatedAsync();
+                    return;
+                }
+
+                // Safe metadata extraction
+                string dbNameMeta = "Unknown Database";
                 string dataSource = "Unknown Host/Server";
 
                 try
                 {
                     var dbConnection = context.Database.GetDbConnection();
-                    dbName = dbConnection?.Database ?? "Unknown Database";
+                    dbNameMeta = dbConnection?.Database ?? "Unknown Database";
                     dataSource = dbConnection?.DataSource ?? "Unknown Host/Server";
                 }
                 catch
@@ -51,10 +88,10 @@ namespace OnlineVotingApplication.Config
                     dataSource = context.Database.ProviderName ?? "Unknown Provider";
                 }
 
-                Console.WriteLine($"[DATABASE CHECK] Attempting connection to Server/Provider: '{dataSource}' | Database: '{dbName}'...");
-                logger?.LogInformation("[DATABASE CHECK] Attempting connection to Server/Provider: '{DataSource}' | Database: '{DbName}'", dataSource, dbName);
+                Console.WriteLine($"[DATABASE CHECK] Attempting connection to Server/Provider: '{dataSource}' | Database: '{dbNameMeta}'...");
+                logger?.LogInformation("[DATABASE CHECK] Attempting connection to Server/Provider: '{DataSource}' | Database: '{DbName}'", dataSource, dbNameMeta);
 
-                // 3. Pre-Flight Connection Check (Extended to 30s for Render Cold Starts)
+                // 3. Pre-Flight Connection Check (Extended to 30s for Cold Starts)
                 try
                 {
                     using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(30));

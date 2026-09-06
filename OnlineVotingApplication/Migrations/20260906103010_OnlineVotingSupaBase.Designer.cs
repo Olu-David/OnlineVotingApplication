@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260906074442_UpdateModelChanges")]
-    partial class UpdateModelChanges
+    [Migration("20260906103010_OnlineVotingSupaBase")]
+    partial class OnlineVotingSupaBase
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

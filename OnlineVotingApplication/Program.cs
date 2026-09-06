@@ -141,6 +141,10 @@ namespace OnlineVotingApplication
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
+            // Ensure the application listens on Render's required port (defaults to 10000 or uses PORT env variable)
+            var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+            app.Urls.Add($"http://*:{port}");
+
             await app.RunAsync();
         }
     }

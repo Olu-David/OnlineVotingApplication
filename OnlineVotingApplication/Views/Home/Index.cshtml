@@ -1,14 +1,12 @@
 ﻿@model IEnumerable<OnlineVotingApplication.Models.ElectionEvent>
 
 @{
-    ViewData["Title"] = "Available Elections";
+    ViewData["Title"] = "VoteZy — Vote with Confidence & Elections";
     var now = DateTime.UtcNow;
 
     var allElections = Model?.ToList() ?? new List<OnlineVotingApplication.Models.ElectionEvent>();
 
-    // "Trending" = the currently active election ending soonest. Falls back to
-    // the soonest upcoming one if nothing is active right now. Pure view-side
-    // logic, no controller changes needed.
+    // "Trending" = active election ending soonest, or fallback to soonest upcoming
     var featured = allElections
         .Where(e => e.StartDate <= now && e.EndDate >= now)
         .OrderBy(e => e.EndDate)
@@ -36,12 +34,86 @@
     <link rel="stylesheet" href="/css/voter.css" asp-append-version="true" />
 }
 
-<div class="container mt-4 mb-5">
+<!-- ── HERO SECTION ── -->
+<section class="home-hero">
+    <div class="container">
+        <div class="home-hero-grid">
+            <div class="home-hero-copy">
+                <span class="home-eyebrow">Secure &middot; Verified &middot; Counted</span>
+                <h1 class="home-headline">Every vote gets a stub.<br />Every stub gets counted.</h1>
+                <p class="home-sub">
+                    VoteZy brings the paper-trail confidence of a physical ballot to an online election —
+                    register once, verify who you are, and cast a vote you can track from booth to tally.
+                </p>
+                <div class="home-cta-row">
+                    <a asp-controller="AuthService" asp-action="UserRegistration" class="btn home-btn-primary">
+                        Register to vote
+                    </a>
+                    <a asp-controller="Results" asp-action="LiveCount" class="btn home-btn-ghost">
+                        <span class="pulse-dot">&#9679;</span> View live results
+                    </a>
+                </div>
+            </div>
 
+            <div class="home-hero-visual">
+                <div class="ballot-stub">
+                    <div class="ballot-stub-top">
+                        <span class="ballot-stub-label">Counterfoil No.</span>
+                        <span class="ballot-stub-no">04213</span>
+                    </div>
+                    <div class="ballot-stub-tear"></div>
+                    <div class="ballot-stub-bottom">
+                        <div class="ballot-stat">
+                            <span class="ballot-stat-value">@ViewBag.ElectionCount</span>
+                            <span class="ballot-stat-label">Votes cast today</span>
+                        </div>
+                        <div class="ballot-stat">
+                            <span class="ballot-stat-value">@allElections.Count(e => e.StartDate <= now && e.EndDate >= now)</span>
+                            <span class="ballot-stat-label">Elections open now</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── HOW IT WORKS SECTION ── -->
+<section class="home-steps">
+    <div class="container">
+        <h2 class="home-section-title">How it works</h2>
+        <ol class="home-steps-list">
+            <li>
+                <span class="home-step-no">01</span>
+                <div>
+                    <h3>Register</h3>
+                    <p>Create your voter profile with the details your local election office already has on file.</p>
+                </div>
+            </li>
+            <li>
+                <span class="home-step-no">02</span>
+                <div>
+                    <h3>Verify</h3>
+                    <p>Confirm your identity so your ballot can only ever be cast once, by you.</p>
+                </div>
+            </li>
+            <li>
+                <span class="home-step-no">03</span>
+                <div>
+                    <h3>Vote</h3>
+                    <p>Choose your candidates and submit. Your stub number lets you confirm it was received.</p>
+                </div>
+            </li>
+        </ol>
+    </div>
+</section>
+
+<!-- ── ELECTIONS LISTING SECTION ── -->
+<div class="container mt-5 mb-5">
     <div class="mb-4">
-        <h1 class="mb-1" style="font-family: var(--votex-font-display); font-weight: 600; color: var(--votex-navy-900);">
+        <h2 class="mb-1" style="font-family: var(--votex-font-display); font-weight: 600; color: var(--votex-navy-900);">
             Election Events
-        </h1>
+        </h2>
         <p class="text-muted mb-0">Browse open and upcoming elections you're eligible to vote in.</p>
     </div>
 
@@ -52,7 +124,7 @@
 
     @if (!allElections.Any())
     {
-        <div class="alert alert-info">No active election events found for this tenant.</div>
+        <div class="alert alert-info shadow-sm">No active election events found for this tenant right now. Check back soon!</div>
     }
     else
     {
@@ -60,7 +132,7 @@
         if (featured != null)
         {
             var featuredStatus = StatusFor(featured);
-            <div class="election-hero">
+            <div class="election-hero mb-5">
                 @if (!string.IsNullOrEmpty(featured.ImageUrl))
                 {
                     <div class="election-hero-bg" style="background-image: url('@featured.ImageUrl');"></div>
@@ -88,25 +160,25 @@
         @* ── ALL OTHER ELECTIONS ── *@
         @if (restElections.Any())
         {
-            <h5 class="mb-3" style="font-family: var(--votex-font-display); color: var(--votex-navy-900);">
+            <h4 class="mb-3" style="font-family: var(--votex-font-display); color: var(--votex-navy-900);">
                 All Elections
-            </h5>
+            </h4>
             <div class="row g-4">
                 @foreach (var election in restElections)
                 {
                     var status = StatusFor(election);
                     <div class="col-md-4">
-                        <div class="card election-card">
+                        <div class="card election-card h-100 shadow-sm">
                             <div class="election-card-thumb" style="@(!string.IsNullOrEmpty(election.ImageUrl) ? $"background-image:url('{election.ImageUrl}')" : "")">
                                 <span class="election-status election-status--@status">@StatusLabel(status)</span>
                             </div>
-                            <div class="card-body">
+                            <div class="card-body d-flex flex-column">
                                 <h5 class="election-card-title mb-1">@election.Title</h5>
-                                <p class="card-text text-muted small mb-2" style="min-height: 2.4em;">@election.Description</p>
+                                <p class="card-text text-muted small mb-2 flex-grow-1" style="min-height: 2.4em;">@election.Description</p>
                                 <div class="election-card-dates mb-3">
                                     <i class="far fa-calendar me-1"></i>@election.StartDate.ToString("MMM d") – @election.EndDate.ToString("MMM d, yyyy")
                                 </div>
-                                <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark w-100 rounded-pill fw-semibold">
+                                <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark w-100 rounded-pill fw-semibold mt-auto">
                                     View Ballot &amp; Vote
                                 </a>
                             </div>
@@ -117,3 +189,40 @@
         }
     }
 </div>
+
+<!-- ── ABOUT US & TRUST SECTION ── -->
+<section class="home-about" style="padding: 5rem 0; background-color: var(--bs-light, #f8f9fa);">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-lg-8 mx-auto text-center">
+                <span class="home-eyebrow mb-2 d-inline-block">Who We Are</span>
+                <h2 class="home-section-title mb-4">Rebuilding trust in democratic elections</h2>
+                <p class="lead text-muted mb-4">
+                    At VoteZy, we believe that modern technology should make voting more accessible without ever sacrificing security or accountability. Traditional online voting systems often lack verifiable proof, leaving voters in the dark. We set out to change that by combining robust multi-role infrastructure with cryptographic stubs and transparent tallying.
+                </p>
+                <p class="text-muted mb-0">
+                    Whether you are casting a ballot for a local union, a university guild, or a municipal election, VoteZy guarantees that every voice is validated, every vote is protected, and every result remains fully auditable.
+                </p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="home-trust">
+    <div class="container">
+        <div class="home-trust-grid">
+            <div>
+                <h4>One voter, one ballot</h4>
+                <p>Identity verification blocks duplicate submissions before they happen.</p>
+            </div>
+            <div>
+                <h4>Open, auditable counts</h4>
+                <p>Results update live, and every tally is reviewable by election auditors.</p>
+            </div>
+            <div>
+                <h4>Built for every device</h4>
+                <p>Vote from a phone in line or a desktop at home — VoteZy adapts either way.</p>
+            </div>
+        </div>
+    </div>
+</section>

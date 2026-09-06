@@ -2,12 +2,32 @@
 
 @{
     ViewData["Title"] = Model.Title;
+    var now = DateTime.UtcNow;
+    bool isOpen = Model.StartDate <= now && Model.EndDate >= now;
 }
 
-<div class="container mt-4">
-    <h2>@Model.Title</h2>
-    <p class="text-muted">@Model.Description</p>
-    <hr />
+@section Styles {
+    <link rel="stylesheet" href="/css/voter.css" asp-append-version="true" />
+}
+
+<div class="container mt-4 mb-5">
+
+    <div class="election-hero" style="min-height: 200px;">
+        @if (!string.IsNullOrEmpty(Model.ImageUrl))
+        {
+            <div class="election-hero-bg" style="background-image: url('@Model.ImageUrl');"></div>
+        }
+        <div class="election-hero-overlay">
+            <span class="election-hero-badge @(isOpen ? "" : "bg-secondary text-white")">
+                <i class="fas fa-@(isOpen ? "circle-check" : "clock")"></i> @(isOpen ? "Voting Open" : "Not Currently Open")
+            </span>
+            <h2 class="election-hero-title">@Model.Title</h2>
+            <p class="mb-2" style="max-width: 680px; color: rgba(255,255,255,0.85);">@Model.Description</p>
+            <span class="election-hero-meta">
+                <i class="far fa-calendar me-1"></i>@Model.StartDate.ToString("MMM d, yyyy") – @Model.EndDate.ToString("MMM d, yyyy")
+            </span>
+        </div>
+    </div>
 
     @if (TempData["ErrorMessage"] != null)
     {
@@ -22,40 +42,71 @@
     {
         @foreach (var position in Model.Positions)
         {
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-secondary text-white">
-                    <h4 class="mb-0">@position.Name</h4>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        @if (position.Candidates != null && position.Candidates.Any())
+            <div class="mb-5">
+                <h4 class="position-section-title">
+                    <i class="fas fa-bullseye" style="color: var(--votex-amber);"></i>
+                    @position.Name
+                    <span class="position-count">@(position.Candidates?.Count ?? 0) candidate@(position.Candidates?.Count == 1 ? "" : "s")</span>
+                </h4>
+
+                <div class="row g-4">
+                    @if (position.Candidates != null && position.Candidates.Any())
+                    {
+                        @foreach (var candidate in position.Candidates)
                         {
-                            @foreach (var candidate in position.Candidates)
-                            {
-                                <div class="col-md-4 mb-3">
-                                    <div class="card h-100 border">
-                                        <div class="card-body text-center">
-                                            <h5 class="card-title">@candidate.Name</h5>
-                                            <p class="card-text text-muted">@candidate.Manifesto</p>
-                                            <a asp-action="RequestCode"
-                                               asp-route-electionId="@Model.Id"
-                                               asp-route-candidateId="@candidate.Id"
-                                               asp-route-positionId="@position.Id"
-                                               class="btn btn-outline-success btn-sm">
-                                                Vote for this Candidate
-                                            </a>
-                                        </div>
-                                    </div>
+                            var initial = !string.IsNullOrEmpty(candidate.Name) ? candidate.Name.Substring(0, 1).ToUpper() : "?";
+                            var voteUrl = Url.Action("RequestCode", new { electionId = Model.Id, candidateId = candidate.Id, positionId = position.Id });
+
+                            <div class="col-sm-6 col-lg-4">
+                                <div class="candidate-card">
+
+                                    @* NOTE: assumes Candidate has an ImageUrl property, matching ElectionEvent's
+                                       naming. Rename below if your actual property is called something else
+                                       (e.g. PhotoUrl / ProfileImageUrl). *@
+                                    @if (!string.IsNullOrEmpty(candidate.CandidateImg))
+                                    {
+                                        <img src="@candidate.CandidateImg" alt="@candidate.Name" class="candidate-photo" />
+                                    }
+                                    else
+                                    {
+                                        <div class="candidate-photo-fallback">@initial</div>
+                                    }
+
+                                    <div class="candidate-name">@candidate.Name</div>
+
+                                    @if (!string.IsNullOrEmpty(candidate.Manifesto))
+                                    {
+                                        <p class="candidate-manifesto">@candidate.Manifesto</p>
+                                    }
+                                    else
+                                    {
+                                        <p class="candidate-manifesto text-muted fst-italic">No manifesto provided.</p>
+                                    }
+
+                                    @if (isOpen)
+                                    {
+                                        <button type="button" class="btn candidate-vote-btn"
+                                                data-bs-toggle="modal" data-bs-target="#confirmVoteModal"
+                                                data-candidate-name="@candidate.Name"
+                                                data-position-name="@position.Name"
+                                                data-vote-url="@voteUrl">
+                                            <i class="fas fa-vote-yea me-1"></i> Vote
+                                        </button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-light disabled w-100 rounded-pill" disabled>Voting closed</button>
+                                    }
                                 </div>
-                            }
-                        }
-                        else
-                        {
-                            <div class="col-12">
-                                <p class="text-muted">No candidates registered for this position yet.</p>
                             </div>
                         }
-                    </div>
+                    }
+                    else
+                    {
+                        <div class="col-12">
+                            <p class="text-muted">No candidates registered for this position yet.</p>
+                        </div>
+                    }
                 </div>
             </div>
         }
@@ -65,5 +116,47 @@
         <div class="alert alert-warning">No positions configured for this election yet.</div>
     }
 
-    <a asp-action="Index" asp-route-tenantId="@Model.TenantId" class="btn btn-secondary mt-3">Back to Elections List</a>
+    <a asp-action="Index" asp-route-tenantId="@Model.TenantId" class="btn btn-outline-secondary mt-2">
+        <i class="fas fa-arrow-left me-1"></i> Back to Elections List
+    </a>
 </div>
+
+@* ── Shared confirmation modal, populated by JS from the clicked candidate's data-* attributes ── *@
+<div class="modal fade" id="confirmVoteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border-radius: 14px; overflow: hidden; border: 0;">
+            <div class="modal-header" style="background: var(--votex-navy-900); color: #fff; border: 0;">
+                <h5 class="modal-title"><i class="fas fa-shield-alt me-2" style="color: var(--votex-amber);"></i>Confirm Your Selection</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body py-4">
+                <p class="text-muted mb-1">You are about to vote for</p>
+                <h4 id="confirmCandidateName" style="font-family: var(--votex-font-display); color: var(--votex-navy-900);"></h4>
+                <p class="text-muted mb-0">for the position of <strong id="confirmPositionName"></strong></p>
+                <div class="alert alert-warning small mt-3 mb-0">
+                    <i class="fas fa-exclamation-triangle me-1"></i> This cannot be changed once your vote is confirmed with a code.
+                </div>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <a id="confirmVoteLink" href="#" class="btn candidate-vote-btn px-4">
+                    <i class="fas fa-arrow-right me-1"></i> Continue to Verification
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const modal = document.getElementById("confirmVoteModal");
+            modal.addEventListener("show.bs.modal", function (event) {
+                const btn = event.relatedTarget;
+                document.getElementById("confirmCandidateName").textContent = btn.getAttribute("data-candidate-name");
+                document.getElementById("confirmPositionName").textContent = btn.getAttribute("data-position-name");
+                document.getElementById("confirmVoteLink").setAttribute("href", btn.getAttribute("data-vote-url"));
+            });
+        });
+    </script>
+}

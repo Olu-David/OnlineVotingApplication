@@ -1,53 +1,98 @@
 ﻿@using OnlineVotingApplication.DataTransferView;
 @model IEnumerable<CandidateVoteDto>
 @{
-    ViewData["Title"] = "Live Results Tally";
+    ViewData["Title"] = "Live Results";
+    var results = Model?.OrderByDescending(c => c.VoteCount).ToList() ?? new List<CandidateVoteDto>();
+    int maxVotes = results.Any() ? results.Max(c => c.VoteCount) : 0;
 }
 
-<div class="container-fluid px-4">
-    <h2 class="mt-4">Live Results Tally</h2>
-    <ol class="breadcrumb mb-4">
-        <li class="breadcrumb-item"><a asp-controller="SuperAdmin" asp-action="Dashboard">Dashboard</a></li>
-        <li class="breadcrumb-item active">Live Results</li>
-    </ol>
+@section Styles {
+    <link rel="stylesheet" href="/css/voter.css" asp-append-version="true" />
+}
 
-    <div class="card shadow-sm mb-4">
-        <div class="card-header bg-dark text-white">
-            <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>📊 Live Vote Tally Chart</h5>
+<div class="container mt-4 mb-5">
+    <h1 class="mb-1" style="font-family: var(--votex-font-display); font-weight: 600; color: var(--votex-navy-900);">
+        <i class="fas fa-chart-line me-2" style="color: var(--votex-amber);"></i>Live Results
+    </h1>
+    <p class="text-muted mb-4">Real-time tally across all candidates.</p>
+
+    <div class="row g-4">
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
+                        Vote Tally Chart
+                    </h6>
+                    <canvas id="liveResultsChart" height="260"></canvas>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <canvas id="liveResultsChart" width="400" height="150"></canvas>
+
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
+                        Leaderboard
+                    </h6>
+                    @if (!results.Any())
+                    {
+                        <p class="text-muted small">No votes recorded yet.</p>
+                    }
+                    else
+                    {
+                        @for (int i = 0; i < results.Count; i++)
+                        {
+                            var c = results[i];
+                            double pct = maxVotes > 0 ? (double)c.VoteCount / maxVotes * 100 : 0;
+                            <div class="result-bar-row @(i == 0 && c.VoteCount > 0 ? "is-leading" : "")">
+                                <div class="d-flex justify-content-between small mb-1">
+                                    <span class="fw-semibold" style="color: var(--votex-navy-900);">
+                                        #@(i + 1) @c.CandidateName
+                                        @if (i == 0 && c.VoteCount > 0)
+                                        {
+                                            <span class="badge rounded-pill ms-1" style="background: var(--votex-green); font-size: 0.65rem;">Leading</span>
+                                        }
+                                    </span>
+                                    <span class="text-muted">@c.VoteCount votes</span>
+                                </div>
+                                <div class="result-bar-track">
+                                    <div class="result-bar-fill" style="width: @pct.ToString("0")%;"></div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
         </div>
     </div>
 </div>
+
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
-        // Safely parse JSON from server-side variables rendered as clean strings
-        const candidateNames = JSON.parse('@Html.Raw(Json.Serialize(Model.Select(c => c.CandidateName)))');
-        const voteCounts = JSON.parse('@Html.Raw(Json.Serialize(Model.Select(c => c.VoteCount)))');
+        const candidateNames = @Html.Raw(Json.Serialize(results.Select(c => c.CandidateName)));
+        const voteCounts = @Html.Raw(Json.Serialize(results.Select(c => c.VoteCount)));
 
         const ctx = document.getElementById('liveResultsChart');
         if (ctx) {
-            const liveResultsChart = new Chart(ctx.getContext('2d'), {
+            new Chart(ctx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: candidateNames,
                     datasets: [{
                         label: 'Votes Cast',
                         data: voteCounts,
-                        backgroundColor: 'rgba(13, 110, 253, 0.7)',
-                        borderColor: 'rgba(13, 110, 253, 1)',
-                        borderWidth: 1
+                        backgroundColor: '#f5a623',
+                        borderColor: '#0f1a38',
+                        borderWidth: 1,
+                        borderRadius: 6
                     }]
                 },
                 options: {
                     responsive: true,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { stepSize: 1 }
-                        }
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
                     }
                 }
             });

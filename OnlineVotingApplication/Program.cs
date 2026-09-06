@@ -108,8 +108,11 @@ namespace OnlineVotingApplication
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
                                    Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
             });
-
-            if (!app.Environment.IsDevelopment())
+            if(app.Environment.IsDevelopment())
+            {
+                app.UseDeveloperExceptionPage();
+            }
+            else
             {
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();

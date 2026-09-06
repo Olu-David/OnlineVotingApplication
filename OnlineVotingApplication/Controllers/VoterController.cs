@@ -131,9 +131,26 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Details", new { id = electionId });
             }
 
+            // Look up display names so the confirmation page can show
+            // "You're voting for X — Position Y" instead of raw GUIDs.
+            // Falls back gracefully to "Selected Candidate"/"Selected Position"
+            // if either record can't be found for any reason.
+            var candidate = await _context.Candidate
+                .Where(c => c.Id == candidateId)
+                .Select(c => new { c.Name })
+                .FirstOrDefaultAsync();
+
+            var position = await _context.Position
+                .Where(p => p.Id == positionId)
+                .Select(p => new { p.Name })
+                .FirstOrDefaultAsync();
+
             ViewBag.ElectionId = electionId;
             ViewBag.CandidateId = candidateId;
             ViewBag.PositionId = positionId;
+            ViewBag.CandidateName = candidate?.Name ?? "Selected Candidate";
+            ViewBag.PositionName = position?.Name ?? "Selected Position";
+
             TempData["SuccessMessage"] = "A 6-character confirmation code has been sent to your email.";
 
             return View();

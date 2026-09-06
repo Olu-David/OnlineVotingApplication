@@ -1,45 +1,100 @@
 ﻿@{
-    ViewData["Title"] = "Enter Confirmation Code";
+    ViewData["Title"] = "Confirm Your Vote";
     var electionId = ViewBag.ElectionId;
     var candidateId = ViewBag.CandidateId;
     var positionId = ViewBag.PositionId;
+    var candidateName = ViewBag.CandidateName as string ?? "Selected Candidate";
+    var positionName = ViewBag.PositionName as string ?? "Selected Position";
 }
 
-<div class="container mt-5">
+@section Styles {
+    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+    <link rel="stylesheet" href="/css/voter.css" asp-append-version="true" />
+}
+
+<div class="container my-5">
     <div class="row justify-content-center">
-        <div class="col-md-6">
-            <div class="card shadow">
-                <div class="card-header bg-primary text-white">
-                    <h4 class="mb-0">Security Verification</h4>
+        <div class="col-md-6 col-lg-5">
+            <div class="card auth-card">
+                <div class="auth-card-header">
+                    <div class="auth-icon"><i class="fas fa-shield-alt"></i></div>
+                    <h3 class="auth-title">Verify &amp; Cast Your Vote</h3>
+                    <p class="auth-subtitle">Enter the code we emailed you to finish</p>
                 </div>
-                <div class="card-body">
+                <div class="auth-card-tear"></div>
+
+                <div class="auth-card-body">
+
                     @if (TempData["SuccessMessage"] != null)
                     {
-                        <div class="alert alert-success">@TempData["SuccessMessage"]</div>
+                        <div class="alert alert-success small">@TempData["SuccessMessage"]</div>
                     }
                     @if (TempData["ErrorMessage"] != null)
                     {
-                        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+                        <div class="alert alert-danger small">@TempData["ErrorMessage"]</div>
                     }
 
-                    <p class="text-muted">A secure 6-character confirmation code has been emailed to you. Enter it below to complete your vote.</p>
+                    <div class="vote-summary-panel mb-4">
+                        <div class="text-muted small mb-1">You are voting for</div>
+                        <div class="fw-bold" style="font-family: var(--votex-font-display); color: var(--votex-navy-900); font-size: 1.1rem;">
+                            @candidateName
+                        </div>
+                        <div class="small text-muted">for <strong>@positionName</strong></div>
+                    </div>
 
                     <form asp-action="ConfirmAndVote" method="post">
                         <input type="hidden" name="electionId" value="@electionId" />
                         <input type="hidden" name="candidateId" value="@candidateId" />
                         <input type="hidden" name="positionId" value="@positionId" />
 
-                        <div class="mb-3">
-                            <label for="enteredCode" class="form-label">Confirmation Code</label>
-                            <input type="text" id="enteredCode" name="enteredCode" class="form-control text-uppercase fw-bold text-center" maxlength="6" placeholder="ABC123" required autocomplete="off" />
+                        <div class="mb-4">
+                            <label for="enteredCode" class="form-label text-center d-block">6-Character Confirmation Code</label>
+                            <input type="text" id="enteredCode" name="enteredCode" class="form-control otp-input text-uppercase"
+                                   maxlength="6" placeholder="ABC123" required autocomplete="off" />
                         </div>
 
-                        <div class="d-grid">
-                            <button type="submit" class="btn btn-success btn-lg">Confirm & Submit Vote</button>
+                        <div class="d-grid mb-3">
+                            <button type="submit" class="btn auth-btn-primary btn-lg fs-6 shadow">
+                                <i class="fas fa-check-circle me-1"></i> Confirm &amp; Submit Vote
+                            </button>
                         </div>
                     </form>
+
+                    <div class="text-center">
+                        <form asp-action="RequestCode" method="get" class="d-inline">
+                            <input type="hidden" name="electionId" value="@electionId" />
+                            <input type="hidden" name="candidateId" value="@candidateId" />
+                            <input type="hidden" name="positionId" value="@positionId" />
+                            <button type="submit" id="resendBtn" class="btn btn-link btn-sm text-decoration-none" disabled>
+                                Resend code (<span id="resendCountdown">60</span>s)
+                            </button>
+                        </form>
+                    </div>
+
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const btn = document.getElementById("resendBtn");
+            const countdownEl = document.getElementById("resendCountdown");
+            let seconds = 60;
+
+            const timer = setInterval(function () {
+                seconds--;
+                countdownEl.textContent = seconds;
+                if (seconds <= 0) {
+                    clearInterval(timer);
+                    btn.disabled = false;
+                    btn.textContent = "Resend code";
+                }
+            }, 1000);
+
+            document.getElementById("enteredCode").focus();
+        });
+    </script>
+}

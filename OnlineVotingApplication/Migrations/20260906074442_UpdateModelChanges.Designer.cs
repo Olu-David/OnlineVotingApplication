@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260905135538_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20260906074442_UpdateModelChanges")]
+    partial class UpdateModelChanges
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -264,7 +264,7 @@ namespace OnlineVotingApplication.Migrations
 
                     b.HasIndex("TenantId");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("AspNetUsers", (string)null);
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.AuditLog", b =>

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class InitialPostgresMigration : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -207,6 +207,55 @@ namespace OnlineVotingApplication.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AspNetUsers",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "text", nullable: false),
+                    FullName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Address = table.Column<string>(type: "text", nullable: true),
+                    DateOfBirth = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    VoterRegistrationID = table.Column<string>(type: "text", nullable: true),
+                    VoteCastTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    OfficialStaffId = table.Column<string>(type: "text", nullable: false),
+                    DepartmentorAgency = table.Column<string>(type: "text", nullable: true),
+                    StateId = table.Column<Guid>(type: "uuid", nullable: true),
+                    HasVoted = table.Column<bool>(type: "boolean", nullable: false),
+                    isVoter = table.Column<bool>(type: "boolean", nullable: false),
+                    profileImage = table.Column<string>(type: "text", nullable: true),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    IsApproved = table.Column<bool>(type: "boolean", nullable: false),
+                    UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    NormalizedEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
+                    EmailConfirmed = table.Column<bool>(type: "boolean", nullable: false),
+                    PasswordHash = table.Column<string>(type: "text", nullable: true),
+                    SecurityStamp = table.Column<string>(type: "text", nullable: true),
+                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true),
+                    PhoneNumber = table.Column<string>(type: "text", nullable: true),
+                    PhoneNumberConfirmed = table.Column<bool>(type: "boolean", nullable: false),
+                    TwoFactorEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    LockoutEnd = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    LockoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
+                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUsers", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AspNetUsers_States_StateId",
+                        column: x => x.StateId,
+                        principalTable: "States",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AspNetUsers_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "ElectionEvents",
                 columns: table => new
                 {
@@ -257,52 +306,88 @@ namespace OnlineVotingApplication.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "Users",
+                name: "AspNetUserClaims",
                 columns: table => new
                 {
-                    Id = table.Column<string>(type: "text", nullable: false),
-                    FullName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Address = table.Column<string>(type: "text", nullable: true),
-                    DateOfBirth = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    VoterRegistrationID = table.Column<string>(type: "text", nullable: true),
-                    VoteCastTime = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    OfficialStaffId = table.Column<string>(type: "text", nullable: false),
-                    DepartmentorAgency = table.Column<string>(type: "text", nullable: true),
-                    StateId = table.Column<Guid>(type: "uuid", nullable: true),
-                    HasVoted = table.Column<bool>(type: "boolean", nullable: false),
-                    isVoter = table.Column<bool>(type: "boolean", nullable: false),
-                    profileImage = table.Column<string>(type: "text", nullable: true),
-                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
-                    IsApproved = table.Column<bool>(type: "boolean", nullable: false),
-                    UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    NormalizedEmail = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
-                    EmailConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    PasswordHash = table.Column<string>(type: "text", nullable: true),
-                    SecurityStamp = table.Column<string>(type: "text", nullable: true),
-                    ConcurrencyStamp = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumber = table.Column<string>(type: "text", nullable: true),
-                    PhoneNumberConfirmed = table.Column<bool>(type: "boolean", nullable: false),
-                    TwoFactorEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    LockoutEnd = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
-                    LockoutEnabled = table.Column<bool>(type: "boolean", nullable: false),
-                    AccessFailedCount = table.Column<int>(type: "integer", nullable: false)
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    ClaimType = table.Column<string>(type: "text", nullable: true),
+                    ClaimValue = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_Users", x => x.Id);
+                    table.PrimaryKey("PK_AspNetUserClaims", x => x.Id);
                     table.ForeignKey(
-                        name: "FK_Users_States_StateId",
-                        column: x => x.StateId,
-                        principalTable: "States",
+                        name: "FK_AspNetUserClaims_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
                         principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserLogins",
+                columns: table => new
+                {
+                    LoginProvider = table.Column<string>(type: "text", nullable: false),
+                    ProviderKey = table.Column<string>(type: "text", nullable: false),
+                    ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
+                    UserId = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserLogins", x => new { x.LoginProvider, x.ProviderKey });
                     table.ForeignKey(
-                        name: "FK_Users_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id");
+                        name: "FK_AspNetUserLogins_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserRoles",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    RoleId = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserRoles", x => new { x.UserId, x.RoleId });
+                    table.ForeignKey(
+                        name: "FK_AspNetUserRoles_AspNetRoles_RoleId",
+                        column: x => x.RoleId,
+                        principalTable: "AspNetRoles",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AspNetUserRoles_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AspNetUserTokens",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    LoginProvider = table.Column<string>(type: "text", nullable: false),
+                    Name = table.Column<string>(type: "text", nullable: false),
+                    Value = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AspNetUserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
+                    table.ForeignKey(
+                        name: "FK_AspNetUserTokens_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -389,91 +474,6 @@ namespace OnlineVotingApplication.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AspNetUserClaims",
-                columns: table => new
-                {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    ClaimType = table.Column<string>(type: "text", nullable: true),
-                    ClaimValue = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AspNetUserClaims", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_AspNetUserClaims_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AspNetUserLogins",
-                columns: table => new
-                {
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    ProviderKey = table.Column<string>(type: "text", nullable: false),
-                    ProviderDisplayName = table.Column<string>(type: "text", nullable: true),
-                    UserId = table.Column<string>(type: "text", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AspNetUserLogins", x => new { x.LoginProvider, x.ProviderKey });
-                    table.ForeignKey(
-                        name: "FK_AspNetUserLogins_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AspNetUserRoles",
-                columns: table => new
-                {
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    RoleId = table.Column<string>(type: "text", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AspNetUserRoles", x => new { x.UserId, x.RoleId });
-                    table.ForeignKey(
-                        name: "FK_AspNetUserRoles_AspNetRoles_RoleId",
-                        column: x => x.RoleId,
-                        principalTable: "AspNetRoles",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_AspNetUserRoles_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "AspNetUserTokens",
-                columns: table => new
-                {
-                    UserId = table.Column<string>(type: "text", nullable: false),
-                    LoginProvider = table.Column<string>(type: "text", nullable: false),
-                    Name = table.Column<string>(type: "text", nullable: false),
-                    Value = table.Column<string>(type: "text", nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_AspNetUserTokens", x => new { x.UserId, x.LoginProvider, x.Name });
-                    table.ForeignKey(
-                        name: "FK_AspNetUserTokens_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "Candidate",
                 columns: table => new
                 {
@@ -499,6 +499,11 @@ namespace OnlineVotingApplication.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Candidate", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Candidate_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Candidate_ElectionEvents_ElectionEventId",
                         column: x => x.ElectionEventId,
@@ -533,11 +538,6 @@ namespace OnlineVotingApplication.Migrations
                         name: "FK_Candidate_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
-                        principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_Candidate_Users_UserId",
-                        column: x => x.UserId,
-                        principalTable: "Users",
                         principalColumn: "Id");
                 });
 
@@ -621,6 +621,12 @@ namespace OnlineVotingApplication.Migrations
                 {
                     table.PrimaryKey("PK_Votes", x => x.Id);
                     table.ForeignKey(
+                        name: "FK_Votes_AspNetUsers_VoterId",
+                        column: x => x.VoterId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
                         name: "FK_Votes_Candidate_CandidateId",
                         column: x => x.CandidateId,
                         principalTable: "Candidate",
@@ -647,12 +653,6 @@ namespace OnlineVotingApplication.Migrations
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id");
-                    table.ForeignKey(
-                        name: "FK_Votes_Users_VoterId",
-                        column: x => x.VoterId,
-                        principalTable: "Users",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateIndex(
@@ -680,6 +680,27 @@ namespace OnlineVotingApplication.Migrations
                 name: "IX_AspNetUserRoles_RoleId",
                 table: "AspNetUserRoles",
                 column: "RoleId");
+
+            migrationBuilder.CreateIndex(
+                name: "EmailIndex",
+                table: "AspNetUsers",
+                column: "NormalizedEmail");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUsers_StateId",
+                table: "AspNetUsers",
+                column: "StateId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUsers_TenantId",
+                table: "AspNetUsers",
+                column: "TenantId");
+
+            migrationBuilder.CreateIndex(
+                name: "UserNameIndex",
+                table: "AspNetUsers",
+                column: "NormalizedUserName",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Candidate_ElectionEventId",
@@ -804,27 +825,6 @@ namespace OnlineVotingApplication.Migrations
                 column: "TenantId");
 
             migrationBuilder.CreateIndex(
-                name: "EmailIndex",
-                table: "Users",
-                column: "NormalizedEmail");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_StateId",
-                table: "Users",
-                column: "StateId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_TenantId",
-                table: "Users",
-                column: "TenantId");
-
-            migrationBuilder.CreateIndex(
-                name: "UserNameIndex",
-                table: "Users",
-                column: "NormalizedUserName",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Votes_CandidateId",
                 table: "Votes",
                 column: "CandidateId");
@@ -913,6 +913,9 @@ namespace OnlineVotingApplication.Migrations
                 name: "Candidate");
 
             migrationBuilder.DropTable(
+                name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
                 name: "Lgas");
 
             migrationBuilder.DropTable(
@@ -922,13 +925,10 @@ namespace OnlineVotingApplication.Migrations
                 name: "Position");
 
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "States");
 
             migrationBuilder.DropTable(
                 name: "ElectionEvents");
-
-            migrationBuilder.DropTable(
-                name: "States");
 
             migrationBuilder.DropTable(
                 name: "Tenants");

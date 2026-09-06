@@ -33,6 +33,7 @@ namespace OnlineVotingApplication.Controllers
         public IActionResult Index()
         {
             return View();
+
         }
 
         [HttpGet]
@@ -168,6 +169,8 @@ namespace OnlineVotingApplication.Controllers
                         return RedirectToAction("Index", "Candidate");
                     if (await _userManager.IsInRoleAsync(user, "Auditor"))
                         return RedirectToAction("Index", "Auditor");
+                    if (await _userManager.IsInRoleAsync(user, "Voter"))
+                        return RedirectToAction("Index", "Voter");
                 }
 
                 return LocalRedirect(returnUrl);

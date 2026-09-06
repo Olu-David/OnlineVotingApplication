@@ -1,0 +1,329 @@
+﻿/* ======================================================
+   voter.css
+   Election listing, candidate gallery, ballot receipt,
+   and live results styling for the Voter area.
+   Loads after site.css to use the shared tokens.
+   ====================================================== */
+
+/* ─── ELECTION LISTING ─── */
+
+.election-hero {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    min-height: 280px;
+    display: flex;
+    align-items: flex-end;
+    background: linear-gradient(135deg, var(--votex-navy-900), var(--votex-navy-800));
+    color: #fff;
+    box-shadow: 0 20px 45px rgba(15, 26, 56, 0.25);
+    margin-bottom: 2.5rem;
+}
+
+.election-hero-bg {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0.35;
+}
+
+.election-hero-overlay {
+    position: relative;
+    z-index: 1;
+    padding: 2.5rem;
+    width: 100%;
+    background: linear-gradient(0deg, rgba(15, 26, 56, 0.92) 10%, rgba(15, 26, 56, 0.1) 100%);
+}
+
+.election-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--votex-font-mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: var(--votex-amber);
+    color: var(--votex-navy-900);
+    padding: 0.3rem 0.75rem;
+    border-radius: 999px;
+    margin-bottom: 0.9rem;
+    font-weight: 700;
+}
+
+.election-hero-title {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: clamp(1.6rem, 3vw, 2.35rem);
+    margin-bottom: 0.5rem;
+}
+
+.election-hero-meta {
+    font-family: var(--votex-font-mono);
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+/* Election status pill, colour keyed to state */
+.election-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--votex-font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.25rem 0.65rem;
+    border-radius: 999px;
+    font-weight: 700;
+}
+
+    .election-status::before {
+        content: '';
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+    }
+
+.election-status--active {
+    background: rgba(47, 158, 110, 0.14);
+    color: var(--votex-green);
+}
+
+.election-status--upcoming {
+    background: rgba(47, 125, 216, 0.14);
+    color: var(--votex-role-voter);
+}
+
+.election-status--ended {
+    background: rgba(107, 114, 128, 0.14);
+    color: #6b7280;
+}
+
+/* Election grid card */
+.election-card {
+    border: 0;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(15, 26, 56, 0.08);
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    height: 100%;
+}
+
+    .election-card:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 16px 32px rgba(15, 26, 56, 0.14);
+    }
+
+.election-card-thumb {
+    height: 140px;
+    background-size: cover;
+    background-position: center;
+    background-color: var(--votex-navy-800);
+    position: relative;
+}
+
+    .election-card-thumb .election-status {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        background: #fff;
+    }
+
+.election-card-title {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.1rem;
+    color: var(--votex-navy-900);
+}
+
+.election-card-dates {
+    font-family: var(--votex-font-mono);
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+/* ─── CANDIDATE GALLERY (Details page) ─── */
+
+.position-section-title {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.3rem;
+    color: var(--votex-navy-900);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--votex-amber);
+}
+
+    .position-section-title .position-count {
+        font-family: var(--votex-font-mono);
+        font-size: 0.75rem;
+        color: #9aa1b2;
+        font-weight: 400;
+        margin-left: auto;
+    }
+
+.candidate-card {
+    border: 1px solid #ecebe6;
+    border-radius: 14px;
+    height: 100%;
+    text-align: center;
+    padding: 1.75rem 1.25rem 1.5rem;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease;
+    background: #fff;
+}
+
+    .candidate-card:hover {
+        box-shadow: 0 12px 28px rgba(15, 26, 56, 0.1);
+        border-color: #dcdee6;
+    }
+
+.candidate-photo {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin: 0 auto 1rem;
+    border: 3px solid var(--votex-paper);
+    box-shadow: 0 0 0 3px var(--votex-navy-900);
+    display: block;
+}
+
+.candidate-photo-fallback {
+    width: 92px;
+    height: 92px;
+    border-radius: 50%;
+    margin: 0 auto 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--votex-navy-800), var(--votex-navy-900));
+    color: var(--votex-amber);
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.8rem;
+    box-shadow: 0 0 0 3px var(--votex-paper);
+}
+
+.candidate-name {
+    font-family: var(--votex-font-display);
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: var(--votex-navy-900);
+    margin-bottom: 0.15rem;
+}
+
+.candidate-party {
+    font-family: var(--votex-font-mono);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--votex-amber);
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+}
+
+.candidate-manifesto {
+    font-size: 0.85rem;
+    color: #6b7280;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 1.1rem;
+    min-height: 3.6em;
+}
+
+.candidate-vote-btn {
+    background: var(--votex-navy-900);
+    border-color: var(--votex-navy-900);
+    color: #fff;
+    font-weight: 600;
+    font-size: 0.85rem;
+    padding: 0.5rem 1.25rem;
+    border-radius: 999px;
+}
+
+    .candidate-vote-btn:hover {
+        background: var(--votex-amber);
+        border-color: var(--votex-amber);
+        color: var(--votex-navy-900);
+    }
+
+/* ─── OTP / CODE ENTRY ─── */
+
+.otp-input {
+    font-family: var(--votex-font-mono);
+    font-size: 1.6rem;
+    letter-spacing: 0.5em;
+    text-align: center;
+    font-weight: 600;
+}
+
+.vote-summary-panel {
+    background: var(--votex-paper);
+    border-left: 3px solid var(--votex-amber);
+    border-radius: 8px;
+    padding: 1rem 1.25rem;
+}
+
+/* ─── BALLOT RECEIPT ─── */
+
+.receipt-card {
+    background: var(--votex-paper);
+    color: var(--votex-ink);
+    border-radius: 14px;
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.12);
+    max-width: 640px;
+    margin: 0 auto;
+    overflow: hidden;
+}
+
+.receipt-header {
+    background: var(--votex-navy-900);
+    color: #fff;
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.receipt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.5rem;
+    border-bottom: 1px dashed rgba(18, 23, 42, 0.15);
+    font-size: 0.92rem;
+}
+
+    .receipt-row:last-child {
+        border-bottom: 0;
+    }
+
+/* ─── LIVE RESULTS LEADERBOARD ─── */
+
+.result-bar-row {
+    margin-bottom: 1rem;
+}
+
+.result-bar-track {
+    height: 10px;
+    border-radius: 999px;
+    background: #eceef4;
+    overflow: hidden;
+}
+
+.result-bar-fill {
+    height: 100%;
+    background: var(--votex-amber);
+    border-radius: 999px;
+    transition: width 0.4s ease;
+}
+
+.result-bar-row.is-leading .result-bar-fill {
+    background: var(--votex-green);
+}

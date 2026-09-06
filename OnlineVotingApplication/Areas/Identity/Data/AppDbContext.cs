@@ -3,9 +3,6 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
-using System;
-using System.Linq;
-using System.Reflection.Emit;
 
 namespace OnlineVotingApplication.Areas.Identity.Data;
 
@@ -25,6 +22,44 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     {
         base.OnModelCreating(builder);
 
+        // Map Identity tables cleanly or keep default prefixes consistent
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.ToTable("AspNetUsers"); // Keeping standard Identity table names prevents join mismatches
+            entity.Property(m => m.FullName).HasMaxLength(200).IsRequired();
+        });
+
+        builder.Entity<IdentityRole>(entity =>
+        {
+            entity.ToTable("AspNetRoles");
+        });
+
+        builder.Entity<IdentityUserRole<string>>(entity =>
+        {
+            entity.ToTable("AspNetUserRoles");
+        });
+
+        builder.Entity<IdentityUserClaim<string>>(entity =>
+        {
+            entity.ToTable("AspNetUserClaims");
+        });
+
+        builder.Entity<IdentityUserLogin<string>>(entity =>
+        {
+            entity.ToTable("AspNetUserLogins");
+        });
+
+        builder.Entity<IdentityUserToken<string>>(entity =>
+        {
+            entity.ToTable("AspNetUserTokens");
+        });
+
+        builder.Entity<IdentityRoleClaim<string>>(entity =>
+        {
+            entity.ToTable("AspNetRoleClaims");
+        });
+
+        // Domain Indexes & Constraints
         builder.Entity<ElectionEvent>()
             .HasIndex(e => e.Title)
             .IsUnique();
@@ -162,28 +197,18 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
 
-        builder.Entity<ApplicationUser>(x =>
-        {
-            x.ToTable("Users");
-            x.Property(m => m.FullName).HasMaxLength(200).IsRequired();
-        });
-
-        // ==========================================
-        // CANDIDATE INVITATION (Single Unified Block)
-        // ==========================================
+        // Candidate Invitation Block
         builder.Entity<CandidateInvitation>(entity =>
         {
             entity.HasKey(ci => ci.Id);
             entity.Property(ci => ci.Id).HasDefaultValueSql("gen_random_uuid()");
             entity.Property(ci => ci.TenantId).IsRequired(false);
 
-            // Relation to ElectionEvent
             entity.HasOne(ci => ci.ElectionEvent)
                   .WithMany(e => e.CandidateInvitations)
                   .HasForeignKey(ci => ci.ElectionEventId)
                   .OnDelete(DeleteBehavior.Cascade);
 
-            // Relation to Tenant (Clean single definition)
             entity.HasOne(ci => ci.Tenant)
                   .WithMany()
                   .HasForeignKey(ci => ci.TenantId)
@@ -191,32 +216,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
                   .OnDelete(DeleteBehavior.NoAction);
         });
 
-        // ==========================================
-        // GLOBAL QUERY FILTERS FOR MULTI-TENANCY
-        // ==========================================
-        builder.Entity<ElectionEvent>().HasQueryFilter(e =>
-            CurrentTenantId == null || e.TenantId == CurrentTenantId);
-
-        builder.Entity<Party>().HasQueryFilter(p =>
-            CurrentTenantId == null || p.TenantId == CurrentTenantId);
-
-        builder.Entity<Positions>().HasQueryFilter(pos =>
-            CurrentTenantId == null || pos.TenantId == CurrentTenantId);
-
-        builder.Entity<ElectionCustomField>().HasQueryFilter(f =>
-            CurrentTenantId == null || f.TenantId == CurrentTenantId);
-
-        builder.Entity<Candidate>().HasQueryFilter(c =>
-            CurrentTenantId == null || c.TenantId == CurrentTenantId);
-
-        builder.Entity<CandidateCustomValue>().HasQueryFilter(c =>
-            CurrentTenantId == null || c.TenantId == CurrentTenantId);
-
-        builder.Entity<CandidateGallery>().HasQueryFilter(c =>
-            CurrentTenantId == null || c.TenantId == CurrentTenantId);
-
-        builder.Entity<CandidateInvitation>().HasQueryFilter(c =>
-            CurrentTenantId == null || c.TenantId == CurrentTenantId);
+        // Global Query Filters for Multi-Tenancy
+        builder.Entity<ElectionEvent>().HasQueryFilter(e => CurrentTenantId == null || e.TenantId == CurrentTenantId);
+        builder.Entity<Party>().HasQueryFilter(p => CurrentTenantId == null || p.TenantId == CurrentTenantId);
+        builder.Entity<Positions>().HasQueryFilter(pos => CurrentTenantId == null || pos.TenantId == CurrentTenantId);
+        builder.Entity<ElectionCustomField>().HasQueryFilter(f => CurrentTenantId == null || f.TenantId == CurrentTenantId);
+        builder.Entity<Candidate>().HasQueryFilter(c => CurrentTenantId == null || c.TenantId == CurrentTenantId);
+        builder.Entity<CandidateCustomValue>().HasQueryFilter(c => CurrentTenantId == null || c.TenantId == CurrentTenantId);
+        builder.Entity<CandidateGallery>().HasQueryFilter(c => CurrentTenantId == null || c.TenantId == CurrentTenantId);
+        builder.Entity<CandidateInvitation>().HasQueryFilter(c => CurrentTenantId == null || c.TenantId == CurrentTenantId);
     }
 
     public DbSet<Tenant> Tenants { get; set; }

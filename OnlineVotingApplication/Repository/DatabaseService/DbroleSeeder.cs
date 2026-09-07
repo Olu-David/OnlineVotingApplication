@@ -98,7 +98,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 // -------------------------------------------------------------
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
-                    (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "Reciiprocate1234.", "SuperAdmin"),
+                    (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "Reciprocate1234.", "SuperAdmin"),
                     (new ApplicationUser { FullName = "Platform Co-Admin 1", UserName = "platformadmin1@election.com", Email = "platformadmin1@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
                     (new ApplicationUser { FullName = "Platform Co-Admin 2", UserName = "platformadmin2@election.com", Email = "platformadmin2@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
                     (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Official"),

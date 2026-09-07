@@ -27,24 +27,7 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
-    <style>
-        .candform-header {
-            background-color: var(--votex-navy-900, #0a192f);
-            color: #ffffff;
-        }
-
-        .candform-submit {
-            background-color: var(--votex-amber, #ffb703);
-            color: #000000;
-            font-weight: 600;
-        }
-
-            .candform-submit:hover {
-                background-color: #fb8500;
-                color: #ffffff;
-            }
-    </style>
+    <link rel="stylesheet" href="~/css/candidate.css" asp-append-version="true" />
 }
 
 <div class="container mt-4 mb-5">
@@ -256,6 +239,11 @@
                     </div>
                 }
 
+                <!-- Cloudflare Turnstile Security Verification Widget -->
+                <div class="mb-4 d-flex justify-content-center">
+                    <div class="cf-turnstile" data-sitekey="YOUR_PUBLIC_SITE_KEY_HERE"></div>
+                </div>
+
                 <div class="d-flex justify-content-between mt-4">
                     <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
                     <button type="submit" class="btn candform-submit px-4">Create Candidate</button>
@@ -267,6 +255,8 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <!-- Cloudflare Turnstile SDK Script -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <script>
         $(document).ready(function () {

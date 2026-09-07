@@ -1,23 +1,22 @@
-﻿@model OnlineVotingApplication.DataTransferView.SendCandidateInvitation 
+﻿@model OnlineVotingApplication.DataTransferView.SendCandidateInvitation
 
-<div class="card shadow-sm mb-4">
-    <div class="card-header bg-primary text-white">
-        <h5 class="mb-0">Send Candidate Invitation</h5>
+<div class="card shadow-sm mb-4 border-0 rounded-3 overflow-hidden">
+    <div class="card-header candform-header p-3">
+        <h5><i class="bi bi-envelope-paper me-2" style="color: var(--votex-amber);"></i>Send Candidate Invitation</h5>
     </div>
-    <div class="card-body">
+    <div class="card-body p-4">
         <form asp-controller="Candidate" asp-action="SendCandidateInvite" method="post">
             @Html.AntiForgeryToken()
 
-            <!-- Pass the target election ID -->
             <input type="hidden" name="electionEventId" value="@Model.ElectionEventId" />
 
             <div class="mb-3">
-                <label for="candidateEmail" class="form-label">Candidate Email Address</label>
+                <label for="candidateEmail" class="form-label fw-semibold">Candidate Email Address</label>
                 <input type="email" class="form-control" id="candidateEmail" name="candidateEmail" placeholder="candidate@example.com" required />
             </div>
 
-            <button type="submit" class="btn btn-success">
-                <i class="bi bi-envelope-paper"></i> Send Secure Invitation Link
+            <button type="submit" class="btn candform-submit">
+                <i class="bi bi-envelope-paper me-1"></i> Send Secure Invitation Link
             </button>
         </form>
     </div>

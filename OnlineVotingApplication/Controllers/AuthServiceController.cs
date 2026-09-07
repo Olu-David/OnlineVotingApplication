@@ -10,52 +10,44 @@ using System.Text;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [EnableRateLimiting("StandardPolicy")] // Default policy for controller actions
+    [EnableRateLimiting("StandardPolicy")]
     public class AuthServiceController : Controller
     {
-        private readonly iAuthService _AuthService;
-        private readonly ILogger<AuthServiceController> _ilogger;
+        private readonly iAuthService _authService;
+        private readonly ILogger<AuthServiceController> _logger;
         private readonly UserManager<ApplicationUser> _userManager;
-        private readonly SignInManager<ApplicationUser> _signManager;
+        private readonly SignInManager<ApplicationUser> _signInManager;
 
         public AuthServiceController(
-            iAuthService AuthService,
-            ILogger<AuthServiceController> ilogger,
+            iAuthService authService,
+            ILogger<AuthServiceController> logger,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager)
         {
-            _AuthService = AuthService;
-            _ilogger = ilogger;
+            _authService = authService;
+            _logger = logger;
             _userManager = userManager;
-            _signManager = signInManager;
+            _signInManager = signInManager;
         }
 
-        public IActionResult Index()
-        {
-            return View();
-
-        }
+        public IActionResult Index() => View();
 
         [HttpGet]
-        public IActionResult UserRegistration()
-        {
-            return View();
-        }
+        [AllowAnonymous]
+        public IActionResult UserRegistration() => View();
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")] // Protect registration against bot spam
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> UserRegistration(RegistrationViewModel model, string roles = "Voter")
         {
-            if (!ModelState.IsValid)
-            {
-                return View(model);
-            }
+            if (!ModelState.IsValid) return View(model);
 
-            var newUserResponse = await _AuthService.RegisterUser(model, roles);
+            var newUserResponse = await _authService.RegisterUser(model, roles);
             if (!newUserResponse.Success)
             {
-                foreach (var error in newUserResponse.Errors!)
+                foreach (var error in newUserResponse.Errors ?? Enumerable.Empty<string>())
                 {
                     ModelState.AddModelError(string.Empty, error);
                 }
@@ -63,7 +55,6 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // Automatically trigger the confirmation email send process post-registration
             return RedirectToAction(nameof(SendConfirmationToken), new { userId = newUserResponse.Data?.Id });
         }
 
@@ -77,17 +68,13 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(UserRegistration));
             }
 
-            // 1. Generate the security token
             string token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
             string encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
-            // 2. Build the callback URL pointing back to this controller
             string confirmationLink = Url.Action("Confirm_Email", "AuthService",
                 new { userId = user.Id, token = encodedToken }, Request.Scheme)!;
 
-            // 3. Send the email via your service channel
-            var result = await _AuthService.SendConfirmationTokenAsync(user, confirmationLink);
-
+            var result = await _authService.SendConfirmationTokenAsync(user, confirmationLink);
             if (!result.Success)
             {
                 TempData["Error"] = "Failed to send confirmation email. Please try again.";
@@ -102,25 +89,29 @@ namespace OnlineVotingApplication.Controllers
         public IActionResult ConfirmEmailSent() => View();
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> Confirm_Email(string token, string userId)
         {
             if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId))
             {
-                TempData["Error"] = "Token expired or user not found.";
+                TempData["Error"] = "Invalid payload or token expired.";
                 return RedirectToAction(nameof(UserRegistration));
             }
 
-            var userFind = await _userManager.FindByIdAsync(userId);
-            if (userFind == null)
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
             {
                 TempData["Error"] = "User doesn't exist. Please register.";
                 return RedirectToAction(nameof(UserRegistration));
             }
 
-            var isConfirmed = await _AuthService.ConfirmEmailAsync(userId, token);
+            // Decode Base64Url token back to string
+            string decodedToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
+
+            var isConfirmed = await _authService.ConfirmEmailAsync(userId, decodedToken);
             if (!isConfirmed)
             {
-                TempData["Error"] = "Account could not be confirmed. The token may have expired. Please try again.";
+                TempData["Error"] = "Account could not be confirmed. The token may have expired.";
                 return RedirectToAction(nameof(UserRegistration));
             }
 
@@ -129,26 +120,22 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
-        public IActionResult Login()
-        {
-            return View();
-        }
+        [AllowAnonymous]
+        public IActionResult Login() => View();
 
         [HttpPost]
-        [ValidateAntiForgeryToken]
         [AllowAnonymous]
-        [EnableRateLimiting("StrictPolicy")] // Critical protection against brute-force password guessing
+        [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
         {
-            returnUrl ??= Url.Content("~/");
-
             if (!ModelState.IsValid)
             {
                 TempData["ErrorMessage"] = "Please correct the errors below.";
                 return View(model);
             }
 
-            var (result, is2fa, message) = await _AuthService.LoginUserAsync(model);
+            var (result, is2fa, message) = await _authService.LoginUserAsync(model);
 
             if (is2fa)
             {
@@ -160,24 +147,23 @@ namespace OnlineVotingApplication.Controllers
                 var user = await _userManager.FindByEmailAsync(model.EmailAddress ?? "");
                 if (user != null)
                 {
-                    if (await _userManager.IsInRoleAsync(user, "SuperAdmin"))
-                        return RedirectToAction("Dashboard", "SuperAdminDashboard");
-
-                    if (await _userManager.IsInRoleAsync(user, "Official"))
-                        return RedirectToAction("Dashboard", "Tenant");
-                    if (await _userManager.IsInRoleAsync(user, "Candidate"))
-                        return RedirectToAction("Index", "Candidate");
-                    if (await _userManager.IsInRoleAsync(user, "Auditor"))
-                        return RedirectToAction("Index", "Auditor");
-                    if (await _userManager.IsInRoleAsync(user, "Voter"))
-                        return RedirectToAction("Index", "Voter");
+                    var roles = await _userManager.GetRolesAsync(user);
+                    if (roles.Contains("SuperAdmin")) return RedirectToAction("Dashboard", "SuperAdminDashboard");
+                    if (roles.Contains("Official")) return RedirectToAction("Dashboard", "Tenant");
+                    if (roles.Contains("Candidate")) return RedirectToAction("Index", "Candidate");
+                    if (roles.Contains("Auditor")) return RedirectToAction("Index", "Auditor");
+                    if (roles.Contains("Voter")) return RedirectToAction("Index", "Voter");
                 }
 
-                return LocalRedirect(returnUrl);
+                if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                {
+                    return LocalRedirect(returnUrl);
+                }
+
+                return RedirectToAction("Index", "Home");
             }
 
-            if (result.IsLockedOut)
-                return RedirectToAction("Lockout");
+            if (result.IsLockedOut) return RedirectToAction("Lockout");
 
             ModelState.AddModelError(string.Empty, message ?? "Invalid login attempt.");
             TempData["ErrorMessage"] = message ?? "Invalid login attempt.";
@@ -185,41 +171,33 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public async Task<IActionResult> LoginWith2fa(bool rememberMe)
         {
-            var user = await _signManager.GetTwoFactorAuthenticationUserAsync();
+            var user = await _signInManager.GetTwoFactorAuthenticationUserAsync();
             if (user == null) return RedirectToAction(nameof(Login));
 
-            var sent = await _AuthService.TwoFactorAuthentication(user);
+            var sent = await _authService.TwoFactorAuthentication(user);
             if (!sent)
             {
                 TempData["Error"] = "Could not send 2FA code. Try again.";
                 return RedirectToAction(nameof(Login));
             }
 
-            var model = new LoginWith2faViewModel
-            {
-                UserId = user.Id!,
-                RememberMe = rememberMe
-            };
-
-            return View(model);
+            return View(new LoginWith2faViewModel { UserId = user.Id, RememberMe = rememberMe });
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")] // Prevent automated 2FA code guessing
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> LoginWith2fa(LoginWith2faViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
 
-            if (string.IsNullOrEmpty(model.UserId))
-            {
-                return RedirectToAction(nameof(Login));
-            }
+            if (string.IsNullOrEmpty(model.UserId)) return RedirectToAction(nameof(Login));
 
-            var response = await _AuthService.ConfirmTwoFactorAsync(model.UserId, model.TwoFactorCode ?? "", model.RememberMe);
-
+            var response = await _authService.ConfirmTwoFactorAsync(model.UserId, model.TwoFactorCode ?? "", model.RememberMe);
             if (response != null && response.Success)
             {
                 return RedirectToAction("Index", "Dashboard");
@@ -230,11 +208,13 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ForgotPassword() => View();
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")] // Prevent denial-of-service / email-flooding attacks via password recovery
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ForgotPassword(ForgotPasswordVM model)
         {
             if (!ModelState.IsValid) return View(model);
@@ -248,15 +228,17 @@ namespace OnlineVotingApplication.Controllers
             var callbackUrl = Url.Action("ResetPassword", "AuthService",
                 new { token = encodedToken, email = user.Email }, Request.Scheme);
 
-            await _AuthService.ForgotPasswordAsync(user, callbackUrl!);
+            await _authService.ForgotPasswordAsync(user, callbackUrl!);
 
             return RedirectToAction("ForgotPasswordConfirmation");
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ForgotPasswordConfirmation() => View();
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ResetPassword(string token, string email)
         {
             if (token == null || email == null) return RedirectToAction(nameof(Login));
@@ -264,20 +246,18 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
+        [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")] // Prevent rapid-fire password reset attempts
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ResetPassword(ResetPasswordViewModel model)
         {
             if (!ModelState.IsValid) return View(model);
 
             var user = await _userManager.FindByEmailAsync(model.Email ?? "");
-            if (user == null)
-            {
-                // Don't reveal that the user does not exist
-                return RedirectToAction(nameof(ResetPasswordConfirmation));
-            }
+            if (user == null) return RedirectToAction(nameof(ResetPasswordConfirmation));
 
-            var response = await _AuthService.ResetPasswordAsync(user, model.Token!, model.Password!);
+            string decodedToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(model.Token!));
+            var response = await _authService.ResetPasswordAsync(user, decodedToken, model.Password!);
 
             if (response.Success) return RedirectToAction(nameof(ResetPasswordConfirmation));
 
@@ -286,6 +266,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [AllowAnonymous]
         public IActionResult ResetPasswordConfirmation() => View();
 
         [HttpPost]
@@ -296,7 +277,7 @@ namespace OnlineVotingApplication.Controllers
             if (!ModelState.IsValid) return View(model);
 
             var userId = _userManager.GetUserId(User);
-            var response = await _AuthService.ChangePasswordAsync(userId!, model);
+            var response = await _authService.ChangePasswordAsync(userId!, model);
 
             if (response.Success)
             {
@@ -309,29 +290,22 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
+        [Authorize]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LogoutUser()
         {
-            var userId = _userManager.GetUserId(User);
-
-            if (string.IsNullOrEmpty(userId))
-            {
-                TempData["ErrorMessage"] = "User is not logged in.";
-                return RedirectToAction("Index", "Home");
-            }
-
             try
             {
-                await _signManager.SignOutAsync();
+                await _signInManager.SignOutAsync();
                 TempData["SuccessMessage"] = "Logged out successfully.";
-
-                return RedirectToAction("Index", "Home");
             }
             catch (Exception ex)
             {
-                TempData["ErrorMessage"] = "Logout failed: " + ex.Message;
-                return RedirectToAction("Index", "Home");
+                _logger.LogError(ex, "Error occurred during logout.");
+                TempData["ErrorMessage"] = "Logout failed.";
             }
+
+            return RedirectToAction("Index", "Home");
         }
 
         [HttpPost]
@@ -339,8 +313,7 @@ namespace OnlineVotingApplication.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LockUser(string userId)
         {
-            var response = await _AuthService.LockOutUserAsync(userId);
-
+            var response = await _authService.LockOutUserAsync(userId);
             if (response.Success)
             {
                 TempData["Status"] = "User has been banned.";

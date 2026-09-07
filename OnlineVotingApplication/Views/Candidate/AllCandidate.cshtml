@@ -6,6 +6,10 @@
     Layout = "_Layout"; // Admins/Officials only
 }
 
+@section Styles {
+    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
+}
+
 <div class="container mt-4">
 
     <!-- SYSTEM ALERTS BOX -->
@@ -25,9 +29,9 @@
     }
 
     <!-- MASTER TABLE LAYOUT WRAPPED IN A DESIGN CARD -->
-    <div class="card shadow-sm border-0 rounded-3">
-        <div class="card-header bg-dark text-white p-3 d-flex justify-content-between align-items-center">
-            <h5 class="mb-0 fw-bold"><i class="bi bi-people-fill me-2"></i> Active Candidates Management</h5>
+    <div class="card candmgmt-card">
+        <div class="candmgmt-header">
+            <h5><i class="bi bi-people-fill me-2"></i>Candidates Directory</h5>
         </div>
 
         <div class="card-body p-0">
@@ -35,7 +39,7 @@
             {
                 <div class="p-5 text-center text-muted">
                     <i class="bi bi-folder-x display-5 d-block mb-2"></i>
-                    <span>No active records found for this page window index.</span>
+                    <span>No active records found for this page.</span>
                 </div>
             }
             else
@@ -45,11 +49,11 @@
                         <thead class="table-light border-bottom">
                             <tr>
                                 <th scope="col" class="ps-3" style="width: 70px;">Profile</th>
-                                <th scope="col">Candidate Info</th>
-                                <th scope="col">Party affiliation</th>
-                                <th scope="col">Running Office</th>
-                                <th scope="col">Region State</th>
-                                <th scope="col" class="text-center" style="width: 240px;">Action Operations</th>
+                                <th scope="col">Candidate</th>
+                                <th scope="col">Party</th>
+                                <th scope="col">Position</th>
+                                <th scope="col">State</th>
+                                <th scope="col" class="text-center" style="width: 240px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -60,16 +64,15 @@
                                     <td class="ps-3">
                                         <img src="@(string.IsNullOrEmpty(item.image) ? "/images/default-avatar.png" : item.image)"
                                              alt="@item.Name"
-                                             class="rounded-circle border shadow-sm"
-                                             style="width: 38px; height: 38px; object-fit: cover;" />
+                                             class="candmgmt-avatar" />
                                     </td>
 
                                     <!-- Details -->
                                     <td>
-                                        <div class="fw-bold text-dark">@item.Name</div>
+                                        <div class="candmgmt-name">@item.Name</div>
                                         <small class="text-muted d-block text-truncate" style="max-width: 260px;">@item.Manifesto</small>
                                     </td>
-                                    <td><span class="badge bg-light text-dark border">@item.PartyName</span></td>
+                                    <td><span class="badge candmgmt-party-badge">@item.PartyName</span></td>
                                     <td><span class="text-secondary fw-semibold">@item.Position</span></td>
                                     <td><i class="bi bi-geo-alt text-muted"></i> @item.StateName</td>
 

@@ -1,10 +1,10 @@
 ﻿@using OnlineVotingApplication.Enums
+@using OnlineVotingApplication.Models
 @model OnlineVotingApplication.DataTransferView.CandidateViewModel
 
 @{
-    ViewData["Title"] = "Create Candidate";
+    ViewData["Title"] = "Create Candidate Profile";
 
-    // Evaluate if the category is Political (either via strongly-typed Enum or string/int conversion)
     bool isPolitical = false;
     if (ViewBag.ElectionCategory != null)
     {
@@ -21,19 +21,45 @@
             isPolitical = string.Equals(ViewBag.ElectionCategory.ToString(), TenantCategory.Political.ToString(), StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    var customFields = ViewBag.CustomFields as List<ElectionCustomField>;
+    var stateList = ViewBag.StateView as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
 }
 
-<div class="container mt-4">
-    <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-            <h4 class="mb-0">Create Candidate for @ViewBag.ElectionTitle</h4>
+@section Styles {
+    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
+    <style>
+        .candform-header {
+            background-color: var(--votex-navy-900, #0a192f);
+            color: #ffffff;
+        }
+
+        .candform-submit {
+            background-color: var(--votex-amber, #ffb703);
+            color: #000000;
+            font-weight: 600;
+        }
+
+            .candform-submit:hover {
+                background-color: #fb8500;
+                color: #ffffff;
+            }
+    </style>
+}
+
+<div class="container mt-4 mb-5">
+    <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
+        <div class="card-header candform-header p-3">
+            <h4 class="mb-0">
+                <i class="fas fa-user-plus me-2" style="color: var(--votex-amber, #ffb703);"></i>Create Candidate for @ViewBag.ElectionTitle
+            </h4>
         </div>
-        <div class="card-body">
+        <div class="card-body p-4">
 
             @if (TempData["ErrorMessage"] != null)
             {
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    @TempData["ErrorMessage"]
+                    <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             }
@@ -41,19 +67,19 @@
             <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data">
                 @Html.AntiForgeryToken()
 
-                <!-- Hardcoded value forces the HTML to print it regardless of ModelState behavior -->
                 <input type="hidden" asp-for="ElectionEventId" value="@Model.ElectionEventId" />
+                <input type="hidden" name="token" value="@ViewBag.Token" />
+
+                <!-- Standard Candidate Details -->
                 <div class="row">
-                    <!-- Candidate Full Name -->
                     <div class="col-md-6 mb-3">
-                        <label asp-for="Name" class="form-label fw-bold">Candidate Full Name</label>
+                        <label asp-for="Name" class="form-label fw-bold">Candidate Full Name <span class="text-danger">*</span></label>
                         <input asp-for="Name" class="form-control" placeholder="e.g. John Doe" />
                         <span asp-validation-for="Name" class="text-danger"></span>
                     </div>
 
-                    <!-- Position Selection -->
                     <div class="col-md-6 mb-3">
-                        <label asp-for="PositionId" class="form-label fw-bold">Position</label>
+                        <label asp-for="PositionId" class="form-label fw-bold">Position <span class="text-danger">*</span></label>
                         <select asp-for="PositionId" asp-items="ViewBag.PositionView" class="form-select">
                             <option value="">-- Select Position --</option>
                         </select>
@@ -62,11 +88,10 @@
                 </div>
 
                 <div class="row">
-                    <!-- Political Party Dropdown (Displays ONLY if TenantCategory == Political) -->
                     @if (isPolitical)
                     {
                         <div class="col-md-6 mb-3">
-                            <label asp-for="PartyId" class="form-label fw-bold">Political Party</label>
+                            <label asp-for="PartyId" class="form-label fw-bold">Political Party <span class="text-danger">*</span></label>
                             <select asp-for="PartyId" asp-items="ViewBag.Party" class="form-select">
                                 <option value="">-- Select Party --</option>
                             </select>
@@ -74,16 +99,18 @@
                         </div>
                     }
 
-                    <!-- State Dropdown -->
                     <div class="col-md-6 mb-3">
                         <label asp-for="StateId" class="form-label fw-bold">State</label>
-                        <select asp-for="StateId" id="stateDropdown" asp-items="ViewBag.StateView" class="form-select">
+                        <select asp-for="StateId" id="stateDropdown" class="form-select">
                             <option value="">-- Select State --</option>
+                            @foreach (var state in stateList)
+                            {
+                                <option value="@state.Value">@state.Text</option>
+                            }
                         </select>
                         <span asp-validation-for="StateId" class="text-danger"></span>
                     </div>
 
-                    <!-- Cascading LGA Dropdown -->
                     <div class="col-md-6 mb-3">
                         <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
                         <select asp-for="LgaId" id="lgaDropdown" asp-items="ViewBag.Lga" class="form-select">
@@ -91,19 +118,147 @@
                         </select>
                         <span asp-validation-for="LgaId" class="text-danger"></span>
                     </div>
+
+                    <div class="col-md-6 mb-3">
+                        <label asp-for="CandidateImageUrl" class="form-label fw-bold">Candidate Profile Picture</label>
+                        <input asp-for="CandidateImageUrl" type="file" class="form-control" accept="image/*" />
+                        <span asp-validation-for="CandidateImageUrl" class="text-danger"></span>
+                    </div>
                 </div>
 
-                <!-- Manifesto -->
                 <div class="mb-3">
                     <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
-                    <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's vision or goals..."></textarea>
+                    <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's vision or campaign goals..."></textarea>
                     <span asp-validation-for="Manifesto" class="text-danger"></span>
                 </div>
 
-                <!-- Actions -->
+                <div class="mb-3">
+                    <label asp-for="GalleryPhotos" class="form-label fw-bold">Gallery Photos (Optional)</label>
+                    <input asp-for="GalleryPhotos" type="file" class="form-control" multiple accept="image/*" />
+                    <span asp-validation-for="GalleryPhotos" class="text-danger"></span>
+                </div>
+
+                <!-- Dynamic Custom Fields Section -->
+                @if (customFields != null && customFields.Any())
+                {
+                    <hr class="my-4 text-muted" />
+                    <h5 class="mb-3 fw-bold" style="color: var(--votex-navy-900, #0a192f);">
+                        <i class="fas fa-clipboard-question me-2" style="color: var(--votex-amber, #ffb703);"></i>Additional Information
+                    </h5>
+
+                    <div class="row">
+                        @foreach (var field in customFields)
+                        {
+                            string existingVal = Model.DynamicAnswers != null && Model.DynamicAnswers.ContainsKey(field.Id)
+                            ? Model.DynamicAnswers[field.Id]
+                            : string.Empty;
+
+                            <div class="col-12 mb-3">
+                                <label class="form-label fw-semibold">
+                                    @field.FieldName
+                                    @if (field.IsRequired)
+                                    {
+                                        <span class="text-danger">*</span>
+                                    }
+                                </label>
+
+                                @switch (field.FieldType)
+                                {
+                                    case ElectionFieldType.Dropdown:
+                                        var options = !string.IsNullOrEmpty(field.CustomChoicesCsv)
+                                        ? field.CustomChoicesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                        : Array.Empty<string>();
+
+                                        if (field.IsRequired)
+                                        {
+                                            <select name="DynamicAnswers[@field.Id]" class="form-select" required>
+                                                <option value="">-- Select @field.FieldName --</option>
+                                                @foreach (var opt in options)
+                                                {
+                                                    var trimmed = opt.Trim();
+                                                    <option value="@trimmed" selected="@(existingVal == trimmed ? "selected" : null)">@trimmed</option>
+                                                }
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <select name="DynamicAnswers[@field.Id]" class="form-select">
+                                                <option value="">-- Select @field.FieldName --</option>
+                                                @foreach (var opt in options)
+                                                {
+                                                    var trimmed = opt.Trim();
+                                                    <option value="@trimmed" selected="@(existingVal == trimmed ? "selected" : null)">@trimmed</option>
+                                                }
+                                            </select>
+                                        }
+                                        break;
+
+                                    case ElectionFieldType.StateDropdown:
+                                        if (field.IsRequired)
+                                        {
+                                            <select name="DynamicAnswers[@field.Id]" class="form-select dynamic-state-select" required>
+                                                <option value="">-- Select State --</option>
+                                                @foreach (var state in stateList)
+                                                {
+                                                    <option value="@state.Value" selected="@(existingVal == state.Value ? "selected" : null)">@state.Text</option>
+                                                }
+                                            </select>
+                                        }
+                                        else
+                                        {
+                                            <select name="DynamicAnswers[@field.Id]" class="form-select dynamic-state-select">
+                                                <option value="">-- Select State --</option>
+                                                @foreach (var state in stateList)
+                                                {
+                                                    <option value="@state.Value" selected="@(existingVal == state.Value ? "selected" : null)">@state.Text</option>
+                                                }
+                                            </select>
+                                        }
+                                        break;
+
+                                    case ElectionFieldType.File:
+                                        if (field.IsRequired)
+                                        {
+                                            <input type="file" name="DynamicFiles[@field.Id]" class="form-control" required />
+                                        }
+                                        else
+                                        {
+                                            <input type="file" name="DynamicFiles[@field.Id]" class="form-control" />
+                                        }
+                                        <span class="form-text text-muted">Upload required attachment or credential document.</span>
+                                        break;
+
+                                    case ElectionFieldType.TextArea:
+                                        if (field.IsRequired)
+                                        {
+                                            <textarea name="DynamicAnswers[@field.Id]" class="form-control" rows="3" placeholder="Provide answer..." required>@existingVal</textarea>
+                                        }
+                                        else
+                                        {
+                                            <textarea name="DynamicAnswers[@field.Id]" class="form-control" rows="3" placeholder="Provide answer...">@existingVal</textarea>
+                                        }
+                                        break;
+
+                                    case ElectionFieldType.Input:
+                                    default:
+                                        if (field.IsRequired)
+                                        {
+                                            <input type="text" name="DynamicAnswers[@field.Id]" value="@existingVal" class="form-control" placeholder="Provide answer..." required />
+                                        }
+                                        else
+                                        {
+                                            <input type="text" name="DynamicAnswers[@field.Id]" value="@existingVal" class="form-control" placeholder="Provide answer..." />
+                                        }
+                                        break;
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+
                 <div class="d-flex justify-content-between mt-4">
                     <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn btn-success px-4">Create Candidate</button>
+                    <button type="submit" class="btn candform-submit px-4">Create Candidate</button>
                 </div>
             </form>
         </div>
@@ -115,11 +270,11 @@
 
     <script>
         $(document).ready(function () {
+            // Static State -> LGA Cascading Dropdown
             $('#stateDropdown').on('change', function () {
                 var selectedStateId = $(this).val();
                 var $lgaSelect = $('#lgaDropdown');
 
-                // Clear existing LGA options
                 $lgaSelect.empty().append('<option value="">-- Select LGA --</option>');
 
                 if (selectedStateId) {
@@ -136,7 +291,7 @@
                             });
                         },
                         error: function (xhr, status, error) {
-                            console.error("Error loading LGAs: ", error);
+                            console.error("Error retrieving LGAs for standard state: ", error);
                         }
                     });
                 }

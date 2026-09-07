@@ -1,115 +1,248 @@
-﻿@model OnlineVotingApplication.DataTransferView.UpdateCandidateViewModel;
+﻿@using OnlineVotingApplication.Enums
+@using OnlineVotingApplication.Models
+@model OnlineVotingApplication.DataTransferView.UpdateCandidateViewModel
 
 @{
     ViewData["Title"] = "Update Candidate Details";
-    Layout = "_Layout"; // Admins/Officials Restricted Layout
+    Layout = "_Layout";
+
+    bool isPolitical = false;
+    if (ViewBag.ElectionCategory != null)
+    {
+        if (ViewBag.ElectionCategory is TenantCategory categoryEnum)
+        {
+            isPolitical = categoryEnum == TenantCategory.Political;
+        }
+        else if (int.TryParse(ViewBag.ElectionCategory.ToString(), out int categoryInt))
+        {
+            isPolitical = categoryInt == (int)TenantCategory.Political;
+        }
+        else
+        {
+            isPolitical = string.Equals(ViewBag.ElectionCategory.ToString(), TenantCategory.Political.ToString(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    var customFields = ViewBag.CustomFields as List<ElectionCustomField> ?? new List<ElectionCustomField>();
+    var stateList = ViewBag.States as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var existingAnswers = ViewBag.ExistingAnswers as Dictionary<Guid, string> ?? new Dictionary<Guid, string>();
 }
 
-<div class="container mt-5">
+@section Styles {
+    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
+}
+
+<div class="container mt-5 mb-5">
     <div class="row justify-content-center">
         <div class="col-12 col-md-10 col-lg-8">
 
-            <!-- 1. SYSTEM ALERTS BOX (Displays Error Messages from ServiceResponse) -->
-            @await Html.PartialAsync("_Alerts");
+            @await Html.PartialAsync("_Alerts")
 
-            <!-- MASTER CARD CONTAINER -->
-            <div class="card shadow border-0 rounded-3">
+            <div class="card shadow border-0 rounded-3 overflow-hidden">
 
-                <!-- CARD HEADER -->
-                <div class="card-header bg-dark text-white p-3">
-                    <h5 class="mb-0 fw-bold">
-                        <i class="bi bi-pencil-square me-2"></i> Update Candidate Profile
-                    </h5>
+                <div class="card-header candform-header p-3">
+                    <h5 class="mb-0"><i class="bi bi-pencil-square me-2" style="color: var(--votex-amber);"></i> Update Candidate Profile</h5>
                 </div>
 
-                <!-- FORM CONTAINER (Supports Binary Image Uploads) -->
-                <!-- enctype="multipart/form-data" is mandatory to process IFormFile CandidateImageUrl streams -->
                 <form asp-action="UpdateCandidate" method="post" enctype="multipart/form-data">
                     @Html.AntiForgeryToken()
 
-                    <!-- CRITICAL HIDDEN AUDIT CONTROLS -->
                     <input type="hidden" asp-for="CandidateID" />
                     <input type="hidden" asp-for="OfficialStaffId" />
 
-                    <!-- ModelOnly means it will cleanly display high-level server/database errors here -->
                     <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3"></div>
 
-                  
-                    <!-- CARD BODY (Main Pre-filled Content Area) -->
                     <div class="card-body p-4">
 
-                        <!-- Input field: Candidate Name -->
+                        <!-- Core Candidate Info -->
                         <div class="mb-3">
-                            <label asp-for="Name" class="form-label fw-semibold">Candidate Full Name</label>
+                            <label asp-for="Name" class="form-label fw-semibold">Candidate Full Name <span class="text-danger">*</span></label>
                             <input asp-for="Name" class="form-control" placeholder="Enter full name" required />
                             <span asp-validation-for="Name" class="text-danger small"></span>
                         </div>
 
-                        <!-- File Input field: Profile Image File Asset -->
                         <div class="mb-3">
                             <label asp-for="CandidateImageUrl" class="form-label fw-semibold">Upload New Profile Photo</label>
                             <input asp-for="CandidateImageUrl" type="file" class="form-control" accept="image/*" />
-                            <div class="form-text text-muted small">Optional. Leave this empty if you want to preserve the candidate's existing picture.</div>
+                            <span asp-validation-for="CandidateImageUrl" class="text-danger small"></span>
+                            <div class="form-text text-muted small">Optional. Leave empty to preserve existing picture.</div>
                         </div>
 
-                        <!-- Dropdown list element: Political Party -->
-                        <div class="mb-3">
-                            <label asp-for="PartyId" class="form-label fw-semibold">Political Party Affiliation</label>
-                            <select asp-for="PartyId" class="form-select" asp-items="ViewBag.Parties" required>
-                                <option value="">-- Choose Political Party --</option>
-                            </select>
-                            <span asp-validation-for="PartyId" class="text-danger small"></span>
-                        </div>
+                        <!-- Conditionally render Party Selection for Political Elections -->
+                        @if (isPolitical)
+                        {
+                            <div class="mb-3">
+                                <label asp-for="PartyId" class="form-label fw-semibold">Political Party Affiliation <span class="text-danger">*</span></label>
+                                <select asp-for="PartyId" class="form-select" asp-items="ViewBag.Parties" required>
+                                    <option value="">-- Choose Political Party --</option>
+                                </select>
+                                <span asp-validation-for="PartyId" class="text-danger small"></span>
+                            </div>
+                        }
 
-                        <!-- Dropdown list element: Running Position Office -->
                         <div class="mb-3">
-                            <!-- Binds to your exact View Model typo spelling: PositonId -->
-                            <label asp-for="PositonId" class="form-label fw-semibold">Target Electoral Position Office</label>
+                            <label asp-for="PositonId" class="form-label fw-semibold">Target Electoral Position Office <span class="text-danger">*</span></label>
                             <select asp-for="PositonId" class="form-select" asp-items="ViewBag.Positions" required>
                                 <option value="">-- Choose Target Office --</option>
                             </select>
                             <span asp-validation-for="PositonId" class="text-danger small"></span>
                         </div>
 
-                        <!-- Dropdown list element: State Constituency Boundaries -->
                         <div class="mb-3">
                             <label asp-for="StateId" class="form-label fw-semibold">State / Region Constituency</label>
-                            <select asp-for="StateId" class="form-select" asp-items="ViewBag.States" required>
+                            <select asp-for="StateId" id="stateDropdown" class="form-select" asp-items="ViewBag.States">
                                 <option value="">-- Choose Region State --</option>
                             </select>
                             <span asp-validation-for="StateId" class="text-danger small"></span>
                         </div>
 
-                        <!-- Multi-line input element: Policy Manifesto Statement Documents -->
-                        <div class="mb-0">
+                        <div class="mb-3">
                             <label asp-for="Manifesto" class="form-label fw-semibold">Candidate Manifesto Summary Statement</label>
-                            <textarea asp-for="Manifesto" class="form-control" rows="5" placeholder="Write candidate manifesto statement summaries here..." required></textarea>
+                            <textarea asp-for="Manifesto" class="form-control" rows="5" placeholder="Write candidate manifesto statement summaries here..."></textarea>
                             <span asp-validation-for="Manifesto" class="text-danger small"></span>
                         </div>
 
+                        <!-- Dynamic Custom Fields -->
+                        @if (customFields.Any())
+                        {
+                            <hr class="my-4 text-muted" />
+                            <h6 class="mb-3 fw-bold text-uppercase text-secondary">
+                                <i class="bi bi-card-checklist me-2"></i>Additional Information
+                            </h6>
+
+                            <div class="row">
+                                @foreach (var field in customFields)
+                                {
+                                    string existingVal = string.Empty;
+
+                                    if (Model.DynamicAnswers != null && Model.DynamicAnswers.TryGetValue(field.Id, out var modelVal))
+                                    {
+                                        existingVal = modelVal ?? string.Empty;
+                                    }
+                                    else if (existingAnswers.TryGetValue(field.Id, out var viewBagVal))
+                                    {
+                                        existingVal = viewBagVal ?? string.Empty;
+                                    }
+
+                                    <div class="col-12 mb-3">
+                                        <label class="form-label fw-semibold">
+                                            @field.FieldName
+                                            @if (field.IsRequired)
+                                            {
+                                                <span class="text-danger">*</span>
+                                            }
+                                        </label>
+
+                                        @switch (field.FieldType)
+                                        {
+                                            case ElectionFieldType.Dropdown:
+                                                var options = !string.IsNullOrEmpty(field.CustomChoicesCsv)
+                                                ? field.CustomChoicesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                                                : Array.Empty<string>();
+
+                                                <select name="DynamicAnswers[@field.Id]"
+                                                        class="form-select"
+                                                        data-val="@field.IsRequired.ToString().ToLower()"
+                                                        data-val-required="The @field.FieldName field is required."
+                                                        @(field.IsRequired ? "required" : "")>
+                                                    <option value="">-- Select @field.FieldName --</option>
+                                                    @foreach (var opt in options)
+                                                    {
+                                                        var trimmed = opt.Trim();
+                                                        <option value="@trimmed" selected="@(string.Equals(existingVal, trimmed, StringComparison.OrdinalIgnoreCase) ? "selected" : null)">
+                                                            @trimmed
+                                                        </option>
+                                                    }
+                                                </select>
+                                                break;
+
+                                            case ElectionFieldType.StateDropdown:
+                                                <select name="DynamicAnswers[@field.Id]"
+                                                        class="form-select"
+                                                        data-val="@field.IsRequired.ToString().ToLower()"
+                                                        data-val-required="The @field.FieldName field is required."
+                                                        @(field.IsRequired ? "required" : "")>
+                                                    <option value="">-- Select State --</option>
+                                                    @foreach (var state in stateList)
+                                                    {
+                                                        <option value="@state.Value" selected="@(existingVal == state.Value ? "selected" : null)">
+                                                            @state.Text
+                                                        </option>
+                                                    }
+                                                </select>
+                                                break;
+
+                                            case ElectionFieldType.File:
+                                                <input type="file"
+                                                       name="DynamicFiles[@field.Id]"
+                                                       class="form-control"
+                                                       data-val="@(field.IsRequired && string.IsNullOrEmpty(existingVal) ? "true" : "false")"
+                                                       data-val-required="Please attach a file for @field.FieldName."
+                                                       @(field.IsRequired && string.IsNullOrEmpty(existingVal) ? "required" : "") />
+
+                                                if (!string.IsNullOrEmpty(existingVal))
+                                                {
+                                                    <div class="form-text text-muted small mt-1">
+                                                        <i class="bi bi-paperclip me-1"></i> Current document:
+                                                        <a href="@existingVal" target="_blank" class="text-decoration-underline fw-semibold">View Attached Document</a>
+                                                        <span class="ms-1">(Leave blank to keep existing upload)</span>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="form-text text-muted small">Upload mandatory credential document.</div>
+                                                }
+                                                break;
+
+                                            case ElectionFieldType.TextArea:
+                                                <textarea name="DynamicAnswers[@field.Id]"
+                                          class="form-control"
+                                          rows="3"
+                                          placeholder="Provide answer..."
+                                          data-val="@field.IsRequired.ToString().ToLower()"
+                                          data-val-required="The @field.FieldName field is required."
+                                          @(field.IsRequired ? "required" : "")>@existingVal</textarea>
+                                                break;
+
+                                            case ElectionFieldType.Input:
+                                            default:
+                                                <input type="text"
+                                                       name="DynamicAnswers[@field.Id]"
+                                                       value="@existingVal"
+                                                       class="form-control"
+                                                       placeholder="Provide answer..."
+                                                       data-val="@field.IsRequired.ToString().ToLower()"
+                                                       data-val-required="The @field.FieldName field is required."
+                                                       @(field.IsRequired ? "required" : "") />
+                                                break;
+                                        }
+
+                                        <span class="field-validation-valid text-danger small" data-valmsg-for="DynamicAnswers[@field.Id]" data-valmsg-replace="true"></span>
+                                    </div>
+                                }
+                            </div>
+                        }
+
                     </div>
 
-                    <!-- CARD FOOTER (Controls and Navigation Actions) -->
                     <div class="card-footer bg-light p-3 d-flex justify-content-end gap-2">
-                        <!-- Gracefully escapes back to your main paginated overview directory list view -->
                         <a asp-action="AllCandidate" class="btn btn-outline-secondary px-4">
                             Cancel
                         </a>
 
-                        <button type="submit" class="btn btn-primary px-4">
+                        <button type="submit" class="btn candform-submit px-4">
                             <i class="bi bi-save2-fill me-1"></i> Save Changes
                         </button>
                     </div>
 
                 </form>
 
-            </div> <!-- /Card -->
+            </div>
 
         </div>
     </div>
 </div>
 
 @section Scripts {
-    <!-- Wire up client-side error checking so empty fields reject instantly in the browser without reloading -->
     <partial name="_ValidationScriptsPartial" />
 }

@@ -9,23 +9,27 @@
     if (Model.TotalItems == 0) { startItem = 0; endItem = 0; }
     ;
 }
+
+@section Styles {
+    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
+}
+
 @await Html.PartialAsync("_Alerts");
 <div class="container mt-4">
-    <div class="card shadow-sm mb-3 rounded-3 border-0">
+    <div class="card candmgmt-filter-bar mb-3">
         <div class="card-body p-4">
             <form class="row g-3 align-items-center" asp-action="/" method="get">
-                <input type="hidden" name="PageNumber" value="1" />     
+                <input type="hidden" name="PageNumber" value="1" />
                 <input type="hidden" name="Pagesize" value="@Model.PageSize" />
                 <div class="col-md-5">
-                    <label class="form-label fw-semibold text-secondary small text-uppercase tracking-wider">List Of All Candidate By LGA</label>
-                    <select name="stateId" asp-items="ViewBag.Lga" class="form-select border-2" style="border-color: #cbd5e1;">
-                       
+                    <label class="form-label">Local Government Area</label>
+                    <select name="stateId" asp-items="ViewBag.Lga" class="form-select">
                         <option value="">-- Select Target Location --</option>
                     </select>
                 </div>
 
                 <div class="col-md-3 align-self-end">
-                    <button type="submit" class="btn fw-semibold text-white px-4 shadow-sm" style="background-color: #2563eb; padding: 0.58rem 1.5rem;">
+                    <button type="submit" class="btn candmgmt-filter-btn px-4 shadow-sm">
                         <i class="bi bi-funnel-fill me-1"></i> Filter Dataset
                     </button>
                 </div>
@@ -34,40 +38,37 @@
         </div>
     </div>
 
-    <!-- MAIN DATA DISPLAY SECTION WRAPPED IN MANAGEMENT CARD FRAME -->
-    <div class="card shadow-sm border-0 rounded-3 overflow-hidden bg-white" style="border: 1px solid #e2e8f0!important;">
-        <!-- Header Strip using your Deep Corporate Blue theme styling context -->
-        <div class="card-header text-white p-3 d-flex justify-content-between align-items-center" style="background-color: #1e3a8a!important;">
-            <h5 class="mb-0 fw-bold">
+    <!-- MAIN DATA DISPLAY SECTION -->
+    <div class="card candmgmt-card">
+        <div class="candmgmt-header">
+            <h5>
                 <i class="bi bi-geo-alt-fill me-2"></i>
-                @(!string.IsNullOrEmpty(ViewBag.SelectedLgaName) ? $"Candidates Matrix: {ViewBag.SelectedLgaName}" : "Party Candidates Registry")
+                @(!string.IsNullOrEmpty(ViewBag.SelectedLgaName) ? $"Candidates in {ViewBag.SelectedLgaName}" : "Candidates by LGA")
             </h5>
-            <span class="badge bg-white text-primary fw-bold shadow-sm">
-                Total Matches: @Model.TotalItems
-            </span>
+            <span class="badge">@Model.TotalItems Total</span>
         </div>
 
-        <div class="card-body p-0 bg-white">
+        <div class="card-body p-0">
             @if (Model.Items == null || !Model.Items.Any())
             {
-                <div class="p-5 text-center text-muted bg-white">
+                <div class="p-5 text-center text-muted">
                     <i class="bi bi-folder-x display-4 d-block mb-3 text-secondary"></i>
                     <h5 class="fw-medium text-dark mb-1">No active records found</h5>
-                    <p class="small text-muted mb-0">Select a specific state filtering boundary above or load default query configurations.</p>
+                    <p class="small text-muted mb-0">Select an LGA above to filter the directory.</p>
                 </div>
             }
             else
             {
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0 bg-white">
+                    <table class="table table-hover align-middle mb-0">
                         <thead class="table-light border-bottom">
                             <tr>
                                 <th scope="col" class="ps-3" style="width: 70px;">Profile</th>
-                                <th scope="col">Candidate Info</th>
-                                <th scope="col">Party Affiliation</th>
-                                <th scope="col">Running Office</th>
-                                <th scope="col">Region State</th>
-                                <th scope="col" class="text-center" style="width: 240px;">Action Operations</th>
+                                <th scope="col">Candidate</th>
+                                <th scope="col">Party</th>
+                                <th scope="col">Position</th>
+                                <th scope="col">State</th>
+                                <th scope="col" class="text-center" style="width: 240px;">Actions</th>
                             </tr>
                         </thead>
 
@@ -75,37 +76,29 @@
                             @foreach (var item in Model.Items)
                             {
                                 <tr>
-                                    <!-- Dynamic Image Avatar -->
                                     <td class="ps-3">
                                         <img src="@(string.IsNullOrEmpty(item.image) ? "/images/default-avatar.png" : item.image)"
-                                             alt="@item.Name"
-                                             class="rounded-circle border shadow-sm"
-                                             style="width: 40px; height: 40px; object-fit: cover; border-color: #cbd5e1!important;" />
+                                             alt="@item.Name" class="candmgmt-avatar" />
                                     </td>
 
-
                                     <td>
-                                        <div class="fw-bold text-dark">@item.Name</div>
+                                        <div class="candmgmt-name">@item.Name</div>
                                         <small class="text-muted d-block text-truncate" style="max-width: 260px;">
-                                            @(string.IsNullOrEmpty(item.Manifesto) ? "No declaration statement profiles compiled." : item.Manifesto)
+                                            @(string.IsNullOrEmpty(item.Manifesto) ? "No manifesto provided." : item.Manifesto)
                                         </small>
                                     </td>
 
-                                    <!-- Context Badges -->
-                                    <td><span class="badge bg-light text-dark border fw-medium px-2.5 py-1.5">@item.PartyName</span></td>
-                                    <td><span class="text-primary fw-semibold small" style="color: #2563eb!important;">@item.Position</span></td>
+                                    <td><span class="badge candmgmt-party-badge">@item.PartyName</span></td>
+                                    <td><span class="text-secondary fw-semibold small">@item.Position</span></td>
                                     <td><i class="bi bi-geo-alt text-muted small me-1"></i>@item.StateName</td>
 
-                                    <!-- System Operations Action Controls Row Column mapping -->
                                     <td class="pe-3">
                                         <div class="d-flex justify-content-center align-items-center gap-2">
-                                            <!-- EDIT CONTAINER LINK -->
                                             <a asp-action="Edit" asp-route-id="@item.CandidateID"
                                                class="btn btn-outline-warning btn-sm d-flex align-items-center justify-content-center gap-1 flex-grow-1 fw-medium">
                                                 <i class="bi bi-pencil-square"></i> Edit
                                             </a>
 
-                                            <!-- POST OPERATIONAL SOFT DELETE COMPONENT -->
                                             <form asp-action="ConfirmSoftDelete" method="post" class="m-0 flex-grow-1"
                                                   onsubmit="return confirm('⚠️ SOFT-DELETE CONFIRMATION:\n\nAre you sure you want to transfer @item.Name to the trash bin directory system?');">
                                                 @Html.AntiForgeryToken()
@@ -128,18 +121,15 @@
             }
         </div>
 
-        <!-- REFACTORED STABLE FOOTER ROUTING PAGINATION SYSTEM TOOLBAR -->
-        <div class="card-footer bg-white p-3 d-flex flex-column flex-sm-row justify-content-between align-items-center border-top" style="border-color: #e2e8f0!important;">
-            <!-- Summary Progress Text Tracker Box -->
+        <div class="card-footer bg-white p-3 d-flex flex-column flex-sm-row justify-content-between align-items-center border-top">
             <div class="text-muted small mb-2 mb-sm-0">
                 Showing <strong>@startItem</strong> to <strong>@endItem</strong> of <strong>@Model.TotalItems</strong> matching profiles
-                <span class="mx-1 text-slate-300">|</span> Page @Model.PageNumber of @Model.TotalPages
+                <span class="mx-1 text-muted">|</span> Page @Model.PageNumber of @Model.TotalPages
             </div>
 
             <nav aria-label="Candidates directory page navigation">
                 <ul class="pagination pagination-sm mb-0 shadow-sm">
 
-                    <!-- 1. PREVIOUS PAGE LINK BUTTON -->
                     <li class="page-item @(Model.HasPreviousPage ? "" : "disabled")">
                         <a class="page-link px-3 fw-medium"
                            asp-action="GetCandidateByState"
@@ -150,14 +140,10 @@
                         </a>
                     </li>
 
-                    <!-- 2. ACTIVE PAGE INDICATOR BADGE -->
                     <li class="page-item active">
-                        <span class="page-link fw-bold px-3" style="background-color: #2563eb!important; border-color: #2563eb!important;">
-                            @Model.PageNumber
-                        </span>
+                        <span class="page-link fw-bold px-3">@Model.PageNumber</span>
                     </li>
 
-                    <!-- 3. NEXT PAGE LINK BUTTON -->
                     <li class="page-item @(Model.HasNextPage ? "" : "disabled")">
                         <a class="page-link px-3 fw-medium"
                            asp-action="GetCandidateByLga"

@@ -7,7 +7,7 @@
 }
 
 @section Styles {
-    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth.css" asp-append-version="true" />
 }
 
 <div class="container py-5">
@@ -15,55 +15,57 @@
         <div class="col-xl-8 col-lg-10">
 
             <div class="text-center mb-4">
-                <div class="auth-icon" style="width: 64px; height: 64px; margin-bottom: 1rem;">
+                <div class="auth-icon mx-auto mb-3" style="width: 64px; height: 64px;">
                     <i class="fas fa-building fa-lg"></i>
                 </div>
-                <h1 class="auth-title" style="font-size: 1.75rem; color: var(--votex-navy-900);">Register Your Organization</h1>
+                <h1 class="auth-title fs-3 text-dark">Register Your Organization</h1>
                 <p class="text-muted">Set up a secure election workspace for your organization, and create the admin account that will manage it.</p>
             </div>
 
             <div class="card auth-card">
-                <div class="auth-card-body p-4 p-md-5">
+                <div class="auth-card-body position-relative p-4 p-md-5">
 
-                    <form asp-controller="Tenant" asp-action="CreateOrganization" method="post" enctype="multipart/form-data">
+                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3 bg-white bg-opacity-75" style="z-index: 10;">
+                        <div class="spinner-border text-primary mb-2" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <span class="fw-semibold text-primary">Setting up your organization workspace…</span>
+                    </div>
+
+                    <form id="tenantRegistrationForm" asp-controller="Tenant" asp-action="CreateOrganization" method="post" enctype="multipart/form-data">
                         @Html.AntiForgeryToken()
 
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger border-0 shadow-sm small mb-4" role="alert"></div>
 
-                        <h4 class="org-section-title">
-                            <span class="step-no">1</span> Organization details
+                        <h4 class="org-section-title mb-3">
+                            <span class="step-no fw-bold text-primary">1</span> Organization details
                         </h4>
 
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label asp-for="OrganizationName" class="form-label">Organization Name</label>
-                                <input asp-for="OrganizationName" type="text" class="form-control" placeholder="e.g. Abuja University, Lagos State Tech" required />
+                                <input asp-for="OrganizationName" type="text" class="form-control" placeholder="e.g. Abuja University, Lagos State Tech" required autocomplete="organization" />
                                 <span asp-validation-for="OrganizationName" class="text-danger small"></span>
                             </div>
 
                             <div class="col-md-6">
                                 <label asp-for="TenantCategory" class="form-label">Category</label>
-                                <select asp-for="TenantCategory" class="form-select" required>
+                                <select asp-for="TenantCategory" class="form-select" required asp-items="Html.GetEnumSelectList<TenantCategory>()">
                                     <option value="">-- Choose a category --</option>
-                                    <option value="@TenantCategory.Political">Political / National Election</option>
-                                    <option value="@TenantCategory.Educational">Academic Union / Educational Institution</option>
-                                    <option value="@TenantCategory.Corporate">Corporate Board / Union</option>
-                                    <option value="@TenantCategory.Fashion">Fashion Pageant / Awards</option>
-                                    <option value="@TenantCategory.Sports">Sports League / Club Council</option>
                                 </select>
                                 <span asp-validation-for="TenantCategory" class="text-danger small"></span>
                             </div>
 
                             <div class="col-12">
                                 <label asp-for="ProfilePicture" class="form-label">Organization Logo</label>
-                                <input asp-for="ProfilePicture" type="file" class="form-control" accept="image/*" />
+                                <input asp-for="ProfilePicture" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" />
                                 <div class="form-text text-muted">JPEG, PNG or WEBP. Max size 4MB.</div>
                                 <span asp-validation-for="ProfilePicture" class="text-danger small"></span>
                             </div>
                         </div>
 
-                        <h4 class="org-section-title">
-                            <span class="step-no">2</span> Admin account
+                        <h4 class="org-section-title mb-3">
+                            <span class="step-no fw-bold text-primary">2</span> Admin account
                         </h4>
 
                         <div class="row g-3 mb-4">
@@ -71,7 +73,7 @@
                                 <label asp-for="AdminEmail" class="form-label">Admin Email</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-envelope"></i></span>
-                                    <input asp-for="AdminEmail" type="email" class="form-control border-start-0" placeholder="admin@yourorganization.com" required />
+                                    <input asp-for="AdminEmail" type="email" class="form-control border-start-0" placeholder="admin@yourorganization.com" required autocomplete="email" />
                                 </div>
                                 <div class="form-text text-muted">We'll send your verification link to this address.</div>
                                 <span asp-validation-for="AdminEmail" class="text-danger small"></span>
@@ -81,17 +83,24 @@
                                 <label asp-for="AdminPassword" class="form-label">Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-lock"></i></span>
-                                    <input asp-for="AdminPassword" type="password" class="form-control border-start-0" placeholder="••••••••••••" required />
+                                    <input asp-for="AdminPassword" id="adminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" required autocomplete="new-password" />
+                                    <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="toggleAdminPassword">
+                                        <i class="fas fa-eye text-muted" id="toggleAdminIcon"></i>
+                                    </button>
                                 </div>
                                 <span asp-validation-for="AdminPassword" class="text-danger small"></span>
                             </div>
 
                             <div class="col-md-6">
-                                <label class="form-label">Confirm Password</label>
+                                <label asp-for="ConfirmAdminPassword" class="form-label">Confirm Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-lock"></i></span>
-                                    <input type="password" name="ConfirmAdminPassword" class="form-control border-start-0" placeholder="••••••••••••" required />
+                                    <input asp-for="ConfirmAdminPassword" id="confirmAdminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" required autocomplete="new-password" />
+                                    <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="toggleConfirmPassword">
+                                        <i class="fas fa-eye text-muted" id="toggleConfirmIcon"></i>
+                                    </button>
                                 </div>
+                                <span asp-validation-for="ConfirmAdminPassword" class="text-danger small"></span>
                             </div>
                         </div>
 
@@ -106,7 +115,7 @@
                             <a asp-action="Index" asp-controller="Home" class="btn btn-light px-4 border shadow-sm rounded-pill fw-semibold">
                                 <i class="fas fa-times me-1"></i> Cancel
                             </a>
-                            <button type="submit" class="btn auth-btn-primary px-5 shadow rounded-pill">
+                            <button type="submit" id="submitBtn" class="btn auth-btn-primary px-5 shadow rounded-pill">
                                 <i class="fas fa-rocket me-1"></i> Create Organization
                             </button>
                         </div>
@@ -116,7 +125,7 @@
             </div>
 
             <div class="text-center mt-4">
-                <p class="auth-footnote">Need a custom setup for larger ballot allocations? <a href="#">Contact platform support</a></p>
+                <p class="auth-footnote text-muted">Need a custom setup for larger ballot allocations? <a href="#">Contact platform support</a></p>
             </div>
 
         </div>
@@ -125,4 +134,48 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById("tenantRegistrationForm");
+            const overlay = document.getElementById("loadingOverlay");
+            const submitBtn = document.getElementById("submitBtn");
+
+            // Password Toggle Utility Function
+            function setupPasswordToggle(buttonId, inputId, iconId) {
+                const button = document.getElementById(buttonId);
+                const input = document.getElementById(inputId);
+                const icon = document.getElementById(iconId);
+
+                if (button && input && icon) {
+                    button.addEventListener("click", function () {
+                        const isPassword = input.getAttribute("type") === "password";
+                        input.setAttribute("type", isPassword ? "text" : "password");
+                        icon.classList.toggle("fa-eye", !isPassword);
+                        icon.classList.toggle("fa-eye-slash", isPassword);
+                    });
+                }
+            }
+
+            // Initialize toggles for AdminPassword and ConfirmAdminPassword
+            setupPasswordToggle("toggleAdminPassword", "adminPasswordInput", "toggleAdminIcon");
+            setupPasswordToggle("toggleConfirmPassword", "confirmAdminPasswordInput", "toggleConfirmIcon");
+
+            // Form Submit Loading State
+            form.addEventListener("submit", function (event) {
+                const isValid = typeof $(form).valid === "function" ? $(form).valid() : form.checkValidity();
+
+                if (isValid) {
+                    overlay.classList.remove("d-none");
+                    overlay.classList.add("d-flex");
+
+                    setTimeout(() => {
+                        submitBtn.disabled = true;
+                    }, 10);
+                } else {
+                    event.preventDefault();
+                }
+            });
+        });
+    </script>
 }

@@ -4,11 +4,14 @@
     ViewData["Title"] = "Delete Confirmation";
 }
 
+@section Styles {
+    <link rel="stylesheet" href="/css/candidate.css" asp-append-version="true" />
+}
+
 <div class="container mt-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
 
-            <!-- 1. GLOBAL ALERT AREA: Displays Errors from the ServiceResponse -->
             @if (TempData["ErrorMessage"] != null)
             {
                 <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4" role="alert">
@@ -18,49 +21,40 @@
                 </div>
             }
 
-            <!-- MAIN BOOTSTRAP CARD CONTAINER -->
-            <div class="card border-danger shadow-lg rounded-3 overflow-hidden">
+            <div class="card canddanger-card shadow-lg rounded-3 overflow-hidden">
 
-                <!-- 2. CARD HEADER: Clear Visual Danger Cue -->
-                <div class="card-header bg-danger text-white py-3">
+                <div class="card-header canddanger-header py-3">
                     <h5 class="card-title mb-0 d-flex align-items-center">
                         <i class="bi bi-trash3-fill me-2 fs-4"></i>
                         <span>Confirm Action: Move to Trash</span>
                     </h5>
                 </div>
 
-                <!-- 3. CARD BODY: Contextual Information & Warnings -->
                 <div class="card-body p-4">
                     <p class="text-secondary mb-3">You are about to soft-delete the following candidate profile:</p>
 
-                    <!-- Candidate Data Box -->
                     <div class="bg-light p-3 rounded-3 border-start border-danger border-4 mb-4">
                         <div class="text-muted small text-uppercase fw-bold mb-1">Candidate</div>
                         <h4 class="text-dark mb-0">@Model.Name</h4>
                         <span class="text-muted fs-7">ID: @Model.CandidateID</span>
                     </div>
 
-                    <!-- 30-Day Purge Warning Box -->
                     <div class="alert alert-warning border-0 bg-warning-subtle d-flex align-items-start mb-0 p-3" role="alert">
                         <i class="bi bi-clock-history text-warning fs-5 me-2 mt-0"></i>
                         <div>
-                            <strong class="text-dark">Notice:</strong> This item is not permanently deleted yet. It will be moved to the trash and **automatically purged in 30 days**.
+                            <strong class="text-dark">Notice:</strong> This item is not permanently deleted yet. It will be moved to the trash and <strong>automatically purged in 30 days</strong>.
                         </div>
                     </div>
                 </div>
 
-                <!-- 4. CARD FOOTER: Clear Action Choices -->
                 <div class="card-footer bg-light p-3 d-flex justify-content-end gap-2 border-top-0">
-                    <!-- Cancel Choice -->
                     <a asp-action="Index" class="btn btn-outline-secondary px-4">
                         Cancel
                     </a>
 
-                    <!-- Confirm Choice: Submits to your Controller and Service -->
                     <form asp-action="ConfirmSoftDelete" method="post" class="m-0">
                         @Html.AntiForgeryToken()
 
-                        <!-- Hidden field passing the Guid parameter seamlessly -->
                         <input type="hidden" name="candidateId" value="@Model.CandidateID" />
 
                         <button type="submit" class="btn btn-danger px-4">
@@ -69,7 +63,7 @@
                     </form>
                 </div>
 
-            </div> <!-- /Card -->
+            </div>
 
         </div>
     </div>

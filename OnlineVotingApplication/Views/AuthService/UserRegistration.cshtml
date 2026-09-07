@@ -1,30 +1,29 @@
-﻿@using OnlineVotingApplication.DataTransferView;
+﻿@using OnlineVotingApplication.DataTransferView
 @model RegistrationViewModel
 
 @{
     ViewData["Title"] = "Create Account";
-   Layout = "_AuthLayout";
-
+    Layout = "_AuthLayout";
 }
 
 @section Styles {
-    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth.css" asp-append-version="true" />
 }
 
 <div class="container my-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
             <div class="card auth-card">
-                <div class="auth-card-header">
-                    <div class="auth-icon"><i class="fas fa-user-check"></i></div>
+                <div class="auth-card-header text-center p-4">
+                    <div class="auth-icon mb-2"><i class="fas fa-user-check fa-2x"></i></div>
                     <h3 class="auth-title">Create Your Account</h3>
-                    <p class="auth-subtitle">Register as a voter on Votezy</p>
+                    <p class="auth-subtitle text-muted">Register as a voter on Votezy</p>
                 </div>
                 <div class="auth-card-tear"></div>
 
-                <div class="auth-card-body position-relative">
+                <div class="auth-card-body position-relative p-4">
 
-                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3">
+                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3 bg-white bg-opacity-75" style="z-index: 10;">
                         <div class="spinner-border text-primary mb-2" role="status" style="width: 3rem; height: 3rem;">
                             <span class="visually-hidden">Loading...</span>
                         </div>
@@ -32,36 +31,48 @@
                     </div>
 
                     <form id="registrationForm" asp-action="Register" method="post">
+                        @Html.AntiForgeryToken()
+
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>
 
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">
                                 <label asp-for="FirstName" class="form-label">First Name</label>
-                                <input asp-for="FirstName" class="form-control" placeholder="John" required />
+                                <input asp-for="FirstName" class="form-control" placeholder="John" required autocomplete="given-name" />
                                 <span asp-validation-for="FirstName" class="text-danger small"></span>
                             </div>
                             <div class="col-sm-6">
                                 <label asp-for="LastName" class="form-label">Last Name</label>
-                                <input asp-for="LastName" class="form-control" placeholder="Doe" required />
+                                <input asp-for="LastName" class="form-control" placeholder="Doe" required autocomplete="family-name" />
                                 <span asp-validation-for="LastName" class="text-danger small"></span>
                             </div>
                         </div>
 
                         <div class="mb-3">
                             <label asp-for="EmailAddress" class="form-label">Email Address</label>
-                            <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required />
+                            <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required autocomplete="email" />
                             <span asp-validation-for="EmailAddress" class="text-danger small"></span>
                         </div>
 
                         <div class="mb-3">
                             <label asp-for="Password" class="form-label">Password</label>
-                            <input asp-for="Password" type="password" class="form-control" placeholder="••••••••" required />
+                            <div class="input-group">
+                                <input asp-for="Password" id="passwordInput" type="password" class="form-control border-end-0" placeholder="••••••••" required autocomplete="new-password" />
+                                <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="togglePassword">
+                                    <i class="fas fa-eye text-muted" id="toggleIcon"></i>
+                                </button>
+                            </div>
                             <span asp-validation-for="Password" class="text-danger small"></span>
                         </div>
 
                         <div class="mb-4">
                             <label asp-for="ConfirmPassword" class="form-label">Confirm Password</label>
-                            <input asp-for="ConfirmPassword" type="password" class="form-control" placeholder="••••••••" required />
+                            <div class="input-group">
+                                <input asp-for="ConfirmPassword" id="confirmPasswordInput" type="password" class="form-control border-end-0" placeholder="••••••••" required autocomplete="new-password" />
+                                <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="toggleConfirmPassword">
+                                    <i class="fas fa-eye text-muted" id="toggleConfirmIcon"></i>
+                                </button>
+                            </div>
                             <span asp-validation-for="ConfirmPassword" class="text-danger small"></span>
                         </div>
 
@@ -72,14 +83,14 @@
                         </div>
                     </form>
 
-                    <div class="auth-divider">
+                    <div class="auth-divider my-4 text-center">
                         <hr />
-                        <span>or register with</span>
+                        <span class="px-2 text-muted small bg-white">or register with</span>
                     </div>
 
                     <div class="row g-2">
                         <div class="col-6">
-                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" asp-route-returnUrl="@Context.Request.Query["ReturnUrl"]" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-google text-danger"></i>
                                     <span class="small fw-semibold">Google</span>
@@ -87,7 +98,7 @@
                             </form>
                         </div>
                         <div class="col-6">
-                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" asp-route-returnUrl="@Context.Request.Query["ReturnUrl"]" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-apple"></i>
                                     <span class="small fw-semibold">Apple</span>
@@ -114,11 +125,37 @@
             const overlay = document.getElementById("loadingOverlay");
             const submitBtn = document.getElementById("submitBtn");
 
+            // Password Toggle Utility Function
+            function setupPasswordToggle(buttonId, inputId, iconId) {
+                const button = document.getElementById(buttonId);
+                const input = document.getElementById(inputId);
+                const icon = document.getElementById(iconId);
+
+                if (button && input && icon) {
+                    button.addEventListener("click", function () {
+                        const isPassword = input.getAttribute("type") === "password";
+                        input.setAttribute("type", isPassword ? "text" : "password");
+                        icon.classList.toggle("fa-eye", !isPassword);
+                        icon.classList.toggle("fa-eye-slash", isPassword);
+                    });
+                }
+            }
+
+            // Initialize toggles for Password and ConfirmPassword
+            setupPasswordToggle("togglePassword", "passwordInput", "toggleIcon");
+            setupPasswordToggle("toggleConfirmPassword", "confirmPasswordInput", "toggleConfirmIcon");
+
+            // Form Submit Loading State
             form.addEventListener("submit", function (event) {
-                if ($(form).valid()) {
+                const isValid = typeof $(form).valid === "function" ? $(form).valid() : form.checkValidity();
+
+                if (isValid) {
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");
-                    submitBtn.disabled = true;
+
+                    setTimeout(() => {
+                        submitBtn.disabled = true;
+                    }, 10);
                 } else {
                     event.preventDefault();
                 }

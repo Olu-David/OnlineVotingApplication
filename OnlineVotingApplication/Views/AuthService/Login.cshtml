@@ -2,27 +2,27 @@
 
 @{
     ViewData["Title"] = "Sign In";
-    Layout = "_AuthLayout"; // <-- This forces the page to use your clean auth layout
+    Layout = "_AuthLayout";
 }
 
 @section Styles {
-    <link rel="stylesheet" href="/css/auth.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/auth.css" asp-append-version="true" />
 }
 
 <div class="container my-5">
     <div class="row justify-content-center">
         <div class="col-md-6 col-lg-5">
             <div class="card auth-card">
-                <div class="auth-card-header">
-                    <div class="auth-icon"><i class="fas fa-vote-yea"></i></div>
+                <div class="auth-card-header text-center p-4">
+                    <div class="auth-icon mb-2"><i class="fas fa-vote-yea fa-2x"></i></div>
                     <h3 class="auth-title">Sign In</h3>
-                    <p class="auth-subtitle">Access your secure Votezy account</p>
+                    <p class="auth-subtitle text-muted">Access your secure Votezy account</p>
                 </div>
                 <div class="auth-card-tear"></div>
 
-                <div class="auth-card-body position-relative">
+                <div class="auth-card-body position-relative p-4">
 
-                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3">
+                    <div id="loadingOverlay" class="org-loading-overlay position-absolute top-0 start-0 w-100 h-100 d-none flex-column justify-content-center align-items-center rounded-3 bg-white bg-opacity-75" style="z-index: 10;">
                         <div class="spinner-border text-primary mb-2" role="status" style="width: 3rem; height: 3rem;">
                             <span class="visually-hidden">Loading...</span>
                         </div>
@@ -30,17 +30,24 @@
                     </div>
 
                     <form id="loginForm" asp-action="Login" method="post">
+                        @Html.AntiForgeryToken()
+
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>
 
                         <div class="mb-3">
                             <label asp-for="EmailAddress" class="form-label">Email Address</label>
-                            <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required />
+                            <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required autocomplete="email" />
                             <span asp-validation-for="EmailAddress" class="text-danger small"></span>
                         </div>
 
                         <div class="mb-2">
                             <label asp-for="Password" class="form-label">Password</label>
-                            <input asp-for="Password" type="password" class="form-control" placeholder="••••••••" required />
+                            <div class="input-group">
+                                <input asp-for="Password" id="passwordInput" type="password" class="form-control border-end-0" placeholder="••••••••" required autocomplete="current-password" />
+                                <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="togglePassword">
+                                    <i class="fas fa-eye text-muted" id="toggleIcon"></i>
+                                </button>
+                            </div>
                             <span asp-validation-for="Password" class="text-danger small"></span>
                         </div>
 
@@ -49,7 +56,7 @@
                         </div>
 
                         <div class="form-check mb-4">
-                            <input asp-for="RememberMe" type="checkbox" class="form-check-input" />
+                            <input asp-for="RememberMe" class="form-check-input" />
                             <label asp-for="RememberMe" class="form-check-label small text-muted">Remember this device</label>
                         </div>
 
@@ -60,14 +67,14 @@
                         </div>
                     </form>
 
-                    <div class="auth-divider">
+                    <div class="auth-divider my-4 text-center">
                         <hr />
-                        <span>or continue with</span>
+                        <span class="px-2 text-muted small bg-white">or continue with</span>
                     </div>
 
                     <div class="row g-2">
                         <div class="col-6">
-                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="GoogleAuth" asp-route-returnUrl="@Context.Request.Query["ReturnUrl"]" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-google text-danger"></i>
                                     <span class="small fw-semibold">Google</span>
@@ -75,7 +82,7 @@
                             </form>
                         </div>
                         <div class="col-6">
-                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" method="post">
+                            <form asp-controller="ExternalAuth" asp-action="AppleAuth" asp-route-returnUrl="@Context.Request.Query["ReturnUrl"]" method="post">
                                 <button type="submit" class="btn btn-outline-dark w-100 py-2 shadow-sm d-flex align-items-center justify-content-center gap-2">
                                     <i class="fab fa-apple"></i>
                                     <span class="small fw-semibold">Apple</span>
@@ -87,7 +94,7 @@
                 </div>
 
                 <div class="card-footer bg-light text-center py-3 border-0">
-                    <p class="auth-footnote mb-1">New voter?  <a asp-controller="AuthService" asp-action="UserRegistration">Create an account</a></p>
+                    <p class="auth-footnote mb-1">New voter? <a asp-controller="AuthService" asp-action="UserRegistration">Create an account</a></p>
                     <p class="auth-footnote mb-0">Represent an institution? <a asp-controller="Tenant" asp-action="CreateOrganization">Register as an organization</a></p>
                 </div>
 
@@ -103,12 +110,31 @@
             const form = document.getElementById("loginForm");
             const overlay = document.getElementById("loadingOverlay");
             const submitBtn = document.getElementById("submitBtn");
+            const togglePasswordBtn = document.getElementById("togglePassword");
+            const passwordInput = document.getElementById("passwordInput");
+            const toggleIcon = document.getElementById("toggleIcon");
 
+            // Password Toggle Logic
+            if (togglePasswordBtn && passwordInput && toggleIcon) {
+                togglePasswordBtn.addEventListener("click", function () {
+                    const isPassword = passwordInput.getAttribute("type") === "password";
+                    passwordInput.setAttribute("type", isPassword ? "text" : "password");
+                    toggleIcon.classList.toggle("fa-eye", !isPassword);
+                    toggleIcon.classList.toggle("fa-eye-slash", isPassword);
+                });
+            }
+
+            // Form Submit Loading State
             form.addEventListener("submit", function (e) {
-                if ($(form).valid()) {
+                const isValid = typeof $(form).valid === "function" ? $(form).valid() : form.checkValidity();
+
+                if (isValid) {
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");
-                    submitBtn.disabled = true;
+
+                    setTimeout(() => {
+                        submitBtn.disabled = true;
+                    }, 10);
                 } else {
                     e.preventDefault();
                 }

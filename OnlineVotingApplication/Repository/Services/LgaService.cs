@@ -18,13 +18,16 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly AppDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMemoryCache _cache;
+        #region LgaService
         public LgaService(AppDbContext context, UserManager<ApplicationUser> userManager, IMemoryCache cache)
         {
             _context = context;
             _userManager = userManager;
             _cache = cache;
         }
+        #endregion
 
+        #region CreateLgaAsync
         public async Task<ServiceResponse<string>> CreateLgaAsync(LgaDTO lga, string Id)
         {
 
@@ -83,7 +86,9 @@ namespace OnlineVotingApplication.Repository.Services
 
 
         }
+        #endregion
 
+        #region GetAllLgasAsync
         public async Task<PaginatedListViewModel<LgaDTO>> GetAllLgasAsync(int PageNumber = 1, int PageSize = 10)
         {
             PageNumber = Math.Max(1, PageNumber);
@@ -96,7 +101,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (!_cache.TryGetValue(cacheKey, out List<LgaDTO>? lgas))
             {
-                lgas = queryDb.Skip((PageNumber-1)*PageSize).Take(PageSize)
+                lgas = queryDb.Skip((PageNumber - 1) * PageSize).Take(PageSize)
                     .Select(l => new LgaDTO
                     {
                         Id = l.Id,
@@ -117,6 +122,8 @@ namespace OnlineVotingApplication.Repository.Services
 
             };
         }
+        #endregion
+        #region GetLgasByStateIdAsync
         public async Task<PaginatedListViewModel<LgaDTO>> GetLgasByStateIdAsync(Guid stateId, int PageNumber = 1, int PageSize = 10)
         {
             // 1. Sanitize input variables safely
@@ -164,12 +171,16 @@ namespace OnlineVotingApplication.Repository.Services
                 PageNumber = PageNumber
             };
         }
+        #endregion
 
+        #region GetLgaByIdAsync
         public async Task<LGA?> GetLgaByIdAsync(Guid id)
         {
             return await _context.Lgas.FirstOrDefaultAsync(m => m.Id == id);
         }
+        #endregion
 
+        #region DeleteLgaAsync
         public async Task<ServiceResponse<string>> DeleteLgaAsync(LgaDTO dto, string ID)
         {
 
@@ -193,7 +204,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             }
             string cleanedDtoName = dto.Name?.Trim() ?? string.Empty;
-            var LGA = await _context.Lgas.FirstOrDefaultAsync(m => m.Id == dto.Id && m.Name==cleanedDtoName);
+            var LGA = await _context.Lgas.FirstOrDefaultAsync(m => m.Id == dto.Id && m.Name == cleanedDtoName);
             if (LGA == null)
             {
                 response.Success = false;
@@ -208,8 +219,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "LGA Saved Succesfully to the database";
             return response;
 
-        }   
-           
+        }
+        #endregion
+
     }
 }
 

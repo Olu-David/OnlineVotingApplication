@@ -17,6 +17,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IMemoryCache _cache;
         private readonly ITenantProvider _tenantProvider; // Added Tenant Provider
 
+        #region PositionService
         public PositionService(
             AppDbContext context,
             IHttpContextAccessor contextAccessor,
@@ -30,7 +31,9 @@ namespace OnlineVotingApplication.Repository.Services
             _cache = cache;
             _tenantProvider = tenantProvider;
         }
+        #endregion
 
+        #region GetAllPositionsAsync
         public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(string electionId, int pageNumber = 1, int pageSize = 10)
         {
             pageNumber = Math.Max(1, pageNumber);
@@ -86,7 +89,9 @@ namespace OnlineVotingApplication.Repository.Services
                 TotalItems = totalItems
             };
         }
+        #endregion
 
+        #region GetPositionByIdAsync
         public async Task<bool> GetPositionByIdAsync(Guid id)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
@@ -104,7 +109,9 @@ namespace OnlineVotingApplication.Repository.Services
             var position = await query.FirstOrDefaultAsync();
             return position != null;
         }
+        #endregion
 
+        #region CreatePositionAsync
         public async Task<ServiceResponse<string>> CreatePositionAsync(PositionDTO model, string userId, Guid electionId)
         {
             var response = new ServiceResponse<string>();
@@ -185,7 +192,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region DeletePosition
         public async Task<ServiceResponse<string>> DeletePosition(Guid ID, string userId, CancellationToken cancellationToken = default)
         {
             var response = new ServiceResponse<string>();
@@ -233,7 +242,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Success = true;
             return response;
         }
+        #endregion
 
+        #region UpdatePosition
         public async Task<ServiceResponse<string>> UpdatePosition(EditPositionModel model, string userId)
         {
             var response = new ServiceResponse<string>();
@@ -288,7 +299,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Success = true;
             return response;
         }
+        #endregion
 
+        #region AllSoftDeleted
         public async Task<PaginatedListViewModel<PositionDTO>> AllSoftDeleted(int PageNumber = 1, int PageSize = 10)
         {
             PageNumber = Math.Max(1, PageNumber);
@@ -335,5 +348,6 @@ namespace OnlineVotingApplication.Repository.Services
                 TotalItems = counted
             };
         }
+        #endregion
     }
 }

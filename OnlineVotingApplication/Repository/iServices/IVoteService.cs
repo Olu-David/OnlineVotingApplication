@@ -1,6 +1,5 @@
 ﻿using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
-using OnlineVotingApplication.Services;
 
 namespace OnlineVotingApplication.Repository.iServices
 {

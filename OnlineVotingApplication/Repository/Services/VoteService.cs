@@ -6,7 +6,6 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
-using OnlineVotingApplication.Services;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -18,13 +17,16 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IDistributedCache _cache;
         private readonly ILogger<VoteService> _logger;
 
+        #region VoteService
         public VoteService(AppDbContext context, IDistributedCache cache, ILogger<VoteService> logger)
         {
             _context = context;
             _cache = cache;
             _logger = logger;
         }
+        #endregion
 
+        #region GetResultsAsync
         public async Task<ServiceResponse<List<VoteResultDto>>> GetResultsAsync(Guid electionId, Guid positionId)
         {
             try
@@ -52,7 +54,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<VoteResultDto>> { Success = false, Message = "Failed to retrieve results." };
             }
         }
+        #endregion
 
+        #region GetVoteByStateViaPosition
         public async Task<ServiceResponse<List<StateResultDto>>> GetVoteByStateViaPosition(Guid electionID, Guid positionID)
         {
             try
@@ -89,7 +93,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<StateResultDto>> { Success = false, Message = "Failed to retrieve state results." };
             }
         }
+        #endregion
 
+        #region GenerateAndQueueConfirmationCodeAsync
         public async Task<ServiceResponse<string>> GenerateAndQueueConfirmationCodeAsync(string voterId, Guid electionId)
         {
             try
@@ -135,7 +141,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "Failed to generate confirmation code." };
             }
         }
+        #endregion
 
+        #region ConfirmAndCastVoteAsync
         public async Task<ServiceResponse<string>> ConfirmAndCastVoteAsync(string voterId, Guid electionId, string enteredCode, Guid candidateId, Guid positionId)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
@@ -176,7 +184,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "An error occurred while casting your vote." };
             }
         }
+        #endregion
 
+        #region GetElectionsTakenByVoterAsync
         public async Task<ServiceResponse<List<ElectionEvent>>> GetElectionsTakenByVoterAsync(string voterId)
         {
             try
@@ -200,7 +210,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<ElectionEvent>> { Success = false, Message = "Failed to retrieve elections history." };
             }
         }
+        #endregion
 
+        #region GetVoterBallotHistoryAsync
         public async Task<ServiceResponse<List<Vote>>> GetVoterBallotHistoryAsync(string voterId, Guid electionId)
         {
             try
@@ -222,7 +234,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<Vote>> { Success = false, Message = "Failed to retrieve ballot history." };
             }
         }
+        #endregion
 
+        #region PenalizeVoterAsync
         public async Task<ServiceResponse<string>> PenalizeVoterAsync(string voterId, Guid electionId, string reason, string adminId)
         {
             try
@@ -268,7 +282,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "Failed to penalize voter." };
             }
         }
+        #endregion
 
+        #region GetAllVotersAsync
         public async Task<ServiceResponse<PaginatedListViewModel<VoterDto>>> GetAllVotersAsync(string? searchTerm = null, int pageNumber = 1, int pageSize = 10)
         {
             try
@@ -336,7 +352,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<PaginatedListViewModel<VoterDto>> { Success = false, Message = "Failed to retrieve voters." };
             }
         }
+        #endregion
 
+        #region GetPenalizedVotersAsync
         public async Task<ServiceResponse<PaginatedListViewModel<PenalizedVoterDto>>> GetPenalizedVotersAsync(int pageNumber, int pageSize)
         {
             try
@@ -380,7 +398,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<PaginatedListViewModel<PenalizedVoterDto>> { Success = false, Message = "Failed to retrieve penalized voters." };
             }
         }
+        #endregion
 
+        #region GetVotersWithPenalizationStatusAsync
         public async Task<ServiceResponse<PaginatedListViewModel<VoterPenalizationStatusDto>>> GetVotersWithPenalizationStatusAsync(Guid electionId, string? searchTerm = null, int pageNumber = 1, int pageSize = 10)
         {
             try
@@ -436,7 +456,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<PaginatedListViewModel<VoterPenalizationStatusDto>> { Success = false, Message = "Failed to retrieve voter statuses." };
             }
         }
+        #endregion
 
+        #region BulkPenalizeVotersAsync
         public async Task<ServiceResponse<string>> BulkPenalizeVotersAsync(List<string> voterIds, Guid electionId, string reason, string adminId)
         {
             if (voterIds == null || !voterIds.Any())
@@ -502,7 +524,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "An error occurred during bulk penalization processing." };
             }
         }
+        #endregion
 
+        #region GenerateSecureConfirmationCode
         private string GenerateSecureConfirmationCode()
         {
             const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -521,5 +545,6 @@ namespace OnlineVotingApplication.Repository.Services
 
             return new string(code);
         }
+        #endregion
     }
 }

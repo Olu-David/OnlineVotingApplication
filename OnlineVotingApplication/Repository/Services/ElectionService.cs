@@ -27,6 +27,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ITenantProvider _tenantProvider;
         private readonly IWebHostEnvironment _env;
 
+        #region ElectionService
         public ElectionService(
             AppDbContext context,
             ILogger<ElectionService> logger,
@@ -46,7 +47,9 @@ namespace OnlineVotingApplication.Repository.Services
             _supabaseService = supabaseService ?? throw new ArgumentNullException(nameof(supabaseService));
             _env = env ?? throw new ArgumentNullException(nameof(env));
         }
+        #endregion
 
+        #region CreateElectionAsync
         public async Task<ServiceResponse<ElectionDto>> CreateElectionAsync(ElectionDto model, string userId)
         {
             var response = new ServiceResponse<ElectionDto>();
@@ -166,7 +169,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region GetElectionByIdOrCategoryAsync
         // Helper Method: Get Active Election by ID or Category (Cross-Tenant Aware)
         public async Task<ElectionEvent?> GetElectionByIdOrCategoryAsync(Guid electionId, TenantCategory? category = null)
         {
@@ -195,7 +200,9 @@ namespace OnlineVotingApplication.Repository.Services
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Title == "General Presidential Election 2026");
         }
+        #endregion
 
+        #region StartElectionAsync
         public async Task<ServiceResponse<bool>> StartElectionAsync(Guid electionId, string userId)
         {
             var response = new ServiceResponse<bool>();
@@ -257,7 +264,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region EndElectionAsync
         public async Task<ServiceResponse<bool>> EndElectionAsync(Guid electionId, string userId)
         {
             var response = new ServiceResponse<bool>();
@@ -318,7 +327,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region GetPastElectionsAsync
         public async Task<ServiceResponse<List<ElectionEvent>>> GetPastElectionsAsync(Guid? tenantId = null)
         {
             var response = new ServiceResponse<List<ElectionEvent>>();
@@ -350,7 +361,9 @@ namespace OnlineVotingApplication.Repository.Services
             }
             return response;
         }
+        #endregion
 
+        #region GetPagedElectionsAsync
         public async Task<ServiceResponse<PaginatedListViewModel<ElectionEvent>>> GetPagedElectionsAsync(int pageNumber, int pageSize, Guid? tenantId = null)
         {
             var response = new ServiceResponse<PaginatedListViewModel<ElectionEvent>>();
@@ -395,7 +408,9 @@ namespace OnlineVotingApplication.Repository.Services
             }
             return response;
         }
+        #endregion
 
+        #region GetElectionsTakenByVoterAsync
         public async Task<ServiceResponse<List<ElectionEvent>>> GetElectionsTakenByVoterAsync(string voterId)
         {
             try
@@ -424,7 +439,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<ElectionEvent>> { Success = false, Message = "Failed to retrieve voting history." };
             }
         }
+        #endregion
 
+        #region GetVoterBallotHistoryAsync
         public async Task<ServiceResponse<List<Vote>>> GetVoterBallotHistoryAsync(string voterId, Guid electionId)
         {
             try
@@ -449,7 +466,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<List<Vote>> { Success = false, Message = "Failed to fetch ballot breakdown." };
             }
         }
+        #endregion
 
+        #region PenalizeVoterAsync
         public async Task<ServiceResponse<string>> PenalizeVoterAsync(string voterId, Guid electionId, string reason, string adminId)
         {
             try
@@ -492,5 +511,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return new ServiceResponse<string> { Success = false, Message = "An error occurred while trying to penalize the user." };
             }
         }
+        #endregion
     }
 }

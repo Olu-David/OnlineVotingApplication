@@ -9,12 +9,15 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IResend _resend;
         private readonly ILogger<EmailService> _logger;
 
+        #region EmailService
         public EmailService(IResend resend, ILogger<EmailService> logger)
         {
             _resend = resend;
             _logger = logger;
         }
+        #endregion
 
+        #region EmailSendAsync
         public async Task EmailSendAsync(string toEmail, string subject, string emailContent, CancellationToken cancellationToken = default)
         {
             var message = new EmailMessage
@@ -47,5 +50,6 @@ namespace OnlineVotingApplication.Repository.Services
                 throw;
             }
         }
+        #endregion
     }
 }

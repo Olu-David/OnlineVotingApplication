@@ -33,6 +33,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ISupaBaseFileService _supaBase;
         private readonly IWebHostEnvironment _env;
 
+        #region TenantService
         public TenantService(AppDbContext dbContext, UserManager<ApplicationUser> userManager, RoleManager<IdentityRole> roleManager, iAuthService authService, IHttpContextAccessor httpContextAccessor, ILogger<TenantService> logger, ITenantProvider tenantProvider, IDistributedCache cache, ISupaBaseFileService supaBaseFileService, IWebHostEnvironment env)
         {
             _dbContext = dbContext;
@@ -47,7 +48,9 @@ namespace OnlineVotingApplication.Repository.Services
             _supaBase = supaBaseFileService;
             _env = env;
         }
+        #endregion
 
+        #region EnsureRolesExistAsync
         private async Task EnsureRolesExistAsync(string[] roles)
         {
             foreach (var role in roles)
@@ -59,7 +62,9 @@ namespace OnlineVotingApplication.Repository.Services
                 }
             }
         }
+        #endregion
 
+        #region RegisterTenantOrganizationAsync
         public async Task<ServiceResponse<TenantRegistrationResultDto>> RegisterTenantOrganizationAsync(TenantRegistrationViewModel model)
         {
             var response = new ServiceResponse<TenantRegistrationResultDto>();
@@ -207,6 +212,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
+        #region GetTenantDetailsAsync
         public async Task<Tenant?> GetTenantDetailsAsync()
         {
             Guid activeId = _tenantProvider.GetCurrentTenantId();
@@ -214,6 +221,8 @@ namespace OnlineVotingApplication.Repository.Services
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(t => t.Id == activeId);
         }
+        #endregion
+        #region AllTenantListAsync
         public async Task<ServiceResponse<PaginatedListViewModel<TenantViewModel>>> AllTenantListAsync(string Id, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<PaginatedListViewModel<TenantViewModel>>();
@@ -274,9 +283,9 @@ namespace OnlineVotingApplication.Repository.Services
             }
             else
             {
-              
+
                 tenantList = await _dbContext.Tenants
-                    .IgnoreQueryFilters().Where(m=>m.IsApproved==true)
+                    .IgnoreQueryFilters().Where(m => m.IsApproved == true)
                     .AsNoTracking()
                     .Skip(skip)
                     .Take(pageSize)
@@ -311,6 +320,8 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
+        #endregion
+        #region GetDashboardMetricsAsync
         public async Task<TenantMetricsDto> GetDashboardMetricsAsync()
         {
             var tenant = await GetTenantDetailsAsync();
@@ -318,14 +329,16 @@ namespace OnlineVotingApplication.Repository.Services
             var metrics = new TenantMetricsDto
             {
                 TotalElections = await _dbContext.ElectionEvents.CountAsync(),
-                TotalApprovedCandidates = await _dbContext.Candidate.Where(c => c.isApproved && !c.isDeleted ).CountAsync(),
+                TotalApprovedCandidates = await _dbContext.Candidate.Where(c => c.isApproved && !c.isDeleted).CountAsync(),
                 TotalVotesCast = await _dbContext.Votes.CountAsync(),
                 ActiveSubscriptionPlan = tenant?.SubscriptionPlan ?? "Free"
             };
 
             return metrics;
         }
+        #endregion
 
+        #region IsWithinPlanLimitsAsync
         public async Task<bool> IsWithinPlanLimitsAsync()
         {
             var tenant = await GetTenantDetailsAsync();
@@ -334,7 +347,9 @@ namespace OnlineVotingApplication.Repository.Services
             int currentElectionCount = await _dbContext.ElectionEvents.CountAsync();
             return currentElectionCount < tenant.MaxAllowedElections;
         }
+        #endregion
 
+        #region UpdateSubscriptionPlanAsync
         public async Task<bool> UpdateSubscriptionPlanAsync(string newPlan, int newElectionLimit)
         {
             var tenant = await GetTenantDetailsAsync();
@@ -347,7 +362,9 @@ namespace OnlineVotingApplication.Repository.Services
             await _dbContext.SaveChangesAsync();
             return true;
         }
+        #endregion
 
+        #region ToggleTenantStatusAsync
         public async Task<bool> ToggleTenantStatusAsync(Guid tenantId, bool isActive)
         {
             var tenant = await _dbContext.Tenants
@@ -360,6 +377,8 @@ namespace OnlineVotingApplication.Repository.Services
             await _dbContext.SaveChangesAsync();
             return true;
         }
+        #endregion
+        #region GetTenantAdminsAsync
         public async Task<List<UserListSummaryDto>> GetTenantAdminsAsync()
         {
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
@@ -386,7 +405,9 @@ namespace OnlineVotingApplication.Repository.Services
             // 3. Return statement sits safely at the very bottom
             return adminSummaries;
         }
+        #endregion
 
+        #region GetElectionCandidatesAsync
         public async Task<List<Candidate>> GetElectionCandidatesAsync(Guid electionId)
         {
             return await _dbContext.Candidate
@@ -395,7 +416,9 @@ namespace OnlineVotingApplication.Repository.Services
                 .Where(c => c.ElectionEventId == electionId && !c.isDeleted)
                 .ToListAsync();
         }
+        #endregion
 
+        #region GetElectionVoterCountAsync
         public async Task<int> GetElectionVoterCountAsync(Guid electionId)
         {
             return await _dbContext.Votes
@@ -404,7 +427,9 @@ namespace OnlineVotingApplication.Repository.Services
                 .Distinct()
                 .CountAsync();
         }
+        #endregion
 
+        #region RegisterNewOrganizationAsync
         // 🌟 NEW METHOD: Handles automatic client signups on the website
         public async Task<ServiceResponse<Guid>> RegisterNewOrganizationAsync(string name, string desiredSlug)
         {
@@ -441,15 +466,17 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "Your organization setup workspace profile has been provisioned successfully.";
             return response;
         }
+        #endregion
 
+        #region IsElectionOwnedByActiveTenantAsync
         public async Task<bool> IsElectionOwnedByActiveTenantAsync(Guid electionId)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
 
             // Standard query filter handles this automatically behind the scenes,
             // but checking explicitly protects against malicious ID manipulations.
-            return await _dbContext.ElectionEvents.AnyAsync(e => e.Id == electionId );
+            return await _dbContext.ElectionEvents.AnyAsync(e => e.Id == electionId);
         }
+        #endregion
     }
 }
-    

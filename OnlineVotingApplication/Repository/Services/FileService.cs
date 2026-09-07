@@ -23,6 +23,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly FileChannel _channel;
         private readonly string _privateStorageRoot;
 
+        #region FileService
         public FileService(IWebHostEnvironment env, AppDbContext db, FileChannel channel)
         {
             _env = env;
@@ -31,7 +32,9 @@ namespace OnlineVotingApplication.Repository.Services
             _privateStorageRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "App_Data", "PrivateStorage");
             if (!Directory.Exists(_privateStorageRoot)) Directory.CreateDirectory(_privateStorageRoot);
         }
+        #endregion
 
+        #region RegisterAndQueueUploadAsync
         public async Task<string> RegisterAndQueueUploadAsync(
             IFormFile file,
             FileType fileType,
@@ -107,7 +110,9 @@ namespace OnlineVotingApplication.Repository.Services
 
             return secureFileName;
         }
+        #endregion
 
+        #region RunImageOptimizationAsync
         public async Task RunImageOptimizationAsync(long fileId, string filePath, CancellationToken cancellationToken = default)
         {
             string ext = Path.GetExtension(filePath).ToLowerInvariant();
@@ -121,7 +126,9 @@ namespace OnlineVotingApplication.Repository.Services
                 }
             }
         }
+        #endregion
 
+        #region RunVideoChunkingAsync
         public async Task RunVideoChunkingAsync(long fileId, string filePath, string outputFolder, CancellationToken cancellationToken = default)
         {
             if (!Directory.Exists(outputFolder)) Directory.CreateDirectory(outputFolder);
@@ -149,7 +156,9 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (File.Exists(filePath)) File.Delete(filePath);
         }
+        #endregion
 
+        #region DeleteFile
         // 🛠️ FIX IMPLEMENTATION: Added defensive polling loop to handle active stream blocks
         public bool DeleteFile(string path)
         {
@@ -181,5 +190,6 @@ namespace OnlineVotingApplication.Repository.Services
             }
             return false;
         }
+        #endregion
     }
 }

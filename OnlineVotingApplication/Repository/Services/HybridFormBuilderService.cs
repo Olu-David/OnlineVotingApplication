@@ -15,12 +15,15 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly AppDbContext _context;
         private readonly ITenantProvider _tenantProvider;
 
+        #region HybridFormBuilderService
         public HybridFormBuilderService(AppDbContext context, ITenantProvider tenantProvider)
         {
             _context = context;
             _tenantProvider = tenantProvider;
         }
+        #endregion
 
+        #region CreateGlobalCategoryFieldAsync
         public async Task<bool> CreateGlobalCategoryFieldAsync(
             string fieldName,
             ElectionFieldType fieldType,
@@ -44,7 +47,9 @@ namespace OnlineVotingApplication.Repository.Services
             await _context.SaveChangesAsync();
             return true;
         }
+        #endregion
 
+        #region ApplyCategoryBlueprintToElectionAsync
         public async Task<bool> ApplyCategoryBlueprintToElectionAsync(Guid electionId)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
@@ -86,7 +91,9 @@ namespace OnlineVotingApplication.Repository.Services
             await _context.SaveChangesAsync();
             return true;
         }
+        #endregion
 
+        #region AddTenantCustomFieldAsync
         public async Task<bool> AddTenantCustomFieldAsync(
             Guid electionId,
             string fieldName,
@@ -119,5 +126,6 @@ namespace OnlineVotingApplication.Repository.Services
             await _context.SaveChangesAsync();
             return true;
         }
+        #endregion
     }
 }

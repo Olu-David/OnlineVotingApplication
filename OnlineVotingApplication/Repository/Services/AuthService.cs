@@ -27,6 +27,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ILogger<AuthService> _logger;
         private readonly NotificationChannel _channel;
 
+        #region AuthService
         public AuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -44,7 +45,9 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _channel = channel;
         }
+        #endregion
 
+        #region EnsureRolesExistAsync
         private async Task EnsureRolesExistAsync(string[] roles)
         {
             foreach (var role in roles)
@@ -56,7 +59,9 @@ namespace OnlineVotingApplication.Repository.Services
                 }
             }
         }
+        #endregion
 
+        #region RegisterUser
         #region Registration
 
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
@@ -114,7 +119,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region LoginUserAsync
         #endregion
 
         #region Core Authentication & Login
@@ -180,6 +187,8 @@ namespace OnlineVotingApplication.Repository.Services
             return (SignInResult.Failed, false, "Invalid email or password combination.");
         }
         #endregion
+        #region SendConfirmationTokenAsync
+        #endregion
 
         #region Identity Token & Email Lifecycle Validation
 
@@ -218,7 +227,9 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
+        #endregion
 
+        #region ConfirmEmailAsync
         public async Task<bool> ConfirmEmailAsync(string userId, string token)
         {
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token)) return false;
@@ -233,7 +244,9 @@ namespace OnlineVotingApplication.Repository.Services
             await _userManager.UpdateAsync(user);
             return true;
         }
+        #endregion
 
+        #region TwoFactorAuthentication
         public async Task<bool> TwoFactorAuthentication(ApplicationUser user)
         {
             if (user == null || !user.TwoFactorEnabled) return false;
@@ -255,7 +268,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return false;
             }
         }
+        #endregion
 
+        #region ConfirmTwoFactorAsync
         public async Task<ServiceResponse<ApplicationUser>> ConfirmTwoFactorAsync(string userId, string token, bool rememberMe)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -281,7 +296,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Data = user;
             return response;
         }
+        #endregion
 
+        #region ForgotPasswordAsync
         public async Task<bool> ForgotPasswordAsync(ApplicationUser user, string callbackUrl)
         {
             if (user == null || string.IsNullOrEmpty(callbackUrl)) return false;
@@ -314,7 +331,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return false;
             }
         }
+        #endregion
 
+        #region ResetPasswordAsync
         public async Task<ServiceResponse<ApplicationUser>> ResetPasswordAsync(ApplicationUser user, string token, string password)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -350,7 +369,9 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
+        #endregion
 
+        #region ChangePasswordAsync
         public async Task<ServiceResponse<ApplicationUser>> ChangePasswordAsync(string userId, ChangePasswordDTO model)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -376,7 +397,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "Password changed successfully.";
             return response;
         }
+        #endregion
 
+        #region LockOutUserAsync
         public async Task<ServiceResponse<ApplicationUser>> LockOutUserAsync(string userId)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -403,7 +426,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "User has been successfully locked out.";
             return response;
         }
+        #endregion
 
+        #region SetTwoFactorAuthentication
         public async Task<bool> SetTwoFactorAuthentication(ApplicationUser user)
         {
             if (user == null) return false;
@@ -412,6 +437,7 @@ namespace OnlineVotingApplication.Repository.Services
             var result = await _userManager.SetTwoFactorEnabledAsync(user, true);
             return result.Succeeded;
         }
+        #endregion
 
         #endregion
     }

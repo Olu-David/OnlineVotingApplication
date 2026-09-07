@@ -9,16 +9,17 @@ using Microsoft.AspNetCore.Identity;
 
 namespace OnlineVotingApplication.Repository.Services
 {
-    public class StateService:iStateService
+    public class StateService : iStateService
     {
 
-       
+
         private readonly AppDbContext _context;
         private readonly IHttpContextAccessor _contextAccessor;
         private readonly IMemoryCache _cache;
         private readonly ILogger<StateService> _logger;
         private readonly UserManager<ApplicationUser> _userManager;
 
+        #region StateService
         public StateService(AppDbContext context, IHttpContextAccessor contextAccessor, IMemoryCache cache, ILogger<StateService> logger, UserManager<ApplicationUser> userManager)
         {
             _context = context;
@@ -27,6 +28,8 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _userManager = userManager;
         }
+        #endregion
+        #region CreateStateAsync
         public async Task<bool> CreateStateAsync(StateDTO state, string userId)
         {
             // Wrap the transaction in a 'using' statement block to prevent database locking leaks
@@ -68,10 +71,12 @@ namespace OnlineVotingApplication.Repository.Services
                     _logger.LogError(ex, "Error creating state");
                     return false;
                 }
-            } 
+            }
         }
+        #endregion
 
 
+        #region UpdateStateAsync
         public async Task<bool> UpdateStateAsync(UpdateStateDto model, string Id)
         {
             //Check Authentication
@@ -89,19 +94,21 @@ namespace OnlineVotingApplication.Repository.Services
 
             var findState = await _context.States.FirstOrDefaultAsync(m => m.Id == model.Id);
 
-            if(findState==null)
+            if (findState == null)
             {
                 return false;
             }
             //Send data for editing
 
-      
-            findState.Name = model.Name??"";
+
+            findState.Name = model.Name ?? "";
             _context.Update(findState);
-           await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync();
             return true;
-                
+
         }
+        #endregion
+        #region GetAllStatesAsync
         public async Task<List<StateDTO>> GetAllStatesAsync()
         {
             string cachekey = "ref_ALL-State";
@@ -118,14 +125,18 @@ namespace OnlineVotingApplication.Repository.Services
             }
             return state!;
         }
+        #endregion
 
-            public async Task<States?> GetStateByIdAsync(Guid id)
-            {
-                return await _context.States.FirstOrDefaultAsync(m=>m.Id==id);
-            }
+        #region GetStateByIdAsync
+        public async Task<States?> GetStateByIdAsync(Guid id)
+        {
+            return await _context.States.FirstOrDefaultAsync(m => m.Id == id);
+        }
+        #endregion
 
-            public async Task<bool> DeleteStateAsync(Guid id)
-            {
+        #region DeleteStateAsync
+        public async Task<bool> DeleteStateAsync(Guid id)
+        {
             var user = _contextAccessor?.HttpContext?.User;
 
             // 1. Check authentication
@@ -144,14 +155,15 @@ namespace OnlineVotingApplication.Repository.Services
                 return false!;
             }
 
-            var state =await _context.States.FirstOrDefaultAsync(m => m.Id == id);
-            if(state==null)
+            var state = await _context.States.FirstOrDefaultAsync(m => m.Id == id);
+            if (state == null)
             {
                 return false;
-            }   
-            _context.States.Remove(state);
-                await _context.SaveChangesAsync();
-                return true;
             }
+            _context.States.Remove(state);
+            await _context.SaveChangesAsync();
+            return true;
         }
+        #endregion
     }
+}

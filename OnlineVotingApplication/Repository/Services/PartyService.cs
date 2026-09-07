@@ -18,6 +18,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ISupaBaseFileService _supaBaseFileService;
         private readonly IMemoryCache _cache;
 
+        #region PartyService
         public PartyService(
             UserManager<ApplicationUser> userManager,
             AppDbContext context,
@@ -33,7 +34,9 @@ namespace OnlineVotingApplication.Repository.Services
             _supaBaseFileService = supaBaseFileService;
             _cache = cache;
         }
+        #endregion
 
+        #region CreatePartyAsync
         public async Task<ServiceResponse<string>> CreatePartyAsync(PartyViewModel model, string Id)
         {
             var response = new ServiceResponse<string>();
@@ -119,7 +122,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region AllPartyAsync
         public async Task<PaginatedListViewModel<PartyViewModel>> AllPartyAsync(int pageNumber = 1, int pageSize = 10)
         {
             pageNumber = Math.Max(1, pageNumber);
@@ -161,7 +166,9 @@ namespace OnlineVotingApplication.Repository.Services
                 PageSize = pageSize
             };
         }
+        #endregion
 
+        #region AllSoftDeleteAsync
         public async Task<PaginatedListViewModel<PartyViewModel>> AllSoftDeleteAsync(int PageNumber = 1, int PageSize = 10)
         {
             PageNumber = Math.Max(1, PageNumber);
@@ -204,7 +211,9 @@ namespace OnlineVotingApplication.Repository.Services
                 PageSize = PageSize
             };
         }
+        #endregion
 
+        #region EditPartyAsync
         public async Task<ServiceResponse<string>> EditPartyAsync(EditPartyViewModel model, string Id)
         {
             var response = new ServiceResponse<string>();
@@ -266,7 +275,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "Party Updated Successfully";
             return response;
         }
+        #endregion
 
+        #region SoftDeletePartyAsync
         public async Task<ServiceResponse<bool>> SoftDeletePartyAsync(string Id, Guid PartyID)
         {
             var response = new ServiceResponse<bool>();
@@ -302,7 +313,9 @@ namespace OnlineVotingApplication.Repository.Services
             response.Success = true;
             return response;
         }
+        #endregion
 
+        #region RestoreDeletedParty
         public async Task<ServiceResponse<string>> RestoreDeletedParty(string Id, Guid PartyID)
         {
             var response = new ServiceResponse<string>();
@@ -356,5 +369,6 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "Party has been restored successfully";
             return response;
         }
+        #endregion
     }
 }

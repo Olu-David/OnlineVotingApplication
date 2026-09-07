@@ -26,6 +26,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ILogger<ExternalAuthService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
 
+        #region ExternalAuthService
         public ExternalAuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -41,7 +42,9 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _httpClientFactory = httpClientFactory;
         }
+        #endregion
 
+        #region EnsureRolesExistAsync
         private async Task EnsureRolesExistAsync()
         {
             string[] systemRoles = { "Official", "Voter", "Auditor", "Candidate" };
@@ -53,7 +56,9 @@ namespace OnlineVotingApplication.Repository.Services
                 }
             }
         }
+        #endregion
 
+        #region AuthenticateGoogleUserAsync
         #region Google Authentication Pipeline
 
         public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken, string assignedRole)
@@ -98,7 +103,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region AuthenticateAppleUserAsync
         #endregion
 
         #region Apple Authentication Pipeline
@@ -157,7 +164,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region ProcessExternalUserPipelineAsync
         #endregion
 
         #region Shared Core External Provisioning Pipeline
@@ -256,6 +265,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
         #endregion
     }

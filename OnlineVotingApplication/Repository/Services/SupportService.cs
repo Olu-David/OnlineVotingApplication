@@ -18,12 +18,15 @@ namespace OnlineVotingApplication.Services
         private readonly AppDbContext _context;
         private readonly IHubContext<DashboardHub> _hubContext;
 
+        #region SupportService
         public SupportService(AppDbContext context, IHubContext<DashboardHub> hubContext)
         {
             _context = context;
             _hubContext = hubContext;
         }
+        #endregion
 
+        #region CreateTicketAsync
         public async Task CreateTicketAsync(string name, string email, string subject, string message, string ipAddress, Guid? tenantId = null)
         {
             var ticket = new SupportTicket
@@ -54,7 +57,9 @@ namespace OnlineVotingApplication.Services
                 tenantId = ticket.TenantId.HasValue ? ticket.TenantId.ToString() : "Global"
             });
         }
+        #endregion
 
+        #region GetAllTicketsAsync
         public async Task<IEnumerable<SupportTicket>> GetAllTicketsAsync(Guid? tenantId = null)
         {
             var query = _context.SupportTickets.AsNoTracking().AsQueryable();
@@ -66,8 +71,10 @@ namespace OnlineVotingApplication.Services
 
             return await query.OrderByDescending(t => t.CreatedAt).ToListAsync();
         }
+        #endregion
 
-        public async Task<PaginatedListViewModel<SupportTicket>> GetPaginatedTicketsAsync( int pageNumber = 1,int pageSize = 10,Guid? tenantId = null)
+        #region GetPaginatedTicketsAsync
+        public async Task<PaginatedListViewModel<SupportTicket>> GetPaginatedTicketsAsync(int pageNumber = 1, int pageSize = 10, Guid? tenantId = null)
         {
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
@@ -106,7 +113,9 @@ namespace OnlineVotingApplication.Services
                 TotalItems = totalItems
             };
         }
+        #endregion
 
+        #region ResolveTicketAsync
         public async Task ResolveTicketAsync(int ticketId)
         {
             var ticket = await _context.SupportTickets.FindAsync(ticketId);
@@ -116,5 +125,6 @@ namespace OnlineVotingApplication.Services
                 await _context.SaveChangesAsync();
             }
         }
+        #endregion
     }
 }

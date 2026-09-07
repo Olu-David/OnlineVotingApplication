@@ -10,12 +10,15 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly HttpClient _httpClient;
         private readonly ILogger<GoogleAuthService> _logger;
 
+        #region GoogleAuthService
         public GoogleAuthService(HttpClient httpClient, ILogger<GoogleAuthService> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
         }
+        #endregion
 
+        #region GetGoogleUserInfoAsync
         public async Task<GoogleUserInfoDto?> GetGoogleUserInfoAsync(string accessToken)
         {
             try
@@ -37,7 +40,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return null;
             }
         }
+        #endregion
     }
 
-  
+
 }

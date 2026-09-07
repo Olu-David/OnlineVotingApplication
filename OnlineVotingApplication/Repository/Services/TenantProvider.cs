@@ -9,11 +9,14 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly IHttpContextAccessor _httpContextAccessor;
         private const string TenantSessionKey = "ActiveTenantId";
 
+        #region TenantProvider
         public TenantProvider(IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
         }
+        #endregion
 
+        #region GetCurrentTenantId
         public Guid GetCurrentTenantId()
         {
             var context = _httpContextAccessor.HttpContext;
@@ -38,7 +41,9 @@ namespace OnlineVotingApplication.Repository.Services
 
             return Guid.Empty;
         }
+        #endregion
 
+        #region SetTenantContext
         public void SetTenantContext(Guid tenantId)
         {
             var context = _httpContextAccessor.HttpContext;
@@ -47,7 +52,9 @@ namespace OnlineVotingApplication.Repository.Services
                 context.Session.SetString(TenantSessionKey, tenantId.ToString());
             }
         }
+        #endregion
 
+        #region ClearTenantContext
         public void ClearTenantContext()
         {
             var context = _httpContextAccessor.HttpContext;
@@ -56,5 +63,6 @@ namespace OnlineVotingApplication.Repository.Services
                 context.Session.Remove(TenantSessionKey);
             }
         }
+        #endregion
     }
 }

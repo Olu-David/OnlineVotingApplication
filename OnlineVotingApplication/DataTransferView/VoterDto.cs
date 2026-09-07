@@ -1,5 +1,4 @@
-﻿
-namespace OnlineVotingApplication.Services
+﻿namespace OnlineVotingApplication.DataTransferView
 {
     public class VoterDto
     {

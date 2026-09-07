@@ -8,25 +8,34 @@
 @inject ITenantProvider TenantProvider
 
 @{
-    // ─── ROLE & AUTH STATE ──────────────────────────────────────────
+    // ─── AUTHENTICATION & ROLE STATES ──────────────────────────────
     bool isAuth = User?.Identity?.IsAuthenticated ?? false;
+
+    // Core Roles aligned with Controller Authorizations (SuperAdmin, Official, Auditor, Candidate, Voter)
     bool isSuperAdmin = isAuth && User!.IsInRole("SuperAdmin");
     bool isOfficial = isAuth && User!.IsInRole("Official");
     bool isAuditor = isAuth && User!.IsInRole("Auditor");
     bool isCandidate = isAuth && User!.IsInRole("Candidate");
     bool isVoter = isAuth && User!.IsInRole("Voter");
-    bool isBlocked = isAuth && !(isSuperAdmin || isOfficial || isAuditor || isCandidate || isVoter);
 
-    // Context Switched Check
+    // Platform-Level segregation (managing cross-tenant architecture, platform settings, global logs, and manual overrides)
+    bool isPlatformAdmin = isSuperAdmin || isAuth && (User!.IsInRole("PlatformAdmin") || User!.IsInRole("PlatformManager"));
+
+    // Account block protection for unauthorized roles
+    bool isBlocked = isAuth && !(isSuperAdmin || isOfficial || isAuditor || isCandidate || isVoter || isPlatformAdmin);
+
+    // Context Switched Check for Multi-Tenancy
     Guid activeTenantId = TenantProvider.GetCurrentTenantId();
     bool isContextSwitched = isSuperAdmin && activeTenantId != Guid.Empty;
 
     string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
     string action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
 
+    // Dashboard Controller Routing Routing Map
     string dashCtrl = isVoter ? "Voter"
                     : isOfficial ? "Official"
                     : isAuditor ? "Auditor"
+                    : isPlatformAdmin ? "PlatformAdmin"
                     : isSuperAdmin ? "SuperAdmin"
                     : isCandidate ? "Candidate"
                     : "Home";
@@ -36,20 +45,23 @@
                        : "?";
 
     string roleBadge = isSuperAdmin ? (isContextSwitched ? "SuperAdmin (Tenant View)" : "SuperAdmin")
-                     : isOfficial ? "Official"
-                     : isAuditor ? "Auditor"
+                     : isPlatformAdmin ? "Platform Administrator"
+                     : isOfficial ? "Election Official"
+                     : isAuditor ? "System Auditor"
                      : isCandidate ? "Candidate"
-                     : isVoter ? "Voter"
+                     : isVoter ? "Registered Voter"
                      : "";
 
     string roleColor = isSuperAdmin ? "danger"
+                     : isPlatformAdmin ? "dark"
                      : isOfficial ? "primary"
                      : isAuditor ? "warning"
                      : isCandidate ? "info"
                      : isVoter ? "success"
                      : "secondary";
 
-    bool isAdminShell = isSuperAdmin || isOfficial;
+    // Shell configuration: Platform and SuperAdmin/Official share advanced shells
+    bool isAdminShell = isSuperAdmin || isOfficial || isPlatformAdmin;
 
     // ─── FETCH PAST ELECTIONS FOR PUBLIC FOOTER ONLY ─────────────────
     List<ElectionEvent> pastElectionsList = new();
@@ -73,6 +85,7 @@
     // ─── PASS DATA TO PARTIALS ─────────────────────────────────────
     ViewData["IsAuth"] = isAuth;
     ViewData["IsSuperAdmin"] = isSuperAdmin;
+    ViewData["IsPlatformAdmin"] = isPlatformAdmin;
     ViewData["IsContextSwitched"] = isContextSwitched;
     ViewData["IsOfficial"] = isOfficial;
     ViewData["IsAuditor"] = isAuditor;
@@ -93,21 +106,26 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] Votezy</title>
+    <title>@(ViewData["Title"] != null ? ViewData["Title"] + " - " : "")Votezy Platform</title>
 
-    <link rel="icon" type="image/svg+xml" href="/vote-yea-119581-3b82f6.svg" asp-append-version="true" />
+    <link rel="icon" type="image/svg+xml" href="~/vote-yea-119581-3b82f6.svg" asp-append-version="true" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-    <link rel="stylesheet" href="/css/site.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
 
     @if (isOfficial || isContextSwitched)
     {
-        <link rel="stylesheet" href="/css/official-sidebar.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/official-sidebar.css" asp-append-version="true" />
+    }
+
+    @if (isPlatformAdmin)
+    {
+        <link rel="stylesheet" href="~/css/platform-admin.css" asp-append-version="true" />
     }
 
     @if (!isAdminShell)
     {
-        <link rel="stylesheet" href="/css/navbar.css" asp-append-version="true" />
+        <link rel="stylesheet" href="~/css/navbar.css" asp-append-version="true" />
     }
 
     @await RenderSectionAsync("Styles", required: false)
@@ -125,8 +143,20 @@
             </button>
             <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
-            <!-- DYNAMIC SIDEBAR RENDER BASED ON CONTEXT -->
-            @if (isSuperAdmin && !isContextSwitched)
+            <!-- ─── ROLE-BASED SIDEBAR SEGREGATION ──────────────────────── -->
+            @if (isPlatformAdmin)
+            {
+                // Platform level operators get elevated global controls & cross-tenant auditing
+                @if (System.IO.File.Exists(ViewContext.HttpContext.RequestServices.GetRequiredService<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>().WebRootFileProvider.GetFileInfo("_PlatformAdminSidebar.cshtml")?.PhysicalPath))
+                {
+                    @await Html.PartialAsync("_PlatformAdminSidebar")
+                }
+                else
+                {
+                    @await Html.PartialAsync("_SuperAdminSidebar")
+                }
+            }
+            else if (isSuperAdmin && !isContextSwitched)
             {
                 @await Html.PartialAsync("_SuperAdminSidebar")
             }
@@ -136,6 +166,23 @@
             }
 
             <div class="d-flex flex-column flex-grow-1" style="min-width: 0; height: 100vh; overflow: hidden;">
+
+                <!-- Platform Admin Global Utility Bar (Segregated Header Strip) -->
+                @if (isPlatformAdmin)
+                {
+                    <div class="bg-dark text-white px-4 py-2 d-flex justify-content-between align-items-center border-bottom border-secondary small">
+                        <div>
+                            <span class="badge bg-danger me-2"><i class="fas fa-shield-alt me-1"></i> PLATFORM CONTEXT</span>
+                            <span class="text-light">Global Infrastructure Management Mode Active</span>
+                        </div>
+                        <div class="d-flex align-items-center gap-3">
+                            <span><i class="fas fa-server text-success me-1"></i> DB: Connected (.NET 9)</span>
+                            <span class="text-muted">|</span>
+                            <a asp-controller="Home" asp-action="Index" class="text-info text-decoration-none"><i class="fas fa-globe me-1"></i> Public Portal</a>
+                        </div>
+                    </div>
+                }
+
                 <div class="flex-grow-1" style="overflow-y: auto; overflow-x: hidden; height: 100%;">
                     <main class="admin-content p-4" style="min-height: 100%; padding-bottom: 5rem !important;">
                         @await Html.PartialAsync("_Alerts")
@@ -204,7 +251,7 @@
                                                 <i class="fa fa-calendar-check me-1"></i> Ended: @election.EndDate.ToString("MMM dd, yyyy")
                                             </div>
 
-                                            <a asp-controller="Vote" asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark btn-sm w-100">
+                                            <a asp-controller="Voter" asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark btn-sm w-100">
                                                 View Results
                                             </a>
                                         </div>
@@ -230,11 +277,11 @@
         </footer>
     }
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="/js/site.js" asp-append-version="true"></script>
-    <script src="/js/navbar.js" asp-append-version="true"></script>
-    <script src="/js/sidebar.js" asp-append-version="true"></script>
-    <script src="/js/alerts.js" asp-append-version="true"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="~/js/site.js" asp-append-version="true"></script>
+    <script src="~/js/navbar.js" asp-append-version="true"></script>
+    <script src="~/js/sidebar.js" asp-append-version="true"></script>
+    <script src="~/js/alerts.js" asp-append-version="true"></script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

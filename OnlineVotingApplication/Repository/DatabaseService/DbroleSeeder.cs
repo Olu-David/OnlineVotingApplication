@@ -55,7 +55,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
 
                 // Check for existence specifically by title
                 string defaultElectionTitle = "General Presidential Election 2026";
-                var electionEvent = await context.ElectionEvents.IgnoreQueryFilters() .FirstOrDefaultAsync(m => m.Title == defaultElectionTitle);
+                var electionEvent = await context.ElectionEvents.IgnoreQueryFilters().FirstOrDefaultAsync(m => m.Title == defaultElectionTitle);
                 if (electionEvent == null)
                 {
                     var sampleElection = new ElectionEvent
@@ -75,7 +75,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 // -------------------------------------------------------------
                 // 3. SEED ROLES
                 // -------------------------------------------------------------
-                var roles = new[] { "SuperAdmin", "Official", "Voter", "Auditor", "Candidate" };
+                var roles = new[] { "SuperAdmin", "PlatformAdmin", "Official", "Voter", "Auditor", "Candidate" };
                 foreach (var role in roles)
                 {
                     if (!await roleManager.RoleExistsAsync(role))
@@ -98,7 +98,9 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 // -------------------------------------------------------------
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
-                    (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "SuperAdmin"),
+                    (new ApplicationUser { FullName = "Olusanya David Victor", UserName = "superadmin@election.com", Email = "superadmin@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "Reciiprocate1234.", "SuperAdmin"),
+                    (new ApplicationUser { FullName = "Platform Co-Admin 1", UserName = "platformadmin1@election.com", Email = "platformadmin1@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
+                    (new ApplicationUser { FullName = "Platform Co-Admin 2", UserName = "platformadmin2@election.com", Email = "platformadmin2@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
                     (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Official"),
                     (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Voter"),
                     (new ApplicationUser { FullName = "Auditor User", UserName = "auditor@election.com", Email = "auditor@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Auditor"),
@@ -113,12 +115,12 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     try
                     {
                         var existingUser = await userManager.FindByEmailAsync(user.Email ?? "");
-                        bool isSuperAdmin = role == "SuperAdmin";
+                        bool isGlobalAdmin = role == "SuperAdmin" || role == "PlatformAdmin";
 
                         if (existingUser == null)
                         {
-                            // SuperAdmin is guaranteed null; standard roles get the defaultTenant.Id
-                            user.TenantId = isSuperAdmin ? null : defaultTenant.Id;
+                            // Global admins are guaranteed null TenantId; standard roles get the defaultTenant.Id
+                            user.TenantId = isGlobalAdmin ? null : defaultTenant.Id;
 
                             var result = await userManager.CreateAsync(user, password);
                             if (result.Succeeded)
@@ -150,7 +152,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                                 changed = true;
                             }
 
-                            if (isSuperAdmin)
+                            if (isGlobalAdmin)
                             {
                                 if (existingUser.TenantId != null)
                                 {

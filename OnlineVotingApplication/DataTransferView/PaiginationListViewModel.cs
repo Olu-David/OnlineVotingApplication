@@ -12,6 +12,7 @@
             public bool HasNextPage => PageNumber < TotalPages;
 
         public bool NextPage { get;  set; }
+        public int TotalCount { get; internal set; }
     }
 }
 

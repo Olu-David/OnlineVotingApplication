@@ -21,7 +21,7 @@ using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [Authorize(Roles = "SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public class SuperAdminDashboardController : Controller
     {
@@ -33,16 +33,10 @@ namespace OnlineVotingApplication.Controllers
         private readonly IEmailService _emailService;
         private readonly IAuditLogService _auditLogService;
         private readonly iCandidateService _iCandidateService;
+        private readonly UserManager<ApplicationUser> _userManager;
+        private const string UserStatsCacheKey = "super_admin_user_stats_cache";
 
-        public SuperAdminDashboardController(
-            HybridFormBuilderService formBuilderService,
-            AppDbContext context,
-            NotificationChannel channel,
-            ITenantProvider tenantProvider,
-            IDistributedCache cache,
-            IEmailService emailService,
-            IAuditLogService auditLogService,
-            iCandidateService candidateService)
+        public SuperAdminDashboardController(HybridFormBuilderService formBuilderService, AppDbContext context, NotificationChannel channel, ITenantProvider tenantProvider, IDistributedCache cache, IEmailService emailService, IAuditLogService auditLogService, iCandidateService iCandidateService, UserManager<ApplicationUser> userManager)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
             _context = context ?? throw new ArgumentNullException(nameof(context));
@@ -51,7 +45,8 @@ namespace OnlineVotingApplication.Controllers
             _cache = cache ?? throw new ArgumentNullException(nameof(cache));
             _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
-            _iCandidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
+            _iCandidateService = iCandidateService ?? throw new ArgumentNullException(nameof(iCandidateService));
+            _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         }
 
         [HttpGet]
@@ -545,6 +540,275 @@ namespace OnlineVotingApplication.Controllers
 
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction("AllCandidates");
+        }
+        [HttpGet]
+        [HttpGet]
+        public async Task<IActionResult> AllSystemUsers(string roleFilter = "", string searchTerm = "", int pageNumber = 1, int pageSize = 10)
+        {
+            pageNumber = pageNumber < 1 ? 1 : pageNumber;
+            pageSize = pageSize < 1 ? 10 : pageSize;
+
+            // Unique Redis cache key considering filters and pagination
+            string cacheKey = $"user_list_cache_{roleFilter}_{searchTerm}_p{pageNumber}_sz{pageSize}";
+
+            // 1. Fetch and Cache Role-Based User Statistics & Counts
+            var statsJson = await _cache.GetStringAsync(UserStatsCacheKey);
+            SystemUserStatsViewModel userStats;
+
+            if (string.IsNullOrEmpty(statsJson))
+            {
+                userStats = new SystemUserStatsViewModel
+                {
+                    TotalUsers = await _userManager.Users.CountAsync(),
+                    VoterCount = (await _userManager.GetUsersInRoleAsync("Voter")).Count,
+                    CandidateCount = (await _userManager.GetUsersInRoleAsync("Candidate")).Count,
+                    TenantAdminCount = (await _userManager.GetUsersInRoleAsync("TenantAdmin")).Count,
+                    PlatformAdminCount = (await _userManager.GetUsersInRoleAsync("PlatformAdmin")).Count,
+                    SuperAdminCount = (await _userManager.GetUsersInRoleAsync("SuperAdmin")).Count
+                };
+
+                await _cache.SetStringAsync(UserStatsCacheKey, JsonSerializer.Serialize(userStats), new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                });
+            }
+            else
+            {
+                userStats = JsonSerializer.Deserialize<SystemUserStatsViewModel>(statsJson)!;
+            }
+
+            // 2. Fetch and Cache Paginated User Results
+            PaginatedListViewModel<UserWithRolesViewModel> paginatedResult;
+            var cachedUserList = await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedUserList))
+            {
+                paginatedResult = JsonSerializer.Deserialize<PaginatedListViewModel<UserWithRolesViewModel>>(cachedUserList)!;
+            }
+            else
+            {
+                var query = _userManager.Users.AsQueryable();
+
+                if (!string.IsNullOrEmpty(searchTerm))
+                {
+                    query = query.Where(u => u.UserName != null && u.Email != null && (u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm)));
+                }
+
+                int totalRecords = await query.CountAsync();
+
+                var users = await query
+                    .OrderByDescending(u => u.Id)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var userListVm = new List<UserWithRolesViewModel>();
+                foreach (var user in users)
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    userListVm.Add(new UserWithRolesViewModel
+                    {
+                        Id = user.Id,
+                        UserName = user.UserName ?? string.Empty,
+                        Email = user.Email ?? string.Empty,
+                        EmailConfirmed = user.EmailConfirmed,
+                        IsLockedOut = await _userManager.IsLockedOutAsync(user),
+                        Roles = roles.ToList()
+                    });
+                }
+
+                // Optional post-fetch filter if a specific role was selected
+                if (!string.IsNullOrEmpty(roleFilter))
+                {
+                    userListVm = userListVm.Where(u => u.Roles != null && u.Roles.Contains(roleFilter)).ToList();
+                }
+
+                paginatedResult = new PaginatedListViewModel<UserWithRolesViewModel>
+                {
+                    Items = userListVm,
+                    PageNumber = pageNumber,
+                    TotalItems = (int)Math.Ceiling(totalRecords / (double)pageSize),
+                    TotalCount = totalRecords
+                };
+
+                // Store paginated view list in Redis for 3 minutes
+                await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(paginatedResult), new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(3)
+                });
+            }
+
+            ViewData["CurrentRoleFilter"] = roleFilter;
+            ViewData["CurrentSearchTerm"] = searchTerm;
+            ViewData["UserStats"] = userStats;
+
+            return View(paginatedResult);
+        }
+
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> PenaltyLockoutUser(string userId, string violationReason)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "User profile not found.";
+                return RedirectToAction(nameof(AllSystemUsers));
+            }
+
+            // 1. Lock out user profile
+            var lockoutExpiry = DateTimeOffset.UtcNow.AddYears(100);
+            var result = await _userManager.SetLockoutEndDateAsync(user, lockoutExpiry);
+
+            if (result.Succeeded)
+            {
+                // 2. CREATE THE AUDIT LOG ENTRY (This feeds your Audit Log page!)
+                var auditLog = new AuditLog
+                {
+                    UserId = user.Id,
+                    Action = "PENALTY_LOCKOUT",
+                    Details = $"Account penalized and locked out. Admin notice: {violationReason}",
+                    IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
+                    Timestamp = DateTime.UtcNow
+                };
+
+                _context.AuditLogs.Add(auditLog);
+                await _context.SaveChangesAsync();
+
+                // 3. BROADCAST REAL-TIME VIA SIGNALR (Optional if you use a service to push it live)
+                // await _hubContext.Clients.All.SendAsync("ReceiveAuditLog", auditLog);
+
+                // 4. Send email notification to user...
+                if (!string.IsNullOrEmpty(user.Email))
+                {
+                    string emailSubject = "Security Alert: VoteX Account Penalized & Locked";
+                    string emailBody = $"Hello {user.UserName},<br><br>Your VoteX profile has been penalized and locked out.<br><strong>Reason:</strong> {violationReason}";
+                    await _emailService.EmailSendAsync(user.Email, emailSubject, emailBody);
+                }
+
+                // 5. Clear Redis cache
+                await _cache.RemoveAsync(UserStatsCacheKey);
+
+                TempData["SuccessMessage"] = $"User {user.UserName} has been penalized, logged, and notified.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = "Failed to apply penalty lockout.";
+            }
+
+            return RedirectToAction(nameof(AllSystemUsers));
+        }
+        [HttpPost]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> LiftPenalty(string userId, string liftReason)
+        {
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "User profile not found.";
+                return RedirectToAction(nameof(PenaltyLockoutUser));
+            }
+
+            // 1. Remove lockout (reset end date to null or current time)
+            var result = await _userManager.SetLockoutEndDateAsync(user, null);
+
+            if (result.Succeeded)
+            {
+                // 2. Log infraction lift in the Audit Trail
+                var auditLog = new AuditLog
+                {
+                    UserId = user.Id,
+                    Action = "PENALTY_LIFTED",
+                    Details = $"Account penalty lifted and restriction removed. Admin notice: {liftReason}",
+                    IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown",
+                    Timestamp = DateTime.UtcNow
+                };
+                _context.AuditLogs.Add(auditLog);
+                await _context.SaveChangesAsync();
+
+                // 3. Optional: Email user about restored access
+                if (!string.IsNullOrEmpty(user.Email))
+                {
+                    string emailSubject = "Access Restored: VoteX Account Penalty Lifted";
+                    string emailBody = $"Hello {user.UserName},<br><br>" +
+                                       $"Your VoteX account penalty has been lifted by platform administrators and your access has been restored.<br><br>" +
+                                       $"<strong>Administrator Note:</strong> {liftReason}";
+
+                    await _emailService.EmailSendAsync(user.Email, emailSubject, emailBody);
+                }
+
+                // 4. Invalidate stats cache
+                await _cache.RemoveAsync(UserStatsCacheKey);
+
+                TempData["SuccessMessage"] = $"Penalty successfully lifted for user {user.UserName}.";
+            }
+            else
+            {
+                TempData["ErrorMessage"] = "Failed to lift account penalty.";
+            }
+
+            return RedirectToAction(nameof(PenaltyLockoutUser));
+        }
+        [HttpGet]
+        public async Task<IActionResult> PenalizedUsers(int pageNumber = 1, int pageSize = 10)
+        {
+            pageNumber = pageNumber < 1 ? 1 : pageNumber;
+            pageSize = pageSize < 1 ? 10 : pageSize;
+
+            // Unique Redis cache key considering pagination
+            string cacheKey = $"penalized_users_p{pageNumber}_sz{pageSize}";
+
+            PaginatedListViewModel<UserWithRolesViewModel> paginatedResult;
+            var cachedData = await _cache.GetStringAsync(cacheKey);
+
+            if (!string.IsNullOrEmpty(cachedData))
+            {
+                paginatedResult = JsonSerializer.Deserialize<PaginatedListViewModel<UserWithRolesViewModel>>(cachedData)!;
+            }
+            else
+            {
+                // Filter query specifically for locked-out users
+                var query = _userManager.Users.Where(u => u.LockoutEnd != null && u.LockoutEnd > DateTimeOffset.UtcNow);
+
+                int totalRecords = await query.CountAsync();
+
+                var users = await query
+                    .OrderByDescending(u => u.LockoutEnd)
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                var userListVm = new List<UserWithRolesViewModel>();
+                foreach (var user in users)
+                {
+                    var roles = await _userManager.GetRolesAsync(user);
+                    userListVm.Add(new UserWithRolesViewModel
+                    {
+                        Id = user.Id,
+                        UserName = user.UserName ?? string.Empty,
+                        Email = user.Email ?? string.Empty,
+                        EmailConfirmed = user.EmailConfirmed,
+                        IsLockedOut = true,
+                        Roles = roles.ToList()
+                    });
+                }
+
+                paginatedResult = new PaginatedListViewModel<UserWithRolesViewModel>
+                {
+                    Items = userListVm,
+                    PageNumber = pageNumber,
+                    TotalItems = (int)Math.Ceiling(totalRecords / (double)pageSize),
+                    TotalCount = totalRecords
+                };
+
+                // Store paginated penalized view list in Redis for 3 minutes
+                await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(paginatedResult), new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(3)
+                });
+            }
+
+            return View(paginatedResult);
         }
     }
 }

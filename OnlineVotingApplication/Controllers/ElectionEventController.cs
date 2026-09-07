@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -13,7 +13,7 @@ using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [Authorize(Roles = "SuperAdmin,Official")]
+    [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
     public class ElectionEventController : Controller
     {
         private readonly AppDbContext _context;
@@ -47,6 +47,7 @@ namespace OnlineVotingApplication.Controllers
             int skip = (pageNumber - 1) * pageSize;
 
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
 
             var query = _context.ElectionEvents
                 .IgnoreQueryFilters()
@@ -56,8 +57,7 @@ namespace OnlineVotingApplication.Controllers
 
             if (!isSuperAdmin)
             {
-                var tenantId = _tenantProvider.GetCurrentTenantId();
-                query = query.Where(e => e.TenantId == tenantId);
+                query = query.Where(e => e.TenantId == activeTenantId);
             }
 
             if (!string.IsNullOrWhiteSpace(search))
@@ -124,7 +124,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects against rapid creation spam
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> Create(ElectionViewModel model)
         {
             if (model.EndDate <= model.StartDate)
@@ -146,7 +146,14 @@ namespace OnlineVotingApplication.Controllers
             }
 
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
-            Guid? effectiveTenantId = isSuperAdmin ? model.TenantId : _tenantProvider.GetCurrentTenantId();
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            Guid? effectiveTenantId = isSuperAdmin ? model.TenantId : activeTenantId;
+
+            if (!isSuperAdmin && effectiveTenantId == Guid.Empty)
+            {
+                TempData["ErrorMessage"] = "Active organization context not found.";
+                return RedirectToAction(nameof(Index));
+            }
 
             var election = new ElectionEvent
             {
@@ -166,14 +173,13 @@ namespace OnlineVotingApplication.Controllers
 
             // --- AUDIT LOGGING ---
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Election Created",
                 details: $"Created election event '{election.Title}' (ID: {election.Id})",
                 ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
+                tenantId: effectiveTenantId != Guid.Empty ? effectiveTenantId : null
             );
 
             _logger.LogInformation("Election {ElectionId} ('{Title}') created by {User} for TenantId={TenantId}",
@@ -189,14 +195,20 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> Edit(Guid id)
         {
-            var election = await _context.ElectionEvents
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var query = _context.ElectionEvents
                 .IgnoreQueryFilters()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+                .AsNoTracking();
+
+            ElectionEvent? election = isSuperAdmin
+                ? await query.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted)
+                : await query.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted && e.TenantId == activeTenantId);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election event could not be found.";
+                TempData["ErrorMessage"] = "Election event could not be found or unauthorized access.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -219,7 +231,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects against excessive edits/spam
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> Edit(ElectionViewModel model)
         {
             if (model.EndDate <= model.StartDate)
@@ -233,13 +245,19 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            var election = await _context.ElectionEvents
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted);
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var query = _context.ElectionEvents
+                .IgnoreQueryFilters();
+
+            ElectionEvent? election = isSuperAdmin
+                ? await query.FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted)
+                : await query.FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted && e.TenantId == activeTenantId);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election event could not be found.";
+                TempData["ErrorMessage"] = "Election event could not be found or unauthorized access.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -250,7 +268,7 @@ namespace OnlineVotingApplication.Controllers
             election.IsActive = model.IsActive;
             election.Category = model.Category;
 
-            if (User.IsInRole("SuperAdmin"))
+            if (isSuperAdmin)
             {
                 election.TenantId = model.TenantId;
             }
@@ -260,14 +278,13 @@ namespace OnlineVotingApplication.Controllers
             // --- AUDIT LOGGING ---
             var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Election Updated",
                 details: $"Updated election event ID: {model.Id} ('{model.Title}')",
                 ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
+                tenantId: activeTenantId != Guid.Empty ? activeTenantId : null
             );
 
             TempData["SuccessMessage"] = $"Election \"{election.Title}\" updated successfully.";
@@ -279,16 +296,22 @@ namespace OnlineVotingApplication.Controllers
         // ─────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects delete actions from abuse
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> SoftDelete(Guid id)
         {
-            var election = await _context.ElectionEvents
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted);
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var query = _context.ElectionEvents
+                .IgnoreQueryFilters();
+
+            ElectionEvent? election = isSuperAdmin
+                ? await query.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted)
+                : await query.FirstOrDefaultAsync(e => e.Id == id && !e.IsDeleted && e.TenantId == activeTenantId);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election event could not be found.";
+                TempData["ErrorMessage"] = "Election event could not be found or unauthorized access.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -299,14 +322,13 @@ namespace OnlineVotingApplication.Controllers
             // --- AUDIT LOGGING ---
             var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Election Soft-Deleted",
                 details: $"Moved election event ID: {id} ('{election.Title}') to trash",
                 ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
+                tenantId: activeTenantId != Guid.Empty ? activeTenantId : null
             );
 
             TempData["SuccessMessage"] = $"\"{election.Title}\" moved to trash. It can be restored within 30 days.";
@@ -321,6 +343,8 @@ namespace OnlineVotingApplication.Controllers
             int skip = (pageNumber - 1) * pageSize;
 
             var retentionThreshold = DateTime.UtcNow.AddDays(-30);
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
 
             var query = _context.ElectionEvents
                 .IgnoreQueryFilters()
@@ -328,10 +352,9 @@ namespace OnlineVotingApplication.Controllers
                 .Include(e => e.Tenant)
                 .Where(e => e.IsDeleted && e.DeletedAt >= retentionThreshold);
 
-            if (!User.IsInRole("SuperAdmin"))
+            if (!isSuperAdmin)
             {
-                var tenantId = _tenantProvider.GetCurrentTenantId();
-                query = query.Where(e => e.TenantId == tenantId);
+                query = query.Where(e => e.TenantId == activeTenantId);
             }
 
             int totalItems = await query.CountAsync();
@@ -343,7 +366,7 @@ namespace OnlineVotingApplication.Controllers
                 .Select(e => new ElectionViewModel
                 {
                     Id = e.Id,
-                    Title = e.Title,
+                    Title = e.Title ?? "",
                     ElectionYear = e.ElectionYear,
                     StartDate = e.StartDate,
                     EndDate = e.EndDate,
@@ -368,16 +391,22 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects restore actions from abuse
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> Restore(Guid id)
         {
-            var election = await _context.ElectionEvents
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(e => e.Id == id && e.IsDeleted);
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var query = _context.ElectionEvents
+                .IgnoreQueryFilters();
+
+            ElectionEvent? election = isSuperAdmin
+                ? await query.FirstOrDefaultAsync(e => e.Id == id && e.IsDeleted)
+                : await query.FirstOrDefaultAsync(e => e.Id == id && e.IsDeleted && e.TenantId == activeTenantId);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election event could not be found in trash.";
+                TempData["ErrorMessage"] = "Election event could not be found in trash or unauthorized access.";
                 return RedirectToAction(nameof(SoftDeleted));
             }
 
@@ -401,14 +430,13 @@ namespace OnlineVotingApplication.Controllers
             // --- AUDIT LOGGING ---
             var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Election Restored",
                 details: $"Restored election event ID: {id} ('{election.Title}') from trash",
                 ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
+                tenantId: activeTenantId != Guid.Empty ? activeTenantId : null
             );
 
             TempData["SuccessMessage"] = $"\"{election.Title}\" restored successfully.";

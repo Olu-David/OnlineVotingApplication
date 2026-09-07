@@ -1,0 +1,241 @@
+﻿@model PaginatedListViewModel<UserWithRolesViewModel>
+@{
+    ViewData["Title"] = "System Users Management";
+    var userStats = ViewData["UserStats"] as SystemUserStatsViewModel;
+    var currentRoleFilter = ViewData["CurrentRoleFilter"] as string ?? "";
+    var currentSearchTerm = ViewData["CurrentSearchTerm"] as string ?? "";
+}
+
+<div class="container-fluid px-4 py-4">
+    <h2 class="mb-4">System Users Management</h2>
+
+    <!-- Success / Error Messages -->
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <!-- 1. Statistics Cards Row -->
+    @if (userStats != null)
+    {
+        <div class="row row-cols-1 row-cols-md-3 row-cols-lg-6 g-3 mb-4">
+            <div class="col">
+                <div class="card text-white bg-primary shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Total Users</h6>
+                        <h3 class="mb-0">@userStats.TotalUsers</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card text-white bg-secondary shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Voters</h6>
+                        <h3 class="mb-0">@userStats.VoterCount</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card text-white bg-success shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Candidates</h6>
+                        <h3 class="mb-0">@userStats.CandidateCount</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card text-white bg-info shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Tenant Admins</h6>
+                        <h3 class="mb-0">@userStats.TenantAdminCount</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card text-white bg-warning shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Platform Admins</h6>
+                        <h3 class="mb-0">@userStats.PlatformAdminCount</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col">
+                <div class="card text-white bg-danger shadow-sm h-100">
+                    <div class="card-body p-3">
+                        <h6 class="card-title text-uppercase small">Super Admins</h6>
+                        <h3 class="mb-0">@userStats.SuperAdminCount</h3>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <!-- 2. Search & Filter Toolbar -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" asp-action="AllSystemUsers" class="row g-3">
+                <div class="col-md-4">
+                    <label for="searchTerm" class="form-label">Search User</label>
+                    <input type="text" class="form-control" id="searchTerm" name="searchTerm" value="@currentSearchTerm" placeholder="Username or Email...">
+                </div>
+                <div class="col-md-4">
+                    <label for="roleFilter" class="form-label">Filter by Role</label>
+                    <select class="form-select" id="roleFilter" name="roleFilter">
+                        <option value="">-- All Roles --</option>
+                        <option value="Voter" selected="@(currentRoleFilter == "Voter")">Voter</option>
+                        <option value="Candidate" selected="@(currentRoleFilter == "Candidate")">Candidate</option>
+                        <option value="TenantAdmin" selected="@(currentRoleFilter == "TenantAdmin")">TenantAdmin</option>
+                        <option value="PlatformAdmin" selected="@(currentRoleFilter == "PlatformAdmin")">PlatformAdmin</option>
+                        <option value="SuperAdmin" selected="@(currentRoleFilter == "SuperAdmin")">SuperAdmin</option>
+                    </select>
+                </div>
+                <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-primary me-2"><i class="bi bi-search"></i> Apply Filters</button>
+                    <a asp-action="AllSystemUsers" class="btn btn-outline-secondary">Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 3. Users Table -->
+    <div class="card shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover table-striped align-middle mb-0">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>User Name</th>
+                            <th>Email</th>
+                            <th>Confirmed</th>
+                            <th>Roles</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model != null && Model.Any())
+                        {
+                            @foreach (var user in Model)
+                            {
+                                <tr>
+                                    <td class="fw-bold">@user.UserName</td>
+                                    <td>@user.Email</td>
+                                    <td>
+                                        @if (user.EmailConfirmed)
+                                        {
+                                            <span class="badge bg-success">Confirmed</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (user.Roles != null && user.Roles.Any())
+                                        {
+                                            @foreach (var role in user.Roles)
+                                            {
+                                                <span class="badge bg-secondary me-1">@role</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small">No Roles</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (user.IsLockedOut)
+                                        {
+                                            <span class="badge bg-danger">Locked Out</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-success">Active</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        @if (!user.IsLockedOut)
+                                        {
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#lockoutModal-@user.Id">
+                                                Penalty Lockout
+                                            </button>
+
+                                            <!-- Penalty Modal -->
+                                            <div class="modal fade text-start" id="lockoutModal-@user.Id" tabindex="-1" aria-hidden="true">
+                                                <div class="modal-dialog">
+                                                    <div class="modal-content">
+                                                        <form asp-action="PenaltyLockoutUser" method="post">
+                                                            <input type="hidden" name="userId" value="@user.Id" />
+                                                            <div class="modal-header bg-danger text-white">
+                                                                <h5 class="modal-title">Penalty Lockout: @user.UserName</h5>
+                                                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                                            </div>
+                                                            <div class="modal-body">
+                                                                <p class="text-muted small">This action will immediately restrict the user's account for 100 years, log an entry in the system audit trail, and transmit a notification message to their inbox.</p>
+                                                                <div class="mb-3">
+                                                                    <label for="violationReason-@user.Id" class="form-label fw-bold">Violation Reason / Notice</label>
+                                                                    <textarea class="form-control" id="violationReason-@user.Id" name="violationReason" rows="3" required placeholder="Specify election infraction or policy breach details..."></textarea>
+                                                                </div>
+                                                            </div>
+                                                            <div class="modal-footer">
+                                                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                                <button type="submit" class="btn btn-danger">Confirm Lockout</button>
+                                                            </div>
+                                                        </form>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-muted small fst-italic">Restricted</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No system users found matching your search parameters.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 4. Pagination Footer -->
+        <div class="card-footer d-flex justify-content-between align-items-center">
+            <div class="text-muted small">
+                Showing page <strong>@Model?.PageNumber</strong> of <strong>@Model?.TotalPages</strong> (Total records: @Model?.TotalCount)
+            </div>
+            <nav aria-label="User List Pagination">
+                <ul class="pagination pagination-sm mb-0">
+                    <li class="page-item @(Model?.PageNumber > 1 ? "" : "disabled")">
+                        <a class="page-link" asp-action="AllSystemUsers" asp-route-pageNumber="@(Model!.PageNumber - 1)" asp-route-searchTerm="@currentSearchTerm" asp-route-roleFilter="@currentRoleFilter">Previous</a>
+                    </li>
+                    @for (int i = 1; i <= (Model?.TotalPages ?? 1); i++)
+                    {
+                        <li class="page-item @(Model?.PageNumber == i ? "active" : "")">
+                            <a class="page-link" asp-action="AllSystemUsers" asp-route-pageNumber="@i" asp-route-searchTerm="@currentSearchTerm" asp-route-roleFilter="@currentRoleFilter">@i</a>
+                        </li>
+                    }
+                    <li class="page-item @(Model?.PageNumber < Model?.TotalPages ? "" : "disabled")">
+                        <a class="page-link" asp-action="AllSystemUsers" asp-route-pageNumber="@(Model!.PageNumber + 1)" asp-route-searchTerm="@currentSearchTerm" asp-route-roleFilter="@currentRoleFilter">Next</a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+    </div>
+</div>

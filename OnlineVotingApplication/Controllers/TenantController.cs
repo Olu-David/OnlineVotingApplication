@@ -1,17 +1,12 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
-using OnlineVotingApplication.Repository.Services;
-using System;
-using System.Linq;
-using System.Security.Claims;
-using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
 {
@@ -23,19 +18,27 @@ namespace OnlineVotingApplication.Controllers
         private readonly ITenantService _tenantService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IAuditLogService _auditLogService;
-        private readonly iCandidateService _CandidateService;
+        private readonly iCandidateService _candidateService;
 
-        public TenantController(AppDbContext context, ITenantProvider tenantProvider, ITenantService tenantService, UserManager<ApplicationUser> userManager, IAuditLogService auditLogService, iCandidateService candidateService)
+        public TenantController(
+            AppDbContext context,
+            ITenantProvider tenantProvider,
+            ITenantService tenantService,
+            UserManager<ApplicationUser> userManager,
+            IAuditLogService auditLogService,
+            iCandidateService candidateService)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _tenantService = tenantService ?? throw new ArgumentNullException(nameof(tenantService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
-            _CandidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
+            _candidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
         }
 
-        // --- REGISTRATION (Public Access) ---
+        // ─────────────────────────────────────────────
+        // Registration (Public Access)
+        // ─────────────────────────────────────────────
         [AllowAnonymous]
         [HttpGet]
         public IActionResult CreateOrganization()
@@ -46,8 +49,8 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects public organization registration from bot spam
-        public async Task<IActionResult> CreateOrganization(TenantRegistrationViewModel model)
+        [EnableRateLimiting("StrictVotingPolicy")]
+        public async Task<IActionResult> CreateOrganization(TenantRegistrationViewModel model, CancellationToken cancellationToken = default)
         {
             if (!ModelState.IsValid)
                 return View(model);
@@ -75,7 +78,6 @@ namespace OnlineVotingApplication.Controllers
                 _tenantProvider.SetTenantContext(result.Data.Tenant.Id);
             }
 
-            // --- AUDIT LOGGING ---
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             string userId = result.Data?.UserId ?? "Anonymous";
             Guid? tenantId = result.Data?.Tenant?.Id;
@@ -99,10 +101,11 @@ namespace OnlineVotingApplication.Controllers
             });
         }
 
-        // --- TENANT DASHBOARD & MANAGEMENT ---
-
+        // ─────────────────────────────────────────────
+        // Tenant Dashboard & Management
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Dashboard()
+        public async Task<IActionResult> Dashboard(CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -127,7 +130,7 @@ namespace OnlineVotingApplication.Controllers
             var elections = await _context.ElectionEvents
                 .Where(e => e.TenantId == activeTenantId)
                 .AsNoTracking()
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             ViewBag.Metrics = metrics;
             ViewBag.Tenant = tenantDetails;
@@ -137,7 +140,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Official,SuperAdmin")]
-        public async Task<IActionResult> ManageUsers()
+        public async Task<IActionResult> ManageUsers(CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             if (activeTenantId == Guid.Empty)
@@ -151,7 +154,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Official,SuperAdmin")]
-        public async Task<IActionResult> ElectionAnalytics(Guid electionId)
+        public async Task<IActionResult> ElectionAnalytics(Guid electionId, CancellationToken cancellationToken = default)
         {
             if (electionId == Guid.Empty) return BadRequest();
 
@@ -166,7 +169,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpGet]
         [Authorize(Roles = "Official")]
-        public async Task<IActionResult> CreateCandidateOfficial()
+        public async Task<IActionResult> CreateCandidateOfficial(CancellationToken cancellationToken = default)
         {
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -175,7 +178,7 @@ namespace OnlineVotingApplication.Controllers
                 .AsNoTracking()
                 .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
                 .OrderByDescending(e => e.CreatedAt)
-                .ToListAsync();
+                .ToListAsync(cancellationToken);
 
             return View(new ManualCandidateCreationViewModel());
         }
@@ -183,8 +186,8 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [Authorize(Roles = "Official")]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects official candidate creation from rapid script spamming
-        public async Task<IActionResult> CreateCandidateOfficial(ManualCandidateCreationViewModel model)
+        [EnableRateLimiting("StrictVotingPolicy")]
+        public async Task<IActionResult> CreateCandidateOfficial(ManualCandidateCreationViewModel model, CancellationToken cancellationToken = default)
         {
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -195,26 +198,32 @@ namespace OnlineVotingApplication.Controllers
                     .AsNoTracking()
                     .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
                     .OrderByDescending(e => e.CreatedAt)
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
 
                 return View(model);
             }
 
-            var officialUserId = _userManager.GetUserId(User)!;
+            string? officialUserId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(officialUserId))
+            {
+                TempData["ErrorMessage"] = "User session is invalid.";
+                return RedirectToAction(nameof(Dashboard));
+            }
+
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-            var result = await _CandidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId);
+            var result = await _candidateService.CreateCandidateByOfficialAsync(model, currentTenantId, officialUserId);
 
             if (!result.Success)
             {
-                ModelState.AddModelError(string.Empty, result.Message ?? "");
+                ModelState.AddModelError(string.Empty, result.Message ?? string.Empty);
 
                 ViewBag.OfficialElections = await _context.ElectionEvents
                     .IgnoreQueryFilters()
                     .AsNoTracking()
                     .Where(e => e.TenantId == currentTenantId && !e.IsDeleted)
                     .OrderByDescending(e => e.CreatedAt)
-                    .ToListAsync();
+                    .ToListAsync(cancellationToken);
 
                 return View(model);
             }

@@ -33,7 +33,7 @@ namespace OnlineVotingApplication.Controllers
 
         // GET: /Voter/Index (Lists election events by tenant)
         [HttpGet]
-        public async Task<IActionResult> Index(Guid tenantId)
+        public async Task<IActionResult> Index(Guid tenantId, CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Index";
@@ -54,7 +54,8 @@ namespace OnlineVotingApplication.Controllers
 
             var elections = await _context.ElectionEvents
                 .Where(e => e.TenantId == tenantId && !e.IsDeleted)
-                .ToListAsync();
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
             ViewBag.TenantId = tenantId;
             return View(elections);
@@ -63,7 +64,7 @@ namespace OnlineVotingApplication.Controllers
         // GET: /Voter/PenalizedVoters (Lists all penalized voters across elections)
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official")]
-        public async Task<IActionResult> PenalizedVoters()
+        public async Task<IActionResult> PenalizedVoters(CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "PenalizedVoters";
@@ -73,14 +74,15 @@ namespace OnlineVotingApplication.Controllers
                 .Include(v => v.Voter)
                 .Include(v => v.Election)
                 .Include(v => v.Candidate)
-                .ToListAsync();
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
             return View(penalizedList);
         }
 
         // GET: /Voter/Details/5 (Shows election details, positions, and candidates)
         [HttpGet]
-        public async Task<IActionResult> Details(Guid id) // id = ElectionId
+        public async Task<IActionResult> Details(Guid id, CancellationToken cancellationToken = default) // id = ElectionId
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Details";
@@ -91,7 +93,8 @@ namespace OnlineVotingApplication.Controllers
             var election = await _context.ElectionEvents
                 .Include(e => e.Positions!)!
                     .ThenInclude(p => p.Candidates!)
-                .FirstOrDefaultAsync(e => e.Id == id);
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == id, cancellationToken);
 
             if (election == null)
             {
@@ -111,12 +114,12 @@ namespace OnlineVotingApplication.Controllers
         // GET: /Voter/RequestCode?electionId=xxx&candidateId=yyy&positionId=zzz
         [HttpGet]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId)
+        public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId, CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "RequestCode";
 
-            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string? voterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(voterId))
             {
                 TempData["ErrorMessage"] = "User session expired.";
@@ -131,19 +134,17 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Details", new { id = electionId });
             }
 
-            // Look up display names so the confirmation page can show
-            // "You're voting for X — Position Y" instead of raw GUIDs.
-            // Falls back gracefully to "Selected Candidate"/"Selected Position"
-            // if either record can't be found for any reason.
             var candidate = await _context.Candidate
                 .Where(c => c.Id == candidateId)
                 .Select(c => new { c.Name })
-                .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .FirstOrDefaultAsync(cancellationToken);
 
             var position = await _context.Position
                 .Where(p => p.Id == positionId)
                 .Select(p => new { p.Name })
-                .FirstOrDefaultAsync();
+                .AsNoTracking()
+                .FirstOrDefaultAsync(cancellationToken);
 
             ViewBag.ElectionId = electionId;
             ViewBag.CandidateId = candidateId;
@@ -160,9 +161,9 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> ConfirmAndVote(Guid electionId, Guid candidateId, Guid positionId, string enteredCode)
+        public async Task<IActionResult> ConfirmAndVote(Guid electionId, Guid candidateId, Guid positionId, string enteredCode, CancellationToken cancellationToken = default)
         {
-            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string? voterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(voterId))
             {
                 TempData["ErrorMessage"] = "User session expired.";
@@ -177,7 +178,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("RequestCode", new { electionId, candidateId, positionId });
             }
 
-            // --- AUDIT LOGGING ---
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -203,12 +203,12 @@ namespace OnlineVotingApplication.Controllers
 
         // GET: /Voter/MyHistory
         [HttpGet]
-        public async Task<IActionResult> MyHistory()
+        public async Task<IActionResult> MyHistory(CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "MyHistory";
 
-            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string? voterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(voterId))
             {
                 TempData["ErrorMessage"] = "User session expired.";
@@ -229,12 +229,18 @@ namespace OnlineVotingApplication.Controllers
         // GET: /Voter/BallotBreakdown?electionId=xxx
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official,Candidate")]
-        public async Task<IActionResult> BallotBreakdown(Guid electionId)
+        public async Task<IActionResult> BallotBreakdown(Guid electionId, CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "BallotBreakdown";
 
-            string voterId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string? voterId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(voterId))
+            {
+                TempData["ErrorMessage"] = "User session expired.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var response = await _voteService.GetVoterBallotHistoryAsync(voterId, electionId);
 
             if (!response.Success)
@@ -247,7 +253,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> LiveResults()
+        public async Task<IActionResult> LiveResults(CancellationToken cancellationToken = default)
         {
             var voteData = await _context.Candidate
                 .Select(c => new CandidateVoteDto
@@ -255,7 +261,8 @@ namespace OnlineVotingApplication.Controllers
                     CandidateName = c.Name ?? "",
                     VoteCount = _context.Votes.Count(v => v.CandidateId == c.Id)
                 })
-                .ToListAsync();
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "LiveResults";
@@ -266,16 +273,19 @@ namespace OnlineVotingApplication.Controllers
         // GET: /Voter/ManualEntry
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official,Tenant")]
-        public async Task<IActionResult> ManualEntry(Guid? electionId, Guid? positionId)
+        public async Task<IActionResult> ManualEntry(Guid? electionId, Guid? positionId, CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "ManualEntry";
 
             ViewBag.Elections = await _context.ElectionEvents
                 .Where(e => !e.IsDeleted)
-                .ToListAsync();
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
-            ViewBag.Positions = await _context.Position.ToListAsync();
+            ViewBag.Positions = await _context.Position
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
 
             var model = new ManualResultViewModel();
 
@@ -286,7 +296,8 @@ namespace OnlineVotingApplication.Controllers
 
                 var candidates = await _context.Candidate
                     .Where(c => c.ElectionEventId == electionId && c.PositionId == positionId && !c.isDeleted)
-                    .ToListAsync();
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken);
 
                 model.CandidateVotes = candidates.Select(c => new CandidateVoteInput
                 {
@@ -304,14 +315,14 @@ namespace OnlineVotingApplication.Controllers
         [Authorize(Roles = "SuperAdmin,Official,Tenant")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> ManualEntry(ManualResultViewModel model)
+        public async Task<IActionResult> ManualEntry(ManualResultViewModel model, CancellationToken cancellationToken = default)
         {
             if (!ModelState.IsValid)
             {
                 ViewData["Ctrl"] = "Voter";
                 ViewData["Action"] = "ManualEntry";
-                ViewBag.Elections = await _context.ElectionEvents.Where(e => !e.IsDeleted).ToListAsync();
-                ViewBag.Positions = await _context.Position.ToListAsync();
+                ViewBag.Elections = await _context.ElectionEvents.Where(e => !e.IsDeleted).AsNoTracking().ToListAsync(cancellationToken);
+                ViewBag.Positions = await _context.Position.AsNoTracking().ToListAsync(cancellationToken);
                 return View(model);
             }
 
@@ -339,7 +350,7 @@ namespace OnlineVotingApplication.Controllers
                         .Where(v => v.CandidateId == entry.CandidateId && v.ElectionId == model.ElectionEventId)
                         .OrderByDescending(v => v.CreatedAt)
                         .Take(removeCount)
-                        .ToListAsync();
+                        .ToListAsync(cancellationToken);
 
                     if (existingVotes.Any())
                     {
@@ -348,9 +359,8 @@ namespace OnlineVotingApplication.Controllers
                 }
             }
 
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
 
-            // --- AUDIT LOGGING ---
             string adminId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "System";
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
@@ -372,9 +382,15 @@ namespace OnlineVotingApplication.Controllers
         [Authorize(Roles = "SuperAdmin,Official")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> PenalizeVoter(string voterId, Guid electionId, string reason, Guid returnElectionId)
+        public async Task<IActionResult> PenalizeVoter(string voterId, Guid electionId, string reason, Guid returnElectionId, CancellationToken cancellationToken = default)
         {
-            string adminId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+            string? adminId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (string.IsNullOrEmpty(adminId))
+            {
+                TempData["ErrorMessage"] = "User session expired.";
+                return RedirectToAction("Index", "Home");
+            }
+
             var response = await _voteService.PenalizeVoterAsync(voterId, electionId, reason, adminId);
 
             if (!response.Success)
@@ -383,7 +399,6 @@ namespace OnlineVotingApplication.Controllers
             }
             else
             {
-                // --- AUDIT LOGGING ---
                 var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
                 Guid tenantId = _tenantProvider.GetCurrentTenantId();
 

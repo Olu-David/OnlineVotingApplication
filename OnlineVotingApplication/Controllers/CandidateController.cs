@@ -12,7 +12,8 @@ using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [Authorize(Roles = "SuperAdmin, Admin")]
+    // Updated controller-level access for administrative tiers
+    [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
     public class CandidateController : Controller
     {
         private readonly AppDbContext _context;
@@ -45,7 +46,7 @@ namespace OnlineVotingApplication.Controllers
         // CANDIDATE DASHBOARD (INDEX) - TENANT AWARE
         // ─────────────────────────────────────────────
         [HttpGet]
-        [Authorize(Roles = "Candidate,SuperAdmin,Official")]
+        [Authorize(Roles = "Candidate, SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> Index()
         {
             var userId = _userManager.GetUserId(User);
@@ -101,7 +102,7 @@ namespace OnlineVotingApplication.Controllers
         // STEP A: ADMIN GENERATES AND SENDS THE INVITE
         // ─────────────────────────────────────────────
         [HttpPost]
-        [Authorize(Roles = "SuperAdmin,Official")]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
@@ -160,12 +161,11 @@ namespace OnlineVotingApplication.Controllers
         // GET: Candidate Registration Form
         // ─────────────────────────────────────────────
         [HttpGet]
-        [Authorize(Roles = "Voter,Candidate")]
+        [Authorize(Roles = "Voter, Candidate")]
         public async Task<IActionResult> CreateCandidate(Guid electionEventId, string token)
         {
             _logger.LogInformation("CreateCandidate GET called for ElectionEventId={ElectionEventId}", electionEventId);
 
-            // 1. Get current tenant context
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
             if (string.IsNullOrWhiteSpace(token))
@@ -174,7 +174,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("AllElections", "Election");
             }
 
-            // 2. Validate Invitation Token against TenantId & ElectionEventId
             var invitation = await _context.candidateInvitations
                 .AsNoTracking()
                 .FirstOrDefaultAsync(i => i.Token == token
@@ -188,7 +187,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("AllElections", "Election");
             }
 
-            // 3. Fetch Election Event validating Foreign Key (TenantId)
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -202,7 +200,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("AllElections", "Election");
             }
 
-            // 4. Fetch current user to bind identity
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
@@ -233,7 +230,7 @@ namespace OnlineVotingApplication.Controllers
         // POST: Candidate Self-Registration Submission
         // ─────────────────────────────────────────────
         [HttpPost]
-        [Authorize(Roles = "Voter,Candidate")]
+        [Authorize(Roles = "Voter, Candidate")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string token)
@@ -253,11 +250,9 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            // Lock Candidate Name to Identity Claims
             var fullName = $"{user.FullName}".Trim();
             model.Name = string.IsNullOrWhiteSpace(fullName) ? user.UserName! : fullName;
 
-            // Validate Election Event exists for current TenantId FK
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .Include(e => e.CustomFields)
@@ -295,7 +290,6 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // Pass tenantId or rely on tenant provider in service
             var result = await _candidateService.CreateCandidateAsync(model, user.Id, token);
 
             if (!result.Success)
@@ -310,7 +304,6 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // Audit Logging
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             await _auditLogService.LogActivityAsync(
@@ -324,6 +317,7 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate));
         }
+
         // ─────────────────────────────────────────────
         // AJAX Endpoints
         // ─────────────────────────────────────────────
@@ -364,7 +358,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetAllSoftdelete));
             }
 
-            // --- AUDIT LOGGING ---
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -400,7 +393,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetAllSoftdelete));
             }
 
-            // --- AUDIT LOGGING ---
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -418,7 +410,11 @@ namespace OnlineVotingApplication.Controllers
         // ─────────────────────────────────────────────
         // Queries & Filters
         // ─────────────────────────────────────────────
+        // ─────────────────────────────────────────────
+        // Filter & Retrieval Endpoints
+        // ─────────────────────────────────────────────
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidateByPosition(Guid? PositionId, int PageNumber = 1, int PageSize = 10)
         {
             var user = User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -458,6 +454,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> AllCandidate(int pageNumber = 1, int pageSize = 10)
         {
             if (pageNumber < 1) pageNumber = 1;
@@ -477,6 +474,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidateByState(Guid? stateId, int pageNumber = 1, int pageSize = 10)
         {
             var statesList = await _context.States.AsNoTracking().ToListAsync();
@@ -513,6 +511,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetAllSoftdelete(int pageNumber = 1, int pageSize = 10)
         {
             var userId = _userManager.GetUserId(User);
@@ -545,6 +544,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidateByLga(Guid? Lgaid, int PageNumber = 1, int pageSize = 10)
         {
             if (PageNumber < 1) PageNumber = 1;
@@ -583,6 +583,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidatebyParty(Guid? PartyId, int PageNumber = 1, int PageSize = 10)
         {
             if (PageNumber < 1) PageNumber = 1;
@@ -624,6 +625,7 @@ namespace OnlineVotingApplication.Controllers
         // Update & Cache Methods
         // ─────────────────────────────────────────────
         [HttpGet]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
         public async Task<IActionResult> UpdateCandidate(Guid id, CancellationToken cancellationToken)
         {
             var candidate = await _context.Candidate.FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
@@ -649,6 +651,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> UpdateCandidate(UpdateCandidateViewModel model, CancellationToken cancellationToken)
@@ -681,6 +684,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> ResetCacheSoftDelete(Guid candidateId, int pageNumber = 1, int pageSize = 10)

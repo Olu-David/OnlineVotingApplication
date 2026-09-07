@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Repository.iServices;
-using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Controllers
 {
@@ -34,6 +34,7 @@ namespace OnlineVotingApplication.Controllers
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
 
+        [HttpGet]
         public IActionResult Index()
         {
             return View();
@@ -46,19 +47,20 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> RestoreSoftDeleted(Guid PartyId)
+        [EnableRateLimiting("StrictVotingPolicy")]
+        public async Task<IActionResult> RestoreSoftDeleted(Guid partyId)
         {
             var user = _userManager.GetUserId(User);
-            if (user == null)
+            if (string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User doesn't exist";
                 return RedirectToAction("Index", "Home");
             }
 
-            var result = await _party.RestoreDeletedParty(user, PartyId);
+            var result = await _party.RestoreDeletedParty(user, partyId);
             if (!result.Success)
             {
-                TempData["ErrorMessage"] = "Can not restore data try again";
+                TempData["ErrorMessage"] = "Can not restore data, try again.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -69,21 +71,22 @@ namespace OnlineVotingApplication.Controllers
             await _auditLogService.LogActivityAsync(
                 userId: user,
                 action: "Party Restored",
-                details: $"Restored party ID: {PartyId}",
+                details: $"Restored party ID: {partyId}",
                 ipAddress: ipAddress,
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
-            TempData["SuccessMessage"] = "Data restored succesfully";
-            return RedirectToAction(nameof(AllParty), new { PartyId });
+            TempData["SuccessMessage"] = "Data restored successfully.";
+            return RedirectToAction(nameof(AllParty));
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> CreateParty(PartyViewModel model)
         {
             var user = _userManager.GetUserId(User);
-            if (user == null)
+            if (string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User doesn't exist";
                 return RedirectToAction("Index", "Home");
@@ -103,7 +106,7 @@ namespace OnlineVotingApplication.Controllers
             if (!result.Success)
             {
                 TempData["ErrorMessage"] = "Unable to create Party";
-                return RedirectToAction(nameof(Index));
+                return View(model);
             }
 
             // --- AUDIT LOGGING ---
@@ -118,32 +121,35 @@ namespace OnlineVotingApplication.Controllers
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
-            TempData["SuccessMessage"] = "Party has been created successful";
-            return RedirectToAction(nameof(AllParty), new { model.Id });
+            TempData["SuccessMessage"] = "Party has been created successfully.";
+            return RedirectToAction(nameof(AllParty));
         }
 
         [HttpGet]
-        public async Task<IActionResult> AllParty(int PageNumber = 1, int Pageize = 10)
+        public async Task<IActionResult> AllParty(int pageNumber = 1, int pageSize = 10)
         {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
             var user = _userManager.GetUserId(User);
-            if (user == null)
+            if (string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User doesn't exist";
                 return RedirectToAction("Index", "Home");
             }
 
-            var result = await _party.AllPartyAsync(PageNumber, Pageize);
+            var result = await _party.AllPartyAsync(pageNumber, pageSize);
 
-            if (!result.Items.Any() || result.Items == null)
+            if (result?.Items == null || !result.Items.Any())
             {
-                return View(result);
+                return View(result ?? new PaginatedListViewModel<PartyViewModel>());
             }
 
             var newView = new PaginatedListViewModel<PartyViewModel>
             {
                 Items = result.Items,
-                PageNumber = PageNumber,
-                PageSize = Pageize,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
                 TotalItems = result.TotalItems
             };
 
@@ -151,27 +157,30 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> AllSoftDeleted(int PageNumber = 1, int Pageize = 10)
+        public async Task<IActionResult> AllSoftDeleted(int pageNumber = 1, int pageSize = 10)
         {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
             var user = _userManager.GetUserId(User);
-            if (user == null)
+            if (string.IsNullOrEmpty(user))
             {
                 TempData["ErrorMessage"] = "User doesn't exist";
                 return RedirectToAction("Index", "Home");
             }
 
-            var result = await _party.AllSoftDeleteAsync(PageNumber, Pageize);
+            var result = await _party.AllSoftDeleteAsync(pageNumber, pageSize);
 
-            if (!result.Items.Any() || result.Items == null)
+            if (result?.Items == null || !result.Items.Any())
             {
-                return View(result);
+                return View(result ?? new PaginatedListViewModel<PartyViewModel>());
             }
 
             var newView = new PaginatedListViewModel<PartyViewModel>
             {
                 Items = result.Items,
-                PageNumber = PageNumber,
-                PageSize = Pageize,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
                 TotalItems = result.TotalItems
             };
 

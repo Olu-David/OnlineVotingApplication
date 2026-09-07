@@ -8,14 +8,11 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [Authorize(Roles = "Official,SuperAdmin")]
+    [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
     [EnableRateLimiting("StandardPolicy")]
     public class PositionController : Controller
     {
@@ -39,19 +36,26 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
         }
 
-        // --- GET: LIST ALL POSITIONS (INDEX) ---
+        // ─────────────────────────────────────────────
+        // Index / List Positions
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Index(string? electionId, int pageNumber = 1, int pageSize = 10)
+        public async Task<IActionResult> Index(string? electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
             if (string.IsNullOrEmpty(electionId))
             {
                 var firstElection = await _context.ElectionEvents
+                    .AsNoTracking()
                     .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
+                    .OrderByDescending(e => e.CreatedAt)
                     .Select(e => e.Id)
-                    .FirstOrDefaultAsync();
+                    .FirstOrDefaultAsync(cancellationToken);
 
                 if (firstElection == Guid.Empty)
                 {
@@ -68,23 +72,35 @@ namespace OnlineVotingApplication.Controllers
             return View(paginatedPositions);
         }
 
-        // --- GET: CREATE POSITION ---
+        // ─────────────────────────────────────────────
+        // Create Position
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Create(Guid? electionId)
+        public async Task<IActionResult> Create(Guid? electionId, CancellationToken cancellationToken = default)
         {
-            await PopulateElectionsViewBagAsync(electionId);
+            await PopulateElectionsViewBagAsync(electionId, cancellationToken);
             return View(new PositionDTO { ElectionId = electionId ?? Guid.Empty });
         }
 
-        // --- POST: CREATE POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Create(PositionDTO model)
+        public async Task<IActionResult> Create(PositionDTO model, CancellationToken cancellationToken = default)
         {
-            string userId = _userManager.GetUserId(User)!;
+            string? userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User session is invalid.";
+                return RedirectToAction(nameof(Index));
+            }
 
-            if (!User.IsInRole("SuperAdmin"))
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+
+            if (model.ElectionId == null || model.ElectionId == Guid.Empty)
+            {
+                ModelState.AddModelError(nameof(model.ElectionId), "Please select a valid election event.");
+            }
+            else if (!isSuperAdmin)
             {
                 Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
                 if (activeTenantId == Guid.Empty)
@@ -94,26 +110,27 @@ namespace OnlineVotingApplication.Controllers
                 }
 
                 var belongsToTenant = await _context.ElectionEvents
-                    .AnyAsync(e => e.Id == model.ElectionId && e.TenantId == activeTenantId);
+                    .AsNoTracking()
+                    .AnyAsync(e => e.Id == model.ElectionId.Value && e.TenantId == activeTenantId, cancellationToken);
 
                 if (!belongsToTenant)
                 {
-                    ModelState.AddModelError("ElectionId", "Selected election event is invalid or unauthorized.");
+                    ModelState.AddModelError(nameof(model.ElectionId), "Selected election event is invalid or unauthorized.");
                 }
             }
 
             if (!ModelState.IsValid)
             {
-                await PopulateElectionsViewBagAsync(model.ElectionId);
+                await PopulateElectionsViewBagAsync(model.ElectionId, cancellationToken);
                 return View(model);
             }
 
-            var result = await _positionService.CreatePositionAsync(model, userId, model.ElectionId ?? Guid.Empty);
+            var result = await _positionService.CreatePositionAsync(model, userId, model.ElectionId!.Value);
 
             if (!result.Success)
             {
                 ModelState.AddModelError(string.Empty, result.Message ?? "Failed to create position.");
-                await PopulateElectionsViewBagAsync(model.ElectionId);
+                await PopulateElectionsViewBagAsync(model.ElectionId, cancellationToken);
                 return View(model);
             }
 
@@ -133,9 +150,11 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(Index), new { electionId = model.ElectionId });
         }
 
-        // --- GET: EDIT POSITION ---
+        // ─────────────────────────────────────────────
+        // Edit Position
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Edit(Guid id)
+        public async Task<IActionResult> Edit(Guid id, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
@@ -143,7 +162,7 @@ namespace OnlineVotingApplication.Controllers
             var position = await _context.Position
                 .Include(p => p.ElectionEvent)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.Id == id);
+                .FirstOrDefaultAsync(m => m.Id == id, cancellationToken);
 
             if (position == null)
             {
@@ -151,13 +170,10 @@ namespace OnlineVotingApplication.Controllers
                 return NotFound();
             }
 
-            if (!isSuperAdmin)
+            if (!isSuperAdmin && (position.ElectionEvent == null || position.ElectionEvent.TenantId != activeTenantId))
             {
-                if (position.ElectionEvent == null || position.ElectionEvent.TenantId != activeTenantId)
-                {
-                    TempData["ErrorMessage"] = "Unauthorized access to position.";
-                    return RedirectToAction(nameof(Index));
-                }
+                TempData["ErrorMessage"] = "Unauthorized access to position.";
+                return RedirectToAction(nameof(Index));
             }
 
             var editModel = new EditPositionModel
@@ -170,11 +186,10 @@ namespace OnlineVotingApplication.Controllers
             return View(editModel);
         }
 
-        // --- POST: EDIT POSITION ---
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Edit(EditPositionModel model)
+        public async Task<IActionResult> Edit(EditPositionModel model, CancellationToken cancellationToken = default)
         {
             if (!ModelState.IsValid)
             {
@@ -195,7 +210,7 @@ namespace OnlineVotingApplication.Controllers
                 var positionToCheck = await _context.Position
                     .Include(p => p.ElectionEvent)
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.Id == positionId);
+                    .FirstOrDefaultAsync(p => p.Id == positionId, cancellationToken);
 
                 if (positionToCheck == null || positionToCheck.ElectionEvent == null || positionToCheck.ElectionEvent.TenantId != activeTenantId)
                 {
@@ -204,7 +219,13 @@ namespace OnlineVotingApplication.Controllers
                 }
             }
 
-            string userId = _userManager.GetUserId(User)!;
+            string? userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User session is invalid.";
+                return RedirectToAction(nameof(Index));
+            }
+
             var result = await _positionService.UpdatePosition(model, userId);
 
             if (!result.Success)
@@ -229,11 +250,13 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(Index));
         }
 
-        // --- POST: DELETE POSITION ---
+        // ─────────────────────────────────────────────
+        // Delete Position
+        // ─────────────────────────────────────────────
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Delete(Guid id, Guid electionId)
+        public async Task<IActionResult> Delete(Guid id, Guid electionId, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
@@ -243,7 +266,7 @@ namespace OnlineVotingApplication.Controllers
                 var positionToCheck = await _context.Position
                     .Include(p => p.ElectionEvent)
                     .AsNoTracking()
-                    .FirstOrDefaultAsync(p => p.Id == id);
+                    .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
 
                 if (positionToCheck == null || positionToCheck.ElectionEvent == null || positionToCheck.ElectionEvent.TenantId != activeTenantId)
                 {
@@ -252,12 +275,18 @@ namespace OnlineVotingApplication.Controllers
                 }
             }
 
-            string userId = _userManager.GetUserId(User)!;
+            string? userId = _userManager.GetUserId(User);
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["ErrorMessage"] = "User session is invalid.";
+                return RedirectToAction(nameof(Index), new { electionId });
+            }
+
             var result = await _positionService.DeletePosition(id, userId);
 
             if (!result.Success)
             {
-                TempData["ErrorMessage"] = result.Message;
+                TempData["ErrorMessage"] = result.Message ?? "Failed to delete position.";
             }
             else
             {
@@ -273,38 +302,22 @@ namespace OnlineVotingApplication.Controllers
                     tenantId: tenantId != Guid.Empty ? tenantId : null
                 );
 
-                TempData["SuccessMessage"] = result.Message;
+                TempData["SuccessMessage"] = result.Message ?? "Position deleted successfully.";
             }
 
             return RedirectToAction(nameof(Index), new { electionId });
         }
 
-        // --- HELPER METHOD TO POPULATE ELECTION DROPDOWN ---
-        private async Task PopulateElectionsViewBagAsync(Guid? selectedElectionId)
-        {
-            bool isSuperAdmin = User.IsInRole("SuperAdmin") && !User.IsInRole("Official");
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-
-            var query = _context.ElectionEvents.AsNoTracking();
-
-            if (!isSuperAdmin)
-            {
-                query = query.Where(e => e.TenantId == activeTenantId);
-            }
-
-            var electionList = await query
-                .Select(e => new { e.Id, e.Title })
-                .ToListAsync();
-
-            ViewBag.IsSuperAdmin = isSuperAdmin;
-            ViewBag.ElectionEvents = new SelectList(electionList, "Id", "Title", selectedElectionId);
-        }
-
-        // --- GET: GET ALL SOFT DELETED POSITIONS ---
+        // ─────────────────────────────────────────────
+        // Soft Deleted Positions
+        // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> AllSoftDelete(int pageNumber = 1, int pageSize = 10)
+        public async Task<IActionResult> AllSoftDelete(int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
-            string userId = _userManager.GetUserId(User)!;
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
+            string? userId = _userManager.GetUserId(User);
             if (string.IsNullOrEmpty(userId))
             {
                 TempData["ErrorMessage"] = "User doesn't exist and cannot perform this function";
@@ -318,6 +331,7 @@ namespace OnlineVotingApplication.Controllers
 
             var query = _context.Position
                 .Include(p => p.ElectionEvent)
+                .AsNoTracking()
                 .Where(m => m.IsDeleted);
 
             if (!isSuperAdmin)
@@ -325,7 +339,10 @@ namespace OnlineVotingApplication.Controllers
                 query = query.Where(m => m.ElectionEvent != null && m.ElectionEvent.TenantId == activeTenantId);
             }
 
-            ViewBag.SoftPositionDeletedByElection = await query.OrderBy(m => m.DeletedAt).ToListAsync();
+            ViewBag.SoftPositionDeletedByElection = await query
+                .OrderBy(m => m.DeletedAt)
+                .Take(50) // Safeguard against unbounded list size
+                .ToListAsync(cancellationToken);
 
             var sendView = new PaginatedListViewModel<PositionDTO>
             {
@@ -338,12 +355,35 @@ namespace OnlineVotingApplication.Controllers
             return View(sendView);
         }
 
-        // --- POST: GET ALL SOFT DELETED POSITIONS ---
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult GetAllSoftDeletePost(int pageNumber = 1, int pageSize = 10)
         {
             return RedirectToAction(nameof(AllSoftDelete), new { pageNumber, pageSize });
+        }
+
+        // ─────────────────────────────────────────────
+        // Helper Methods
+        // ─────────────────────────────────────────────
+        private async Task PopulateElectionsViewBagAsync(Guid? selectedElectionId, CancellationToken cancellationToken = default)
+        {
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            var query = _context.ElectionEvents.AsNoTracking().Where(e => !e.IsDeleted);
+
+            if (!isSuperAdmin)
+            {
+                query = query.Where(e => e.TenantId == activeTenantId);
+            }
+
+            var electionList = await query
+                .OrderBy(e => e.Title)
+                .Select(e => new { e.Id, e.Title })
+                .ToListAsync(cancellationToken);
+
+            ViewBag.IsSuperAdmin = isSuperAdmin;
+            ViewBag.ElectionEvents = new SelectList(electionList, "Id", "Title", selectedElectionId);
         }
     }
 }

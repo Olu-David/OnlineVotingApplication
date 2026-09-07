@@ -2,7 +2,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
@@ -55,7 +55,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects LGA creation from automated spam or script abuse
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> CreateLga(LgaDTO model)
         {
             if (!ModelState.IsValid)
@@ -77,7 +77,7 @@ namespace OnlineVotingApplication.Controllers
             {
                 var allStateList = await _context.States.AsNoTracking().OrderBy(s => s.Name).ToListAsync();
                 ViewBag.State = new SelectList(allStateList, "Id", "Name", model.StateId);
-                TempData["ErrorMessage"] = "LGA Creation was unsuccessful";
+                TempData["ErrorMessage"] = result.Message ?? "LGA Creation was unsuccessful";
                 return View(model);
             }
 
@@ -100,6 +100,9 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> AllLga(int pageNumber = 1, int pageSize = 10)
         {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
             var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
             if (string.IsNullOrEmpty(userId))
             {
@@ -108,11 +111,6 @@ namespace OnlineVotingApplication.Controllers
             }
 
             var result = await _lgaService.GetAllLgasAsync(pageNumber, pageSize);
-            if (result == null || result.TotalItems == 0)
-            {
-                TempData["ErrorMessage"] = "Nothing was found. Try again or contact the administrator.";
-                return NotFound();
-            }
 
             var sendView = new PaginatedListViewModel<LgaDTO>
             {
@@ -150,7 +148,7 @@ namespace OnlineVotingApplication.Controllers
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects deletion actions against rapid bulk operations/spam
+        [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> ConfirmDelete(LgaDTO model)
         {
             var userId = _userManager.GetUserId(User);
@@ -163,7 +161,7 @@ namespace OnlineVotingApplication.Controllers
             var result = await _lgaService.DeleteLgaAsync(model, userId);
             if (!result.Success)
             {
-                TempData["ErrorMessage"] = "Item deletion was unsuccessful";
+                TempData["ErrorMessage"] = result.Message ?? "Item deletion was unsuccessful";
                 return RedirectToAction(nameof(AllLga));
             }
 

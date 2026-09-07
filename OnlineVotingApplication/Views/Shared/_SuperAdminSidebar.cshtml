@@ -2,6 +2,9 @@
     Layout = null;
     var currentCtrl = ViewData["Ctrl"]?.ToString();
     var currentAction = ViewData["Action"]?.ToString();
+
+    // Check if the current context belongs to a platform admin or elevated infrastructure control
+    bool isPlatformAdmin = ViewData["IsPlatformAdmin"] is bool pAdmin && pAdmin;
 }
 @using Microsoft.AspNetCore.Identity
 @using OnlineVotingApplication.Areas.Identity.Data
@@ -13,7 +16,7 @@
         <div class="brand-icon"><i class="fas fa-shield-alt text-warning"></i></div>
         <div class="brand-text">
             <span class="d-block fw-bold">VoteX</span>
-            <small class="text-warning font-monospace">System Super Admin</small>
+            <small class="text-warning font-monospace">@(isPlatformAdmin ? "Platform Infrastructure Admin" : "System Super Admin")</small>
         </div>
 
         <!-- Desktop Collapse Toggle -->
@@ -32,7 +35,9 @@
         </span>
         <div class="sidebar-user-info small overflow-hidden">
             <div class="fw-semibold text-truncate">@User?.Identity?.Name</div>
-            <span class="badge bg-danger text-uppercase" style="font-size: 0.65rem;">Global Root</span>
+            <span class="badge @(isPlatformAdmin ? "bg-dark border border-danger text-danger" : "bg-danger") text-uppercase" style="font-size: 0.65rem;">
+                @(isPlatformAdmin ? "Platform Admin" : "Global Root")
+            </span>
         </div>
     </div>
 
@@ -57,6 +62,26 @@
                 <i class="fas fa-chart-line me-2 text-info"></i><span>Live System Analytics</span>
             </a>
         </li>
+
+        @* ─── PLATFORM ADMIN INFRASTRUCTURE & TENANT CONTROLS ─── *@
+        @if (isPlatformAdmin)
+        {
+            <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1 text-danger">
+                <i class="fas fa-server me-1"></i> Platform Governance
+            </li>
+            <li class="nav-item">
+                <a asp-controller="SuperAdminDashboard" asp-action="AllTenants"
+                   class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllTenants" ? "active bg-danger" : "")">
+                    <i class="fas fa-network-wired me-2 text-warning"></i><span>Cross-Tenant Infrastructure</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a asp-controller="AuditLog" asp-action="Index"
+                   class="nav-link text-white d-flex align-items-center @(currentCtrl == "AuditLog" ? "active bg-danger" : "")">
+                    <i class="fas fa-database me-2 text-info"></i><span>Global Master Audit Logs</span>
+                </a>
+            </li>
+        }
 
         <!-- TENANT MANAGEMENT -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-3 mb-1">Platform Multi-Tenancy</li>
@@ -307,7 +332,6 @@
 
     </ul>
 
-    <!-- BOTTOM FOOTER / LOGOUT -->
     <!-- BOTTOM FOOTER / LOGOUT -->
     <div class="sidebar-footer mt-auto pt-3 border-top border-secondary opacity-75">
         @if (User != null && SignInManager.IsSignedIn(User))

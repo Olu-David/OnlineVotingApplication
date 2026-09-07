@@ -47,7 +47,6 @@
     overflow-x: hidden;
     position: relative;
 }
-
 /* ─── DESKTOP SIDEBAR ─── */
 .admin-sidebar {
     --sidebar-accent: var(--votex-amber);
@@ -55,73 +54,89 @@
     height: 100vh;
     position: sticky;
     top: 0;
-    z-index: 100;
+    z-index: 1050; /* Higher than topbar to sit cleanly on top if needed */
     background: #111e3c;
     font-family: var(--votex-font-body);
-    transition: width 0.22s ease, box-shadow 0.22s ease;
+    transition: width 0.22s ease, transform 0.25s ease, box-shadow 0.22s ease;
     overflow-y: auto;
     overflow-x: hidden;
     flex-shrink: 0;
 }
 
-    /* Collapsed rail on desktop */
-    .admin-sidebar.collapsed {
-        width: 70px;
+/* ─── MOBILE RESPONSIVE OVERHAUL (OFF-CANVAS DRAWER) ─── */
+@media (max-width: 991.98px) {
+    .admin-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        transform: translateX(-100%); /* Hide completely off-screen to the left by default */
+        box-shadow: none;
     }
 
-        .admin-sidebar.collapsed .brand-text,
-        .admin-sidebar.collapsed .sidebar-user-info,
-        .admin-sidebar.collapsed .sidebar-section-label,
-        .admin-sidebar.collapsed .nav-link span,
-        .admin-sidebar.collapsed .fa-chevron-down {
-            display: none !important;
+        /* When toggled open on mobile */
+        .admin-sidebar.mobile-open {
+            transform: translateX(0);
+            box-shadow: 15px 0 40px rgba(0, 0, 0, 0.4);
+        }
+}
+
+/* Collapsed rail on desktop */
+.admin-sidebar.collapsed {
+    width: 70px;
+}
+
+    .admin-sidebar.collapsed .brand-text,
+    .admin-sidebar.collapsed .sidebar-user-info,
+    .admin-sidebar.collapsed .sidebar-section-label,
+    .admin-sidebar.collapsed .nav-link span,
+    .admin-sidebar.collapsed .fa-chevron-down {
+        display: none !important;
+    }
+
+    .admin-sidebar.collapsed .nav-link {
+        justify-content: center !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
+
+        .admin-sidebar.collapsed .nav-link i {
+            margin-right: 0 !important;
+            font-size: 1.2rem;
         }
 
-        .admin-sidebar.collapsed .nav-link {
-            justify-content: center !important;
-            padding-left: 0 !important;
-            padding-right: 0 !important;
+    .admin-sidebar.collapsed .collapse {
+        display: none !important;
+    }
+
+    /* Hover-expand: the collapsed rail temporarily widens */
+    .admin-sidebar.collapsed.sidebar-hover-expanded {
+        width: 260px;
+        box-shadow: 10px 0 32px rgba(0, 0, 0, 0.35);
+    }
+
+        .admin-sidebar.collapsed.sidebar-hover-expanded .brand-text,
+        .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-user-info,
+        .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-section-label,
+        .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link span,
+        .admin-sidebar.collapsed.sidebar-hover-expanded .fa-chevron-down {
+            display: revert !important;
         }
 
-            .admin-sidebar.collapsed .nav-link i {
-                margin-right: 0 !important;
-                font-size: 1.2rem;
-            }
-
-        .admin-sidebar.collapsed .collapse {
-            display: none !important;
+        .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link {
+            justify-content: flex-start !important;
+            padding-left: 0.75rem !important;
+            padding-right: 0.75rem !important;
         }
 
-        /* Hover-expand: the collapsed rail temporarily widens into a
-           full flyout while the cursor is over it, so no functionality
-           is lost by collapsing on a large screen. */
-        .admin-sidebar.collapsed.sidebar-hover-expanded {
-            width: 260px;
-            box-shadow: 10px 0 32px rgba(0, 0, 0, 0.35);
+            .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link i {
+                margin-right: 0.5rem !important;
+                font-size: 1rem;
+            }
+
+        .admin-sidebar.collapsed.sidebar-hover-expanded .collapse.show {
+            display: block !important;
         }
-
-            .admin-sidebar.collapsed.sidebar-hover-expanded .brand-text,
-            .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-user-info,
-            .admin-sidebar.collapsed.sidebar-hover-expanded .sidebar-section-label,
-            .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link span,
-            .admin-sidebar.collapsed.sidebar-hover-expanded .fa-chevron-down {
-                display: revert !important;
-            }
-
-            .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link {
-                justify-content: flex-start !important;
-                padding-left: 0.75rem !important;
-                padding-right: 0.75rem !important;
-            }
-
-                .admin-sidebar.collapsed.sidebar-hover-expanded .nav-link i {
-                    margin-right: 0.5rem !important;
-                    font-size: 1rem;
-                }
-
-            .admin-sidebar.collapsed.sidebar-hover-expanded .collapse.show {
-                display: block !important;
-            }
 
 /* ─── MAIN BODY AREA ─── */
 .admin-main {
@@ -155,7 +170,7 @@
     position: fixed;
     inset: 0;
     background: rgba(0, 0, 0, 0.5);
-    z-index: 1049;
+    z-index: 1045;
 }
 
     .sidebar-overlay.show {
@@ -183,7 +198,7 @@
 }
 
     .sidebar-floating-toggle:hover {
-        background: var(--votex-navy-800);
+        background: var(--votex-navy-800, #1d3363);
     }
 
 /* Hide toggle on desktop screens */
@@ -193,14 +208,12 @@
     }
 }
 
-/* ─── SIDEBAR BRAND ─── */
+/* ─── SIDEBAR BRAND & DECORATION ─── */
 .sidebar-brand .brand-text span {
     font-family: var(--votex-font-display);
     letter-spacing: 0.01em;
 }
 
-/* Ballot-stub perforation motif, echoing the marketing page's
-   torn ballot stub, used once here as the sidebar's signature detail. */
 .sidebar-punch-rule {
     position: relative;
     height: 1px;
@@ -208,35 +221,30 @@
     margin: 0 0 1rem;
 }
 
-    .sidebar-punch-rule::before {
-        content: '';
-        position: absolute;
-        left: -0.75rem;
-        top: 50%;
-        width: 10px;
-        height: 10px;
-        border-radius: 50%;
-        background: var(--votex-navy-900);
-        transform: translateY(-50%);
-    }
-
+    .sidebar-punch-rule::before,
     .sidebar-punch-rule::after {
         content: '';
         position: absolute;
-        right: -0.75rem;
         top: 50%;
         width: 10px;
         height: 10px;
         border-radius: 50%;
-        background: var(--votex-navy-900);
+        background: #111e3c;
         transform: translateY(-50%);
+    }
+
+    .sidebar-punch-rule::before {
+        left: -0.75rem;
+    }
+
+    .sidebar-punch-rule::after {
+        right: -0.75rem;
     }
 
 .admin-sidebar.collapsed .sidebar-punch-rule::before,
 .admin-sidebar.collapsed .sidebar-punch-rule::after {
     display: none;
 }
-
 /* ─── SIDEBAR UI COMPONENTS (shared shape, role colours below) ─── */
 .sidebar-section-label {
     font-family: var(--votex-font-mono);

@@ -188,19 +188,18 @@
 
 /* Hide toggle on desktop screens */
 /* ─── MOBILE DRAWER OVERRIDES (< 992px) ─── */
+/* Prevent horizontal device bleed on mobile admin shell */
 @media (max-width: 991.98px) {
-    .admin-sidebar {
-        position: fixed !important;
-        top: 0;
-        left: 0;
-        transform: translateX(-100%);
-        transition: transform 0.3s ease-in-out !important;
-        z-index: 1050;
+    .admin-shell {
+        position: relative;
+        width: 100% !important;
+        max-width: 100% !important;
+        overflow-x: hidden !important;
     }
 
-        /* Slides the sidebar into view when toggled on mobile */
-        .admin-sidebar.mobile-open {
-            transform: translateX(0) !important;
+        /* Ensure content area expands fully when sidebar is hidden off-canvas */
+        .admin-shell > .d-flex.flex-column {
+            width: 100% !important;
         }
 }
 /* ─── SIDEBAR BRAND ─── */

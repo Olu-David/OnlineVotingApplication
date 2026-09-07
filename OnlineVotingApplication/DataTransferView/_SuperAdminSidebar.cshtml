@@ -164,6 +164,13 @@
                             <i class="fas fa-users me-2"></i><span>All Candidates</span>
                         </a>
                     </li>
+                    <!-- Added Pending Candidate Applications Queue Link -->
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "PendingCandidateApplications" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-clipboard-list me-2 text-warning"></i><span>Pending Applications</span>
+                        </a>
+                    </li>
                     <li class="nav-item">
                         <a asp-controller="SuperAdminDashboard" asp-action="BuildGlobalForm"
                            class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "BuildGlobalForm" ? "active text-white fw-bold" : "")">

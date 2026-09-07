@@ -21,6 +21,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly ITenantProvider _tenantProvider;
 
+        #region StateServiceController
         public StateServiceController(
             iStateService stateService,
             AppDbContext context,
@@ -36,20 +37,26 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
+        #endregion
 
+        #region Index
         [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
+        #endregion
 
+        #region CreateState
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public IActionResult CreateState()
         {
             return View();
         }
+        #endregion
 
+        #region CreateState (2)
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -96,7 +103,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "State created successfully!";
             return RedirectToAction(nameof(AllState));
         }
+        #endregion
 
+        #region EditState
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public async Task<IActionResult> EditState(Guid id, CancellationToken cancellationToken = default)
@@ -123,7 +132,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(model);
         }
+        #endregion
 
+        #region EditState (2)
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -170,7 +181,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "State Update Successful";
             return RedirectToAction(nameof(AllState));
         }
+        #endregion
 
+        #region AllState
         [HttpGet]
         public async Task<IActionResult> AllState(CancellationToken cancellationToken = default)
         {
@@ -192,14 +205,18 @@ namespace OnlineVotingApplication.Controllers
 
             return View(result);
         }
+        #endregion
 
+        #region ConfirmSoftDelete
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpGet]
         public IActionResult ConfirmSoftDelete()
         {
             return View();
         }
+        #endregion
 
+        #region ConfirmStateDelete
         [Authorize(Roles = "SuperAdmin,Admin")]
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -235,5 +252,6 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "State deleted successfully.";
             return RedirectToAction(nameof(AllState));
         }
+        #endregion
     }
 }

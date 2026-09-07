@@ -18,6 +18,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
 
+        #region AuthServiceController
         public AuthServiceController(
             iAuthService authService,
             ILogger<AuthServiceController> logger,
@@ -29,6 +30,7 @@ namespace OnlineVotingApplication.Controllers
             _userManager = userManager;
             _signInManager = signInManager;
         }
+        #endregion
 
         public IActionResult Index() => View();
 
@@ -36,6 +38,7 @@ namespace OnlineVotingApplication.Controllers
         [AllowAnonymous]
         public IActionResult UserRegistration() => View();
 
+        #region UserRegistration
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -57,7 +60,9 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(SendConfirmationToken), new { userId = newUserResponse.Data?.Id });
         }
+        #endregion
 
+        #region SendConfirmationToken
         [HttpGet]
         public async Task<IActionResult> SendConfirmationToken(string userId)
         {
@@ -84,10 +89,12 @@ namespace OnlineVotingApplication.Controllers
             TempData["Success"] = "A confirmation link has been sent to your email!";
             return RedirectToAction(nameof(ConfirmEmailSent));
         }
+        #endregion
 
         [HttpGet]
         public IActionResult ConfirmEmailSent() => View();
 
+        #region Confirm_Email
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> Confirm_Email(string token, string userId)
@@ -118,11 +125,13 @@ namespace OnlineVotingApplication.Controllers
             TempData["Info"] = "User account confirmed successfully!";
             return RedirectToAction(nameof(Login));
         }
+        #endregion
 
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Login() => View();
 
+        #region Login
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -169,7 +178,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["ErrorMessage"] = message ?? "Invalid login attempt.";
             return View(model);
         }
+        #endregion
 
+        #region LoginWith2fa
         [HttpGet]
         [AllowAnonymous]
         public async Task<IActionResult> LoginWith2fa(bool rememberMe)
@@ -186,7 +197,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(new LoginWith2faViewModel { UserId = user.Id, RememberMe = rememberMe });
         }
+        #endregion
 
+        #region LoginWith2fa (2)
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -206,11 +219,13 @@ namespace OnlineVotingApplication.Controllers
             ModelState.AddModelError(string.Empty, "Invalid authentication code.");
             return View(model);
         }
+        #endregion
 
         [HttpGet]
         [AllowAnonymous]
         public IActionResult ForgotPassword() => View();
 
+        #region ForgotPassword
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -232,11 +247,13 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction("ForgotPasswordConfirmation");
         }
+        #endregion
 
         [HttpGet]
         [AllowAnonymous]
         public IActionResult ForgotPasswordConfirmation() => View();
 
+        #region ResetPassword
         [HttpGet]
         [AllowAnonymous]
         public IActionResult ResetPassword(string token, string email)
@@ -244,7 +261,9 @@ namespace OnlineVotingApplication.Controllers
             if (token == null || email == null) return RedirectToAction(nameof(Login));
             return View(new ResetPasswordViewModel { Token = token, Email = email });
         }
+        #endregion
 
+        #region ResetPassword (2)
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -264,11 +283,13 @@ namespace OnlineVotingApplication.Controllers
             ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
         }
+        #endregion
 
         [HttpGet]
         [AllowAnonymous]
         public IActionResult ResetPasswordConfirmation() => View();
 
+        #region ChangePassword
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
@@ -288,7 +309,9 @@ namespace OnlineVotingApplication.Controllers
             ModelState.AddModelError(string.Empty, response.Message!);
             return View(model);
         }
+        #endregion
 
+        #region LogoutUser
         [HttpPost]
         [Authorize]
         [ValidateAntiForgeryToken]
@@ -307,7 +330,9 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction("Index", "Home");
         }
+        #endregion
 
+        #region LockUser
         [HttpPost]
         [Authorize(Roles = "Admin,SuperAdmin")]
         [ValidateAntiForgeryToken]
@@ -325,5 +350,6 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction("UserList", "Admin");
         }
+        #endregion
     }
 }

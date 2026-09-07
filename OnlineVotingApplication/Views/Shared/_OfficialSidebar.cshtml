@@ -86,15 +86,23 @@
                 <li>
                     <a asp-controller="Candidate"
                        asp-action="AllCandidate"
-                       class="dropdown-item @(ViewData["Act"]?.ToString() == "AllCandidate" ? "active" : "")">
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "AllCandidate" ? "active" : "")">
                         <i class="fas fa-list me-2"></i>All Candidates
+                    </a>
+                </li>
+                <!-- Added Pending Candidate Applications Queue Link -->
+                <li>
+                    <a asp-controller="Candidate"
+                       asp-action="PendingApplications"
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "PendingApplications" ? "active" : "")">
+                        <i class="fas fa-clipboard-list me-2 text-warning"></i>Pending Applications
                     </a>
                 </li>
                 <li><hr class="dropdown-divider"></li>
                 <li>
                     <a asp-controller="Tenant"
                        asp-action="CreateCandidateOfficial"
-                       class="dropdown-item @(ViewData["Act"]?.ToString() == "CreateCandidateOfficial" ? "active" : "")">
+                       class="dropdown-item @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "CreateCandidateOfficial" ? "active" : "")">
                         <i class="fas fa-user-plus me-2"></i>Create Candidate (Official)
                     </a>
                 </li>

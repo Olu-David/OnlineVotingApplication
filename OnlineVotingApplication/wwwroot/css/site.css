@@ -30,6 +30,7 @@
     --votex-font-display: 'Fraunces', serif;
     --votex-font-body: 'Inter', sans-serif;
     --votex-font-mono: 'IBM Plex Mono', monospace;
+
 }
 
 /* ==========================================
@@ -283,8 +284,8 @@
     }
 
     .admin-sidebar .nav-link.active {
-        background: rgba(255, 255, 255, 0.12) !important; /* fallback for browsers without color-mix() */
-        background: color-mix(in srgb, var(--sidebar-accent) 16%, transparent) !important;
+        background-color: var(--sidebar-accent);
+        background-color: rgba(0, 0, 0, 0.16); /* Replace with your desired black/white tint or use a dedicated rgba variable */
         border-left-color: var(--sidebar-accent);
         color: #fff !important;
         font-weight: 600;

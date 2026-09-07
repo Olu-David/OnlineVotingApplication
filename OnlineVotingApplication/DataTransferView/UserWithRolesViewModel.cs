@@ -1,5 +1,5 @@
 ﻿
-namespace OnlineVotingApplication.Controllers
+namespace OnlineVotingApplication.DataTransferView
 {
     public class UserWithRolesViewModel
     {

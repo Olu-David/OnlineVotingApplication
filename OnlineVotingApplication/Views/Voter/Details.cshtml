@@ -12,11 +12,20 @@
 
 <div class="container mt-4 mb-5">
 
-    <div class="election-hero" style="min-height: 200px;">
+    <div class="election-hero position-relative" style="min-height: 200px;">
         @if (!string.IsNullOrEmpty(Model.ImageUrl))
         {
             <div class="election-hero-bg" style="background-image: url('@Model.ImageUrl');"></div>
         }
+
+        <!-- 🌟 Top-Right Apply as Candidate Button inside the Hero Header -->
+        <div class="position-absolute top-0 end-0 p-3" style="z-index: 3;">
+            <a asp-controller="Candidate" asp-action="ApplyAsCandidate" asp-route-electionEventId="@Model.Id"
+               class="btn btn-sm btn-light fw-semibold shadow-sm rounded-pill px-3 py-2 text-dark">
+                <i class="fas fa-user-plus text-primary me-1"></i> Apply as Candidate
+            </a>
+        </div>
+
         <div class="election-hero-overlay">
             <span class="election-hero-badge @(isOpen ? "" : "bg-secondary text-white")">
                 <i class="fas fa-@(isOpen ? "circle-check" : "clock")"></i> @(isOpen ? "Voting Open" : "Not Currently Open")
@@ -60,9 +69,6 @@
                             <div class="col-sm-6 col-lg-4">
                                 <div class="candidate-card">
 
-                                    @* NOTE: assumes Candidate has an ImageUrl property, matching ElectionEvent's
-                                       naming. Rename below if your actual property is called something else
-                                       (e.g. PhotoUrl / ProfileImageUrl). *@
                                     @if (!string.IsNullOrEmpty(candidate.CandidateImg))
                                     {
                                         <img src="@candidate.CandidateImg" alt="@candidate.Name" class="candidate-photo" />

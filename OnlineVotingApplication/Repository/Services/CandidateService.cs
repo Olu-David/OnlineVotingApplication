@@ -61,9 +61,91 @@ namespace OnlineVotingApplication.Repository.Services
             _tenantProvider = tenantProvider;
             _emailService = emailService;
         }
-        // ─────────────────────────────────────────────
-        // 1. BUSINESS LOGIC: SEND CANDIDATE INVITE
-        // ─────────────────────────────────────────────
+        #region GetPaginatedPendingApplicationsAsync
+        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetPaginatedPendingApplicationsAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+            int skip = (pageNumber - 1) * pageSize;
+
+            string cacheKeyItems = $"ref_T{tenantId}_Pending_Apps_P{pageNumber}_S{pageSize}";
+            string cacheKeyCount = $"ref_T{tenantId}_Pending_Apps_Count";
+
+            var baseQuery = _appDbContext.candidateInvitations
+                .AsNoTracking()
+                .Where(a => a.TenantId == tenantId && !a.IsUsed);
+
+            // 1. Fetch or Cache Total Count
+            int totalCount;
+            string? cachedCountStr = await _Cache.GetStringAsync(cacheKeyCount);
+
+            if (cachedCountStr == null)
+            {
+                totalCount = await baseQuery.CountAsync();
+                var countOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                };
+                await _Cache.SetStringAsync(cacheKeyCount, totalCount.ToString(), countOptions);
+            }
+            else
+            {
+                totalCount = int.Parse(cachedCountStr);
+            }
+
+            // 2. Fetch or Cache Paginated List
+            List<PendingApplicationViewModel>? appList = null;
+            string? cachedListJson = await _Cache.GetStringAsync(cacheKeyItems);
+
+            if (cachedListJson != null)
+            {
+                appList = JsonSerializer.Deserialize<List<PendingApplicationViewModel>>(cachedListJson);
+            }
+            else
+            {
+                var rawApplications = await baseQuery
+                    .Include(a => a.ElectionEvent)
+                    .Include(a => a.Position)
+                    .OrderByDescending(a => a.CreatedAt)
+                    .Skip(skip)
+                    .Take(pageSize)
+                    .ToListAsync();
+
+                // Map safely in-memory to your view model
+                appList = rawApplications.Select(a => new PendingApplicationViewModel
+                {
+                    ApplicationId = a.Id,
+                    ElectionEventId = a.ElectionEventId,
+                    PositionId = a.PositionId,
+                    CandidateEmail = a.CandidateEmail,
+                    CandidateName = a.CandidateName,
+                    ElectionTitle = a.ElectionEvent != null ? a.ElectionEvent.Title : "N/A",
+                    PositionName = a.Position != null ? a.Position.Name : "General Position",
+                    CreatedAt = a.CreatedAt
+                }).ToList();
+
+                string jsonToCache = JsonSerializer.Serialize(appList);
+                var itemsOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                };
+                await _Cache.SetStringAsync(cacheKeyItems, jsonToCache, itemsOptions);
+            }
+
+            // 3. Return your custom PaginatedListViewModel
+            return new PaginatedListViewModel<PendingApplicationViewModel>
+            {
+                Items = appList ?? new List<PendingApplicationViewModel>(),
+                TotalItems = totalCount,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        #endregion
+
+        #region SendCandidateInviteAsync
         public async Task<ServiceResponse<string>> SendCandidateInviteAsync(SendCandidateInvitation model)
         {
             var response = new ServiceResponse<string>();
@@ -134,9 +216,12 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
 
-        // ─────────────────────────────────────────────
-        // 2. BUSINESS LOGIC: CREATE CANDIDATE & PROMOTE ROLE
-        // ─────────────────────────────────────────────
+        #endregion CreateCandidateAsync
+
+
+
+
+        #region CreateCandidateAsync
         public async Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId, string token)
         {
             var response = new ServiceResponse<string>();
@@ -302,10 +387,11 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
-        // ─────────────────────────────────────────────
-        // 3. BUSINESS LOGIC: CREATE CANDIDATE BY OFFICIAL
-        // ─────────────────────────────────────────────
+
+
+        #region CreateCandidateByOfficialAsync
         public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId)
         {
             var response = new ServiceResponse<string>();
@@ -435,10 +521,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
-        // ─────────────────────────────────────────────
-        // 4. BUSINESS LOGIC: CREATE CANDIDATE BY SUPER ADMIN
-        // ─────────────────────────────────────────────
+
+        #region CreateCandidateBySuperAdminAsync
         public async Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model)
         {
             var response = new ServiceResponse<string>();
@@ -568,12 +654,18 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region ClearCandidateCache
         public void ClearCandidateCache(int pageNumber, int pageSize)
         {
             string cacheKey = $"ref_All_Candidates_P{pageNumber}_S{pageSize}";
             _cache.Remove(cacheKey);
         }
+        #endregion
+
+
+        #region GetAllCandidates
         public async Task<PaginatedListViewModel<CandidateViewModel>> GetAllCandidates(int PageNumber = 1, int PageSize = 10)
         {
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
@@ -692,9 +784,11 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
 
         }
+        #endregion
 
 
 
+        #region GetAllCandidateViaParty
         public async Task<PaginatedListViewModel<CandidateViewModel>> GetAllCandidateViaParty(Guid partyId, int pageNumber = 1, int pageSize = 10)
         {
             // Ensure page numbers and sizes stay within positive boundaries
@@ -775,7 +869,10 @@ namespace OnlineVotingApplication.Repository.Services
                 PageSize = pageSize
             };
         }
+        #endregion
 
+
+        #region GetCandidateByPartyAsync
 
         public async Task<ServiceResponse<PaginatedListViewModel<CandidateViewModel>>> GetCandidateByPartyAsync(Guid partyId, int pageNumber = 1, int pageSize = 10)
         {
@@ -866,7 +963,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+
+        #region GetCandidateByPositionAsync
         public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByPositionAsync(Guid positionId, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
@@ -948,7 +1048,15 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
+        #endregion
 
+
+
+
+
+
+
+        #region GetCandidateByStateAsync
         public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByStateAsync(Guid? stateId, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
@@ -1032,6 +1140,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
+
+
+        #region GetCandidateByLgaAsync
         public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByLgaAsync(Guid? lgaId, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
@@ -1107,7 +1219,9 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
+        #endregion
 
+        #region GetAllSoftDeletedCandidate
         public async Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetAllSoftDeletedCandidate(string userId, int pageNumber = 1, int pageSize = 10)
         {
             var response = new ServiceResponse<IEnumerable<CandidateViewModel>>();
@@ -1199,7 +1313,10 @@ namespace OnlineVotingApplication.Repository.Services
         }
 
 
+        #endregion
 
+
+        #region RestoreCandidateDeleteAsync
 
         public async Task<ServiceResponse<bool>> RestoreCandidateDeleteAsync(Guid Id, string UserId)
         {
@@ -1267,6 +1384,12 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
 
         }
+
+        #endregion
+
+
+
+        #region SoftDeleteCandidateAsync
         public async Task<ServiceResponse<bool>> SoftDeleteCandidateAsync(Guid candidateId, string userId, CancellationToken cancellationToken = default)
         {
             var response = new ServiceResponse<bool>();
@@ -1316,6 +1439,10 @@ namespace OnlineVotingApplication.Repository.Services
             response.Data = true;
             return response;
         }
+        #endregion
+
+
+        #region UpdateCandidateAsync
 
         public async Task<ServiceResponse<string>> UpdateCandidateAsync(UpdateCandidateViewModel model, string Id, CancellationToken token)
         {
@@ -1414,6 +1541,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
+        #endregion
     }
 }
 

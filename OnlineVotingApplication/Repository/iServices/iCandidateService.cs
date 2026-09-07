@@ -1,5 +1,6 @@
 ﻿using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
+using OnlineVotingApplication.Repository.Services;
 
 namespace OnlineVotingApplication.Repository.iServices
 {
@@ -12,7 +13,7 @@ namespace OnlineVotingApplication.Repository.iServices
         Task<ServiceResponse<string>> SendCandidateInviteAsync(SendCandidateInvitation model);
         Task<ServiceResponse<bool>> SoftDeleteCandidateAsync(Guid candidateId, string userId, CancellationToken cancellationToken = default);
         Task<ServiceResponse<bool>> RestoreCandidateDeleteAsync(Guid Id, string UserId);
-     
+        Task<PaginatedListViewModel<PendingApplicationViewModel>> GetPaginatedPendingApplicationsAsync(int pageNumber = 1, int pageSize = 10);
         Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByPositionAsync(Guid positionId, int pageNumber = 1, int pageSize = 10);
         Task<ServiceResponse<CandidateViewModel>> GetCandidateByIdAsync(Guid id);
         Task<ServiceResponse<IEnumerable<CandidateViewModel>>> GetCandidateByLgaAsync(Guid? LgaId, int pageNumber = 1, int pageSize = 10);

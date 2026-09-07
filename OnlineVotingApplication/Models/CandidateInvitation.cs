@@ -1,20 +1,22 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis.Elfie.Diagnostics;
+using OnlineVotingApplication.Models;
+using System.ComponentModel.DataAnnotations.Schema;
 
-namespace OnlineVotingApplication.Models
+public class CandidateInvitation
 {
-    public class CandidateInvitation
-    {
-        public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid Id { get; set; }
+    public Guid? TenantId { get; set; }
+    public Guid? ElectionEventId { get; set; }
+    public Guid? PositionId { get; set; } // 🌟 Add this property
+    public string CandidateEmail { get; set; } = string.Empty;
+    public string CandidateName { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public bool IsUsed { get; set; }
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public Guid? TenantId { get; set; }
-        public virtual Tenant? Tenant { get; set; }
-
-        public Guid ElectionEventId { get; set; }
-        public virtual ElectionEvent? ElectionEvent { get; set; }
-
-        public string? CandidateEmail { get; set; }
-        public string Token { get; set; } = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
-        public bool IsUsed { get; set; } = false;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    }
+    // Optional Navigation Properties
+    public virtual ElectionEvent? ElectionEvent { get; set; }
+    public virtual Positions? Position { get; set; } // 🌟 Add this if you want to link the position
+    [ForeignKey(nameof(TenantId))] 
+    public virtual Tenant? Tenant { get; internal set; }
 }

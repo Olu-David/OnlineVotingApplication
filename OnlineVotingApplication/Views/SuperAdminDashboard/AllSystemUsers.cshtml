@@ -1,4 +1,5 @@
-﻿@model PaginatedListViewModel<UserWithRolesViewModel>
+﻿@using OnlineVotingApplication.DataTransferView;
+@model PaginatedListViewModel<UserWithRolesViewModel>
 @{
     ViewData["Title"] = "System Users Management";
     var userStats = ViewData["UserStats"] as SystemUserStatsViewModel;
@@ -123,9 +124,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (Model != null && Model.Any())
+                        @if (Model != null && Model.Items.Any())
                         {
-                            @foreach (var user in Model)
+                            @foreach (var user in Model.Items)
                             {
                                 <tr>
                                     <td class="fw-bold">@user.UserName</td>

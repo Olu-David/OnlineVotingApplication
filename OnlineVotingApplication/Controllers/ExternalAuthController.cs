@@ -20,6 +20,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<ExternalAuthController> _logger;
 
+        #region ExternalAuthController
         public ExternalAuthController(
             iExternalAuthService externalAuthService,
             IAppleAuthService appleAuthService,
@@ -33,7 +34,9 @@ namespace OnlineVotingApplication.Controllers
             _signInManager = signInManager;
             _logger = logger;
         }
+        #endregion
 
+        #region GoogleAuth
         // ─── INITIAL CHALLENGE ACTIONS (Fixes the 404 Error) ─────────────
 
         [HttpPost]
@@ -45,7 +48,9 @@ namespace OnlineVotingApplication.Controllers
             var properties = _signInManager.ConfigureExternalAuthenticationProperties("Google", redirectUrl);
             return Challenge(properties, "Google");
         }
+        #endregion
 
+        #region AppleAuth
         [HttpPost]
         [AllowAnonymous]
         public IActionResult AppleAuth(string? returnUrl = null)
@@ -55,7 +60,9 @@ namespace OnlineVotingApplication.Controllers
             var properties = _signInManager.ConfigureExternalAuthenticationProperties("Apple", redirectUrl);
             return Challenge(properties, "Apple");
         }
+        #endregion
 
+        #region GoogleCallback
         // ─── CALLBACKS ───────────────────────────────────────────────────
 
         [HttpPost("google-callback")]
@@ -71,7 +78,9 @@ namespace OnlineVotingApplication.Controllers
             await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
             return Ok(new { success = true, Message = "Logged in successfully", UserId = authResponse.Data.Id });
         }
+        #endregion
 
+        #region ExternalLoginCallback
         [HttpGet]
         public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? assignedRole = "Voter", string? remoteError = null)
         {
@@ -123,7 +132,9 @@ namespace OnlineVotingApplication.Controllers
 
             return LocalRedirect(returnUrl);
         }
+        #endregion
 
+        #region AppleCallback
         [HttpPost("apple-callback")]
         [AllowAnonymous]
         public async Task<IActionResult> AppleCallback([FromForm] string code, [FromForm] string? user)
@@ -189,10 +200,13 @@ namespace OnlineVotingApplication.Controllers
                 return StatusCode(500, new { success = false, message = "An error occurred while processing Apple authentication." });
             }
         }
+        #endregion
 
+        #region GenerateAppleClientSecret
         private string GenerateAppleClientSecret()
         {
             return "YOUR_GENERATED_APPLE_CLIENT_SECRET_JWT";
         }
+        #endregion
     }
 }

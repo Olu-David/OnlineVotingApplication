@@ -24,6 +24,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly ITenantProvider _tenantProvider;
 
+        #region CandidateController
         public CandidateController(
             AppDbContext context,
             iCandidateService candidateService,
@@ -41,7 +42,9 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
+        #endregion
 
+        #region Index
         // ─────────────────────────────────────────────
         // CANDIDATE DASHBOARD (INDEX) - TENANT AWARE
         // ─────────────────────────────────────────────
@@ -97,9 +100,59 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(AllCandidate));
         }
+        #endregion
 
+        #region ApplyAsCandidate
+        // ==========================================
+        // POST: Apply as a Candidate
+        // ==========================================
+        [HttpPost("apply")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
+        {
+            if (!ModelState.IsValid)
+            {
+                var positions = await _context.Position
+                    .Where(p => p.ElectionEventId == model.ElectionEventId)
+                    .ToListAsync();
+
+                model.PositionOptions = new SelectList(positions, "Id", "Name", model.SelectedPositionId);
+                return View(model);
+            }
+
+            bool alreadyApplied = await _context.candidateInvitations
+                .AnyAsync(a => a.ElectionEventId == model.ElectionEventId && a.CandidateEmail.ToLower() == model.Email.Trim().ToLower());
+
+            if (alreadyApplied)
+            {
+                TempData["Error"] = "You have already submitted an application for this election event.";
+                return RedirectToAction(nameof(ApplyAsCandidate), new { electionEventId = model.ElectionEventId });
+            }
+
+            var application = new CandidateInvitation
+            {
+                Id = Guid.NewGuid(),
+                TenantId = model.TenantId,
+                ElectionEventId = model.ElectionEventId,
+                PositionId = model.SelectedPositionId,
+                CandidateName = $"{model.FirstName.Trim()} {model.LastName.Trim()}",
+                CandidateEmail = model.Email.Trim().ToLower(),
+                IsUsed = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.candidateInvitations.Add(application);
+            await _context.SaveChangesAsync();
+
+            TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
+            return RedirectToAction("Index", "Home");
+        }
+        #endregion
+
+
+        #region SendCandidateInvite
         // ─────────────────────────────────────────────
-        // STEP A: ADMIN GENERATES AND SENDS THE INVITE
+        // STEP B: ADMIN GENERATES AND SENDS THE INVITE
         // ─────────────────────────────────────────────
         [HttpPost]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
@@ -156,7 +209,18 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
         }
+        #endregion
+        #region PendingCandidateApplications
+        [HttpGet("pending-applications")]
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
+        public async Task<IActionResult> PendingCandidateApplications(int pageNumber = 1, int pageSize = 10)
+        {
+            var paginatedResult = await _candidateService.GetPaginatedPendingApplicationsAsync(pageNumber, pageSize);
 
+            return View(paginatedResult);
+        }
+        #endregion
+        #region CreateCandidate
         // ─────────────────────────────────────────────
         // GET: Candidate Registration Form
         // ─────────────────────────────────────────────
@@ -225,7 +289,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region CreateCandidate (2)
         // ─────────────────────────────────────────────
         // POST: Candidate Self-Registration Submission
         // ─────────────────────────────────────────────
@@ -317,7 +383,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate));
         }
+        #endregion
 
+        #region GetLgasByState
         // ─────────────────────────────────────────────
         // AJAX Endpoints
         // ─────────────────────────────────────────────
@@ -333,7 +401,9 @@ namespace OnlineVotingApplication.Controllers
 
             return Json(lgas);
         }
+        #endregion
 
+        #region SoftDelete
         // ─────────────────────────────────────────────
         // Soft Delete & Restore
         // ─────────────────────────────────────────────
@@ -342,7 +412,9 @@ namespace OnlineVotingApplication.Controllers
         {
             return View();
         }
+        #endregion
 
+        #region SoftDelete (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
@@ -372,13 +444,17 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Candidate Moved to Trash, You can restore after 30 days";
             return View();
         }
+        #endregion
 
+        #region RestoreCandidate
         [HttpGet]
         public IActionResult RestoreCandidate()
         {
             return View();
         }
+        #endregion
 
+        #region RestoreCandidate (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
@@ -406,7 +482,9 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(AllCandidate));
         }
+        #endregion
 
+        #region GetCandidateByPosition
         // ─────────────────────────────────────────────
         // Queries & Filters
         // ─────────────────────────────────────────────
@@ -452,7 +530,9 @@ namespace OnlineVotingApplication.Controllers
             }
             return View(ViewModel);
         }
+        #endregion
 
+        #region AllCandidate
         [HttpGet]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> AllCandidate(int pageNumber = 1, int pageSize = 10)
@@ -472,7 +552,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region GetCandidateByState
         [HttpGet]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidateByState(Guid? stateId, int pageNumber = 1, int pageSize = 10)
@@ -509,7 +591,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region GetAllSoftdelete
         [HttpGet]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetAllSoftdelete(int pageNumber = 1, int pageSize = 10)
@@ -542,7 +626,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region GetCandidateByLga
         [HttpGet]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidateByLga(Guid? Lgaid, int PageNumber = 1, int pageSize = 10)
@@ -581,7 +667,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(ViewModel);
         }
+        #endregion
 
+        #region GetCandidatebyParty
         [HttpGet]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetCandidatebyParty(Guid? PartyId, int PageNumber = 1, int PageSize = 10)
@@ -620,7 +708,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(ViewModel);
         }
+        #endregion
 
+        #region UpdateCandidate
         // ─────────────────────────────────────────────
         // Update & Cache Methods
         // ─────────────────────────────────────────────
@@ -649,7 +739,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(formModel);
         }
+        #endregion
 
+        #region UpdateCandidate (2)
         [HttpPost]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
         [ValidateAntiForgeryToken]
@@ -682,7 +774,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction(nameof(AllCandidate), new { model.CandidateID });
         }
+        #endregion
 
+        #region ResetCacheSoftDelete
         [HttpPost]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin")]
         [ValidateAntiForgeryToken]
@@ -718,7 +812,9 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(AllCandidate), new { pageNumber, pageSize });
         }
+        #endregion
 
+        #region PopulateCreateDropdownsAsync
         // ─────────────────────────────────────────────
         // Helpers
         // ─────────────────────────────────────────────
@@ -778,7 +874,9 @@ namespace OnlineVotingApplication.Controllers
 
             ViewBag.CustomFields = customFields;
         }
+        #endregion
 
+        #region PopulateUpdateDropdownsAsync
         private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)
         {
             ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
@@ -792,5 +890,39 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.Positions = new SelectList(positions, "Id", "Name", selectedPosition);
             ViewBag.States = new SelectList(await _context.States.AsNoTracking().ToListAsync(), "Id", "Name", selectedState);
         }
+        #endregion
+
+        #region ApplyAsCandidate (2)
+        // ==========================================
+        // GET: Apply as a Candidate
+        // ==========================================
+
+        [HttpGet("apply")]
+        [Authorize(Roles = ("Voter"))]
+        public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
+        {
+            var election = await _context.ElectionEvents
+                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
+
+            if (election == null)
+            {
+                TempData["Error"] = "Election event not found.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            var positions = await _context.Position
+                .Where(p => p.ElectionEventId == electionEventId)
+                .ToListAsync();
+
+            var model = new CandidateApplicationViewModel
+            {
+                ElectionEventId = election.Id,
+                TenantId = election.TenantId,
+                PositionOptions = new SelectList(positions, "Id", "Name")
+            };
+
+            return View(model);
+        }
+        #endregion
     }
 }

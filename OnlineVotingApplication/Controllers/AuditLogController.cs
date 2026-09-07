@@ -12,11 +12,14 @@ namespace OnlineVotingApplication.Controllers
     {
         private readonly IAuditLogService _auditLogService;
 
+        #region AuditLogController
         public AuditLogController(IAuditLogService auditLogService)
         {
             _auditLogService = auditLogService;
         }
+        #endregion
 
+        #region Index
         // GET: /AuditLog/Index
         [HttpGet]
         public async Task<IActionResult> Index(int pageNumber = 1, int pageSize = 50)
@@ -48,5 +51,6 @@ namespace OnlineVotingApplication.Controllers
 
             return View(logs);
         }
+        #endregion
     }
 }

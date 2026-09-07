@@ -22,6 +22,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ElectionEventController> _logger;
 
+        #region ElectionEventController
         public ElectionEventController(
             AppDbContext context,
             ITenantProvider tenantProvider,
@@ -35,7 +36,9 @@ namespace OnlineVotingApplication.Controllers
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
+        #endregion
 
+        #region Index
         // ─────────────────────────────────────────────
         // GET: Election (list, search, filter, paginate)
         // ─────────────────────────────────────────────
@@ -103,7 +106,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region Create
         // ─────────────────────────────────────────────
         // GET/POST: Create
         // ─────────────────────────────────────────────
@@ -121,7 +126,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(model);
         }
+        #endregion
 
+        #region Create (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -188,7 +195,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = $"Election \"{election.Title}\" created successfully.";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
+        #region Edit
         // ─────────────────────────────────────────────
         // GET/POST: Edit
         // ─────────────────────────────────────────────
@@ -228,7 +237,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(model);
         }
+        #endregion
 
+        #region Edit (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -290,7 +301,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = $"Election \"{election.Title}\" updated successfully.";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
+        #region SoftDelete
         // ─────────────────────────────────────────────
         // POST: SoftDelete / GET: SoftDeleted / POST: Restore
         // ─────────────────────────────────────────────
@@ -334,7 +347,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = $"\"{election.Title}\" moved to trash. It can be restored within 30 days.";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
+        #region SoftDeleted
         [HttpGet]
         public async Task<IActionResult> SoftDeleted(int pageNumber = 1, int pageSize = 10)
         {
@@ -388,7 +403,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(viewModel);
         }
+        #endregion
 
+        #region Restore
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -442,7 +459,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = $"\"{election.Title}\" restored successfully.";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
+        #region PopulateFormDataAsync
         // ─────────────────────────────────────────────
         // Helper: dropdown data for Create/Edit
         // ─────────────────────────────────────────────
@@ -461,5 +480,6 @@ namespace OnlineVotingApplication.Controllers
                 ViewBag.Tenants = new SelectList(tenants, "Id", "OrganizationName");
             }
         }
+        #endregion
     }
 }

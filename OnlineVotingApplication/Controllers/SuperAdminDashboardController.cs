@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.AspNetCore.RateLimiting; // Required for rate limiting attributes
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -36,6 +37,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private const string UserStatsCacheKey = "super_admin_user_stats_cache";
 
+        #region SuperAdminDashboardController
         public SuperAdminDashboardController(HybridFormBuilderService formBuilderService, AppDbContext context, NotificationChannel channel, ITenantProvider tenantProvider, IDistributedCache cache, IEmailService emailService, IAuditLogService auditLogService, iCandidateService iCandidateService, UserManager<ApplicationUser> userManager)
         {
             _formBuilderService = formBuilderService ?? throw new ArgumentNullException(nameof(formBuilderService));
@@ -48,7 +50,9 @@ namespace OnlineVotingApplication.Controllers
             _iCandidateService = iCandidateService ?? throw new ArgumentNullException(nameof(iCandidateService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         }
+        #endregion
 
+        #region Dashboard
         [HttpGet]
         public async Task<IActionResult> Dashboard()
         {
@@ -107,7 +111,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(nameof(Dashboard), viewModel);
         }
+        #endregion
 
+        #region BuildGlobalForm
         // --- GLOBAL FORM BUILDER ---
 
         [HttpGet]
@@ -117,7 +123,9 @@ namespace OnlineVotingApplication.Controllers
             ViewData["Action"] = "BuildGlobalForm";
             return View();
         }
+        #endregion
 
+        #region BuildGlobalForm (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects global form schema modifications against rapid spam
@@ -145,7 +153,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Global template field published successfully.";
             return RedirectToAction("BuildGlobalForm");
         }
+        #endregion
 
+        #region AllTenants
         [HttpGet]
         public async Task<IActionResult> AllTenants(int pageNumber = 1, int pageSize = 10)
         {
@@ -238,7 +248,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(nameof(AllTenants), response);
         }
+        #endregion
 
+        #region SwitchContext
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant context session switching from rapid switching abuse
@@ -262,7 +274,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Switched tenant context successfully.";
             return RedirectToAction("Dashboard", "Tenant");
         }
+        #endregion
 
+        #region ClearTenantContext
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects state clearance actions against automated spam
@@ -284,7 +298,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Returned to SuperAdmin context.";
             return RedirectToAction("Dashboard", "SuperAdmin");
         }
+        #endregion
 
+        #region GetAllPendingTenants
         // --- PENDING TENANT REGISTRATION APPROVALS ---
         [HttpGet]
         public async Task<IActionResult> GetAllPendingTenants(int pageNumber = 1, int pageSize = 20)
@@ -355,7 +371,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(nameof(GetAllPendingTenants), paginatedResult);
         }
+        #endregion
 
+        #region AcceptTenant
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant approval actions from bulk automation/spam
@@ -405,7 +423,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = $"Organization '{tenant.OrganizationName}' has been successfully approved.";
             return RedirectToAction(nameof(GetAllPendingTenants));
         }
+        #endregion
 
+        #region RejectTenant
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant rejection actions from rapid spam clicks
@@ -451,19 +471,83 @@ namespace OnlineVotingApplication.Controllers
             TempData["ErrorMessage"] = $"Organization '{tenant.OrganizationName}' registration was rejected.";
             return RedirectToAction(nameof(GetAllPendingTenants));
         }
-
-        [HttpGet]
+        #endregion
+        #region CreateCandidateSuperAdmin
+        // ==========================================
+        // GET: /super-admin/candidates/create
+        // ==========================================
+        [HttpGet("create")]
         public async Task<IActionResult> CreateCandidateSuperAdmin()
         {
-            ViewBag.Tenants = await _context.Tenants
-                .AsNoTracking().IgnoreQueryFilters()
-                .Where(t => t.IsActive)
+            await PopulateDropdownsAsync();
+            return View(new SuperAdminCandidateCreationViewModel());
+        }
+        #endregion
+
+        #region CreateCandidateSuperAdmin (2)
+        // ==========================================
+        // POST: /super-admin/candidates/create
+        // ==========================================
+        [HttpPost("create")]
+        [ValidateAntiForgeryToken]
+        public async Task<IActionResult> CreateCandidateSuperAdmin(SuperAdminCandidateCreationViewModel model)
+        {
+            // 1. Validate form input model state
+            if (!ModelState.IsValid)
+            {
+                TempData["Error"] = "Please correct the errors on the form.";
+                await PopulateDropdownsAsync(model.TenantId);
+                return View(model);
+            }
+
+            // 2. Call your service method
+            var serviceResponse = await _iCandidateService.CreateCandidateBySuperAdminAsync(model);
+
+            if (!serviceResponse.Success)
+            {
+                // Re-populate dropdowns so the form doesn't break when redisplayed
+                await PopulateDropdownsAsync(model.TenantId);
+                ModelState.AddModelError(string.Empty, serviceResponse.Message ?? "");
+                TempData["Error"] = serviceResponse.Message;
+                return View(model);
+            }
+
+            // 3. Success handling
+            TempData["Success"] = serviceResponse.Message;
+            return RedirectToAction("Candidate", "AllCandidate", new { model.CandidateEmail });
+        }
+        #endregion
+
+
+        #region PopulateDropdownsAsync
+        // ==========================================
+        // HELPER: Populates dropdowns safely to prevent null refs
+        // ==========================================
+        private async Task PopulateDropdownsAsync(Guid? selectedTenantId = null)
+        {
+            var tenants = await _context.Tenants
+                .Where(t => !t.IsActive)
                 .OrderBy(t => t.OrganizationName)
                 .ToListAsync();
 
-            return View(new SuperAdminCandidateCreationViewModel());
-        }
+            ViewBag.Tenants = new SelectList(tenants, "Id", "Name", selectedTenantId);
 
+            var electionsQuery = _context.ElectionEvents.Where(e => !e.IsDeleted);
+            if (selectedTenantId.HasValue && selectedTenantId != Guid.Empty)
+            {
+                electionsQuery = electionsQuery.Where(e => e.TenantId == selectedTenantId);
+            }
+
+            ViewBag.ElectionEvents = new SelectList(await electionsQuery.ToListAsync(), "Id", "Title");
+
+            ViewBag.Positions = new SelectList(await _context.Position.ToListAsync(), "Id", "Name");
+            ViewBag.Parties = new SelectList(await _context.Party.ToListAsync(), "Id", "Name");
+            ViewBag.States = new SelectList(await _context.States.ToListAsync(), "Id", "Name");
+        }
+        #endregion
+
+
+        #region GetElectionsByTenant
         // JSON Cascade Endpoint called via JavaScript on Tenant change
         [HttpGet]
         public async Task<IActionResult> GetElectionsByTenant(Guid tenantId)
@@ -487,61 +571,10 @@ namespace OnlineVotingApplication.Controllers
 
             return Json(elections);
         }
+        #endregion
 
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictVotingPolicy")] // Protects global candidate creation from script injections and form spam
-        public async Task<IActionResult> CreateCandidateSuperAdmin(SuperAdminCandidateCreationViewModel model)
-        {
-            // 1. Resolve User ID directly as string or Guid without premature returns
-            var superAdminUserClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
-            Guid.TryParse(superAdminUserClaim, out Guid superAdminUserId);
 
-            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-
-            // 2. Validate ModelState
-            if (!ModelState.IsValid)
-            {
-                ViewBag.Tenants = await _context.Tenants
-                    .AsNoTracking()
-                    .IgnoreQueryFilters()
-                    .Where(t => t.IsActive && t.IsApproved)
-                    .OrderBy(t => t.OrganizationName)
-                    .ToListAsync();
-
-                return View(model);
-            }
-
-            // 3. Process candidate creation via service
-            var result = await _iCandidateService.CreateCandidateBySuperAdminAsync(model);
-
-            if (!result.Success)
-            {
-                ModelState.AddModelError(string.Empty, result.Message ?? string.Empty);
-
-                ViewBag.Tenants = await _context.Tenants
-                    .AsNoTracking()
-                    .IgnoreQueryFilters()
-                    .Where(t => t.IsActive && t.IsApproved)
-                    .OrderBy(t => t.OrganizationName)
-                    .ToListAsync();
-
-                return View(model);
-            }
-
-            // 4. Audit Logging (superAdminUserId is string or Guid depending on your service overload)
-            await _auditLogService.LogActivityAsync(
-                userId: superAdminUserClaim ?? superAdminUserId.ToString(),
-                action: "SuperAdmin Candidate Creation",
-                details: $"SuperAdmin added candidate '{model.CandidateEmail}' under Tenant ID: {model.TenantId}",
-                ipAddress: ipAddress,
-                tenantId: model.TenantId
-            );
-
-            TempData["SuccessMessage"] = result.Message;
-            return RedirectToAction("AllCandidates");
-        }
-        [HttpGet]
+        #region AllSystemUsers
         [HttpGet]
         public async Task<IActionResult> AllSystemUsers(string roleFilter = "", string searchTerm = "", int pageNumber = 1, int pageSize = 10)
         {
@@ -644,7 +677,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(paginatedResult);
         }
+        #endregion
 
+        #region PenaltyLockoutUser
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> PenaltyLockoutUser(string userId, string violationReason)
@@ -698,6 +733,8 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(AllSystemUsers));
         }
+        #endregion
+        #region LiftPenalty
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> LiftPenalty(string userId, string liftReason)
@@ -749,6 +786,8 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(PenaltyLockoutUser));
         }
+        #endregion
+        #region PenalizedUsers
         [HttpGet]
         public async Task<IActionResult> PenalizedUsers(int pageNumber = 1, int pageSize = 10)
         {
@@ -810,5 +849,6 @@ namespace OnlineVotingApplication.Controllers
 
             return View(paginatedResult);
         }
+        #endregion
     }
 }

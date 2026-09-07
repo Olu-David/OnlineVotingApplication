@@ -1,4 +1,6 @@
-﻿@model PaginatedListViewModel<UserWithRolesViewModel>
+﻿@using OnlineVotingApplication.Models
+@using OnlineVotingApplication.DataTransferView;
+@model PaginatedListViewModel<UserWithRolesViewModel>
 @{
     ViewData["Title"] = "Penalized & Locked Users";
 }
@@ -47,9 +49,9 @@
                         </tr>
                     </thead>
                     <tbody>
-                        @if (Model != null && Model.Any())
+                        @if (Model != null && Model.Items.Any())
                         {
-                            @foreach (var user in Model)
+                            @foreach (var user in Model.Items)
                             {
                                 <tr>
                                     <td class="ps-4 fw-bold">@user.UserName</td>

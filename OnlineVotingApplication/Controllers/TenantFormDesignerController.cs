@@ -16,12 +16,15 @@ namespace OnlineVotingApplication.Controllers
         private readonly AppDbContext _context;
         private readonly HybridFormBuilderService _formBuilderService;
 
+        #region TenantFormDesignerController
         public TenantFormDesignerController(AppDbContext context, HybridFormBuilderService formBuilderService)
         {
             _context = context;
             _formBuilderService = formBuilderService;
         }
+        #endregion
 
+        #region ManageForm
         [HttpGet]
         public async Task<IActionResult> ManageForm(Guid electionId)
         {
@@ -32,7 +35,9 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.ElectionId = electionId;
             return View(activeFields);
         }
+        #endregion
 
+        #region ApplyBlueprint
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyBlueprint(Guid electionId, string templateCategory)
@@ -47,7 +52,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Blueprint package cloned into your form layout successfully.";
             return RedirectToAction("ManageForm", new { electionId });
         }
+        #endregion
 
+        #region AddCustomField
         [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> AddCustomField(Guid electionId, string fieldName, ElectionFieldType fieldType, string? csvChoices, bool isRequired)
@@ -63,5 +70,6 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Custom field added to your form questionnaire.";
             return RedirectToAction("ManageForm", new { electionId });
         }
+        #endregion
     }
 }

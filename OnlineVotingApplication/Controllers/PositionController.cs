@@ -22,6 +22,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IAuditLogService _auditLogService;
 
+        #region PositionController
         public PositionController(
             AppDbContext context,
             ITenantProvider tenantProvider,
@@ -35,7 +36,9 @@ namespace OnlineVotingApplication.Controllers
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
         }
+        #endregion
 
+        #region Index
         // ─────────────────────────────────────────────
         // Index / List Positions
         // ─────────────────────────────────────────────
@@ -71,7 +74,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(paginatedPositions);
         }
+        #endregion
 
+        #region Create
         // ─────────────────────────────────────────────
         // Create Position
         // ─────────────────────────────────────────────
@@ -81,7 +86,9 @@ namespace OnlineVotingApplication.Controllers
             await PopulateElectionsViewBagAsync(electionId, cancellationToken);
             return View(new PositionDTO { ElectionId = electionId ?? Guid.Empty });
         }
+        #endregion
 
+        #region Create (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
@@ -149,7 +156,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message ?? "Position created successfully.";
             return RedirectToAction(nameof(Index), new { electionId = model.ElectionId });
         }
+        #endregion
 
+        #region Edit
         // ─────────────────────────────────────────────
         // Edit Position
         // ─────────────────────────────────────────────
@@ -185,7 +194,9 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.ElectionId = position.ElectionEventId;
             return View(editModel);
         }
+        #endregion
 
+        #region Edit (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
@@ -249,7 +260,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Position updated successfully.";
             return RedirectToAction(nameof(Index));
         }
+        #endregion
 
+        #region Delete
         // ─────────────────────────────────────────────
         // Delete Position
         // ─────────────────────────────────────────────
@@ -307,7 +320,9 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(Index), new { electionId });
         }
+        #endregion
 
+        #region AllSoftDelete
         // ─────────────────────────────────────────────
         // Soft Deleted Positions
         // ─────────────────────────────────────────────
@@ -354,14 +369,18 @@ namespace OnlineVotingApplication.Controllers
 
             return View(sendView);
         }
+        #endregion
 
+        #region GetAllSoftDeletePost
         [HttpPost]
         [ValidateAntiForgeryToken]
         public IActionResult GetAllSoftDeletePost(int pageNumber = 1, int pageSize = 10)
         {
             return RedirectToAction(nameof(AllSoftDelete), new { pageNumber, pageSize });
         }
+        #endregion
 
+        #region PopulateElectionsViewBagAsync
         // ─────────────────────────────────────────────
         // Helper Methods
         // ─────────────────────────────────────────────
@@ -385,5 +404,6 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.IsSuperAdmin = isSuperAdmin;
             ViewBag.ElectionEvents = new SelectList(electionList, "Id", "Title", selectedElectionId);
         }
+        #endregion
     }
 }

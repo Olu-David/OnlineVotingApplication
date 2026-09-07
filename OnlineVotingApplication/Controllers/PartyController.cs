@@ -18,6 +18,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly ITenantProvider _tenantProvider;
 
+        #region PartyController
         public PartyController(
             UserManager<ApplicationUser> userManager,
             ILogger<PartyController> logger,
@@ -33,19 +34,25 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
+        #endregion
 
+        #region Index
         [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
+        #endregion
 
+        #region CreateParty
         [HttpGet]
         public IActionResult CreateParty()
         {
             return View();
         }
+        #endregion
 
+        #region RestoreSoftDeleted
         [HttpGet]
         [EnableRateLimiting("StrictVotingPolicy")]
         public async Task<IActionResult> RestoreSoftDeleted(Guid partyId)
@@ -79,7 +86,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Data restored successfully.";
             return RedirectToAction(nameof(AllParty));
         }
+        #endregion
 
+        #region CreateParty (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -124,7 +133,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "Party has been created successfully.";
             return RedirectToAction(nameof(AllParty));
         }
+        #endregion
 
+        #region AllParty
         [HttpGet]
         public async Task<IActionResult> AllParty(int pageNumber = 1, int pageSize = 10)
         {
@@ -155,7 +166,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(newView);
         }
+        #endregion
 
+        #region AllSoftDeleted
         [HttpGet]
         public async Task<IActionResult> AllSoftDeleted(int pageNumber = 1, int pageSize = 10)
         {
@@ -186,5 +199,6 @@ namespace OnlineVotingApplication.Controllers
 
             return View(newView);
         }
+        #endregion
     }
 }

@@ -12,8 +12,8 @@ using OnlineVotingApplication.Areas.Identity.Data;
 namespace OnlineVotingApplication.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260907074508_ReRunDatabase")]
-    partial class ReRunDatabase
+    [Migration("20260907190744_CandidateInvite")]
+    partial class CandidateInvite
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,6 +24,51 @@ namespace OnlineVotingApplication.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("CandidateInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasDefaultValueSql("gen_random_uuid()");
+
+                    b.Property<string>("CandidateEmail")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CandidateName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ElectionEventId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("PositionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("TenantId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ElectionEventId");
+
+                    b.HasIndex("PositionId");
+
+                    b.HasIndex("TenantId");
+
+                    b.ToTable("candidateInvitations");
+                });
 
             modelBuilder.Entity("Microsoft.AspNetCore.DataProtection.EntityFrameworkCore.DataProtectionKey", b =>
                 {
@@ -459,41 +504,6 @@ namespace OnlineVotingApplication.Migrations
                     b.HasIndex("TenantId");
 
                     b.ToTable("CandidateGalleries");
-                });
-
-            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateInvitation", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasDefaultValueSql("gen_random_uuid()");
-
-                    b.Property<string>("CandidateEmail")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("ElectionEventId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsUsed")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("TenantId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Token")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ElectionEventId");
-
-                    b.HasIndex("TenantId");
-
-                    b.ToTable("candidateInvitations");
                 });
 
             modelBuilder.Entity("OnlineVotingApplication.Models.ElectionCustomField", b =>
@@ -962,6 +972,29 @@ namespace OnlineVotingApplication.Migrations
                     b.ToTable("voterRegistrations");
                 });
 
+            modelBuilder.Entity("CandidateInvitation", b =>
+                {
+                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
+                        .WithMany("CandidateInvitations")
+                        .HasForeignKey("ElectionEventId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("OnlineVotingApplication.Models.Positions", "Position")
+                        .WithMany()
+                        .HasForeignKey("PositionId");
+
+                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
+                        .WithMany()
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("ElectionEvent");
+
+                    b.Navigation("Position");
+
+                    b.Navigation("Tenant");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -1122,24 +1155,6 @@ namespace OnlineVotingApplication.Migrations
                         .HasForeignKey("TenantId");
 
                     b.Navigation("Candidate");
-
-                    b.Navigation("Tenant");
-                });
-
-            modelBuilder.Entity("OnlineVotingApplication.Models.CandidateInvitation", b =>
-                {
-                    b.HasOne("OnlineVotingApplication.Models.ElectionEvent", "ElectionEvent")
-                        .WithMany("CandidateInvitations")
-                        .HasForeignKey("ElectionEventId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("OnlineVotingApplication.Models.Tenant", "Tenant")
-                        .WithMany()
-                        .HasForeignKey("TenantId")
-                        .OnDelete(DeleteBehavior.NoAction);
-
-                    b.Navigation("ElectionEvent");
 
                     b.Navigation("Tenant");
                 });

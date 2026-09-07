@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class ReRunDatabase : Migration
+    public partial class CandidateInvite : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -405,34 +405,6 @@ namespace OnlineVotingApplication.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "candidateInvitations",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "gen_random_uuid()"),
-                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
-                    ElectionEventId = table.Column<Guid>(type: "uuid", nullable: false),
-                    CandidateEmail = table.Column<string>(type: "text", nullable: true),
-                    Token = table.Column<string>(type: "text", nullable: false),
-                    IsUsed = table.Column<bool>(type: "boolean", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_candidateInvitations", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_candidateInvitations_ElectionEvents_ElectionEventId",
-                        column: x => x.ElectionEventId,
-                        principalTable: "ElectionEvents",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_candidateInvitations_Tenants_TenantId",
-                        column: x => x.TenantId,
-                        principalTable: "Tenants",
-                        principalColumn: "Id");
-                });
-
-            migrationBuilder.CreateTable(
                 name: "ElectionCustomFields",
                 columns: table => new
                 {
@@ -550,6 +522,41 @@ namespace OnlineVotingApplication.Migrations
                         principalColumn: "Id");
                     table.ForeignKey(
                         name: "FK_Candidate_Tenants_TenantId",
+                        column: x => x.TenantId,
+                        principalTable: "Tenants",
+                        principalColumn: "Id");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "candidateInvitations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false, defaultValueSql: "gen_random_uuid()"),
+                    TenantId = table.Column<Guid>(type: "uuid", nullable: true),
+                    ElectionEventId = table.Column<Guid>(type: "uuid", nullable: true),
+                    PositionId = table.Column<Guid>(type: "uuid", nullable: true),
+                    CandidateEmail = table.Column<string>(type: "text", nullable: false),
+                    CandidateName = table.Column<string>(type: "text", nullable: false),
+                    Token = table.Column<string>(type: "text", nullable: false),
+                    IsUsed = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_candidateInvitations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_candidateInvitations_ElectionEvents_ElectionEventId",
+                        column: x => x.ElectionEventId,
+                        principalTable: "ElectionEvents",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_candidateInvitations_Position_PositionId",
+                        column: x => x.PositionId,
+                        principalTable: "Position",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_candidateInvitations_Tenants_TenantId",
                         column: x => x.TenantId,
                         principalTable: "Tenants",
                         principalColumn: "Id");
@@ -791,6 +798,11 @@ namespace OnlineVotingApplication.Migrations
                 name: "IX_candidateInvitations_ElectionEventId",
                 table: "candidateInvitations",
                 column: "ElectionEventId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_candidateInvitations_PositionId",
+                table: "candidateInvitations",
+                column: "PositionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_candidateInvitations_TenantId",

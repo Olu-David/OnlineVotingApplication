@@ -16,6 +16,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly AppDbContext _Context;
         private readonly ISupportService _supportService;
 
+        #region HomeController
         public HomeController(ILogger<HomeController> logger, IElectionService electionService, AppDbContext context, ISupportService supportService)
         {
             _logger = logger;
@@ -23,7 +24,9 @@ namespace OnlineVotingApplication.Controllers
             _Context = context;
             _supportService = supportService;
         }
+        #endregion
 
+        #region Index
         [HttpGet]
         public async Task<IActionResult> Index()
         {
@@ -35,13 +38,17 @@ namespace OnlineVotingApplication.Controllers
 
             return View();
         }
+        #endregion
+        #region Privacy
         // GET: /Home/Privacy
         [HttpGet]
         public IActionResult Privacy()
         {
             return View();
         }
+        #endregion
 
+        #region SubmitSupport
         // POST: /Home/SubmitSupport
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -54,20 +61,24 @@ namespace OnlineVotingApplication.Controllers
             }
 
             // TODO: Optional - Save message to a SupportTicket database table or trigger an email notification
-             await _supportService.CreateTicketAsync(name, email, subject, message, IpAddress, tenantID);
+            await _supportService.CreateTicketAsync(name, email, subject, message, IpAddress, tenantID);
 
             TempData["SupportSuccess"] = "Your message has been successfully sent to our support team. We will get back to you shortly.";
 
             // Redirect back to the privacy page anchored directly at the form
             return Redirect($"/Home/Privacy#support-form-section");
         }
+        #endregion
 
+        #region Error
         [ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
         public IActionResult Error()
         {
             return View(new ErrorViewModel { RequestId = Activity.Current?.Id ?? HttpContext.TraceIdentifier });
         }
+        #endregion
 
+        #region SupportTickets
         [HttpGet]
         public async Task<IActionResult> SupportTickets(int pageNumber = 1, int pageSize = 10, Guid? tenantId = null)
         {
@@ -82,11 +93,14 @@ namespace OnlineVotingApplication.Controllers
 
             return View(response);
         }
+        #endregion
 
+        #region AccessDenied
         [AllowAnonymous] // Ensures blocked users can actually open this page
         public IActionResult AccessDenied()
         {
             return View();
         }
+        #endregion
     }
 }

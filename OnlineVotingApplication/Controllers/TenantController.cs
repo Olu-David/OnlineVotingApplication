@@ -20,6 +20,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly iCandidateService _candidateService;
 
+        #region TenantController
         public TenantController(
             AppDbContext context,
             ITenantProvider tenantProvider,
@@ -35,7 +36,9 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _candidateService = candidateService ?? throw new ArgumentNullException(nameof(candidateService));
         }
+        #endregion
 
+        #region CreateOrganization
         // ─────────────────────────────────────────────
         // Registration (Public Access)
         // ─────────────────────────────────────────────
@@ -45,7 +48,9 @@ namespace OnlineVotingApplication.Controllers
         {
             return View(new TenantRegistrationViewModel());
         }
+        #endregion
 
+        #region CreateOrganization (2)
         [HttpPost]
         [AllowAnonymous]
         [ValidateAntiForgeryToken]
@@ -100,7 +105,9 @@ namespace OnlineVotingApplication.Controllers
                 email = model.AdminEmail
             });
         }
+        #endregion
 
+        #region Dashboard
         // ─────────────────────────────────────────────
         // Tenant Dashboard & Management
         // ─────────────────────────────────────────────
@@ -137,7 +144,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(elections);
         }
+        #endregion
 
+        #region ManageUsers
         [HttpGet]
         [Authorize(Roles = "Official,SuperAdmin")]
         public async Task<IActionResult> ManageUsers(CancellationToken cancellationToken = default)
@@ -151,7 +160,9 @@ namespace OnlineVotingApplication.Controllers
             var admins = await _tenantService.GetTenantAdminsAsync();
             return View(admins);
         }
+        #endregion
 
+        #region ElectionAnalytics
         [HttpGet]
         [Authorize(Roles = "Official,SuperAdmin")]
         public async Task<IActionResult> ElectionAnalytics(Guid electionId, CancellationToken cancellationToken = default)
@@ -166,7 +177,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(candidates);
         }
+        #endregion
 
+        #region CreateCandidateOfficial
         [HttpGet]
         [Authorize(Roles = "Official")]
         public async Task<IActionResult> CreateCandidateOfficial(CancellationToken cancellationToken = default)
@@ -182,7 +195,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(new ManualCandidateCreationViewModel());
         }
+        #endregion
 
+        #region CreateCandidateOfficial (2)
         [HttpPost]
         [Authorize(Roles = "Official")]
         [ValidateAntiForgeryToken]
@@ -239,5 +254,6 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message;
             return RedirectToAction("AllCandidate");
         }
+        #endregion
     }
 }

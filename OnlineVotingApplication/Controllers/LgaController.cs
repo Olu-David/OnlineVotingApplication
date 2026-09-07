@@ -20,6 +20,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly IAuditLogService _auditLogService;
         private readonly ITenantProvider _tenantProvider;
 
+        #region LgaController
         public LgaController(
             UserManager<ApplicationUser> userManager,
             AppDbContext context,
@@ -33,13 +34,17 @@ namespace OnlineVotingApplication.Controllers
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
+        #endregion
 
+        #region Index
         [HttpGet]
         public IActionResult Index()
         {
             return View();
         }
+        #endregion
 
+        #region CreateLga
         [HttpGet]
         public async Task<IActionResult> CreateLga()
         {
@@ -52,7 +57,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(new LgaDTO());
         }
+        #endregion
 
+        #region CreateLga (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -96,7 +103,9 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = "LGA created successfully.";
             return RedirectToAction(nameof(AllLga));
         }
+        #endregion
 
+        #region AllLga
         [HttpGet]
         public async Task<IActionResult> AllLga(int pageNumber = 1, int pageSize = 10)
         {
@@ -122,7 +131,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View(sendView);
         }
+        #endregion
 
+        #region ConfirmDelete
         [HttpGet]
         public async Task<IActionResult> ConfirmDelete(Guid id)
         {
@@ -145,7 +156,9 @@ namespace OnlineVotingApplication.Controllers
 
             return View("~/Views/Lga/ConfirmDelete.cshtml", model);
         }
+        #endregion
 
+        #region ConfirmDelete (2)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -179,11 +192,14 @@ namespace OnlineVotingApplication.Controllers
 
             return RedirectToAction(nameof(DeletedSuccessfully));
         }
+        #endregion
 
+        #region DeletedSuccessfully
         [HttpGet]
         public IActionResult DeletedSuccessfully()
         {
             return View("~/Views/Lga/DeletedSuccessfully.cshtml");
         }
+        #endregion
     }
 }

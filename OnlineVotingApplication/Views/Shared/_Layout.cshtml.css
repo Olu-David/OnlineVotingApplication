@@ -187,12 +187,22 @@
     }
 
 /* Hide toggle on desktop screens */
-@media (min-width: 992px) {
-    .sidebar-floating-toggle {
-        display: none;
+/* ─── MOBILE DRAWER OVERRIDES (< 992px) ─── */
+@media (max-width: 991.98px) {
+    .admin-sidebar {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out !important;
+        z-index: 1050;
     }
-}
 
+        /* Slides the sidebar into view when toggled on mobile */
+        .admin-sidebar.mobile-open {
+            transform: translateX(0) !important;
+        }
+}
 /* ─── SIDEBAR BRAND ─── */
 .sidebar-brand .brand-text span {
     font-family: var(--votex-font-display);

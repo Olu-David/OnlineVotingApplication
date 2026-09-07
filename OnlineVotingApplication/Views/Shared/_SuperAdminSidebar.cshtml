@@ -306,4 +306,18 @@
         </li>
 
     </ul>
+
+    <!-- BOTTOM FOOTER / LOGOUT -->
+    <!-- BOTTOM FOOTER / LOGOUT -->
+    <div class="sidebar-footer mt-auto pt-3 border-top border-secondary opacity-75">
+        @if (User != null && SignInManager.IsSignedIn(User))
+        {
+            <form class="form-inline w-100" asp-controller="AuthService" asp-action="LogoutUser" method="post">
+                <button type="submit" class="nav-link text-danger d-flex align-items-center w-100 bg-transparent border-0 px-2 py-2 rounded text-start">
+                    <i class="fas fa-sign-out-alt me-2"></i>
+                    <span>Sign Out</span>
+                </button>
+            </form>
+        }
+    </div>
 </nav>

@@ -7,7 +7,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace OnlineVotingApplication.Migrations
 {
     /// <inheritdoc />
-    public partial class CandidateInvite : Migration
+    public partial class DBroleseeder : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)

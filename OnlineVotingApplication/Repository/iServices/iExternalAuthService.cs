@@ -9,12 +9,11 @@ namespace OnlineVotingApplication.Repository.iServices
     {
         /// <summary>
         /// Exchanges a Google OAuth2 Identity Token for a localized Application User system profile.
-        /// </summary>
-        Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken, string assignedRole);
-
+        /// </summary
+        Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken);
         /// <summary>
         /// Exchanges an Apple Sign-In Identity Token for a localized Application User system profile.
         /// </summary>
-        Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName, string assignedRole);
+        Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName);
     }
 }

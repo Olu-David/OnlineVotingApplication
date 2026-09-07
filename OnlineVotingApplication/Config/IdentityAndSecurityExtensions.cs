@@ -65,7 +65,7 @@ public static class IdentityAndSecurityExtensions
             options.User.AllowedUserNameCharacters = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._@+";
             options.SignIn.RequireConfirmedEmail = true;
             options.Password.RequireNonAlphanumeric = true;
-            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromDays(3);
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
             options.Lockout.MaxFailedAccessAttempts = 5;
             options.Password.RequireUppercase = true;
             options.User.RequireUniqueEmail = true;

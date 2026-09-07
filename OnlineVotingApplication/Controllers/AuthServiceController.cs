@@ -341,7 +341,7 @@ namespace OnlineVotingApplication.Controllers
             var response = await _authService.LockOutUserAsync(userId);
             if (response.Success)
             {
-                TempData["Status"] = "User has been banned.";
+                TempData["Status"] = "User has been restricted for multiple trials till after 5min tr.";
             }
             else
             {

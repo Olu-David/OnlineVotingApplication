@@ -2,17 +2,14 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.Tokens;
-using Microsoft.SqlServer.Server;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 using System;
-using System.Collections.Generic;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Net.Http;
-using System.Security.Claims;
 using System.Threading.Tasks;
 
 namespace OnlineVotingApplication.Repository.Services
@@ -26,7 +23,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ILogger<ExternalAuthService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
 
-        #region ExternalAuthService
+        #region Constructor
         public ExternalAuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -58,10 +55,8 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region AuthenticateGoogleUserAsync
         #region Google Authentication Pipeline
-
-        public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken, string assignedRole)
+        public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken)
         {
             var response = new ServiceResponse<ApplicationUser>();
             var activeTenantId = _tenantProvider.GetCurrentTenantId();
@@ -69,12 +64,6 @@ namespace OnlineVotingApplication.Repository.Services
             if (activeTenantId == Guid.Empty)
             {
                 response.Message = "Invalid context: An official organization workspace invitation link is required.";
-                return response;
-            }
-
-            if (assignedRole != "Voter" && assignedRole != "Candidate")
-            {
-                response.Message = "System Policy Violation: Direct signups are restricted exclusively to Voters or Candidates.";
                 return response;
             }
 
@@ -88,7 +77,16 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                return await ProcessExternalUserPipelineAsync(payload.Email, payload.GivenName ?? "", payload.FamilyName ?? "", "Google", payload.Subject, activeTenantId, assignedRole);
+                // Strictly assign "Voter" as the default external role
+                return await ProcessExternalUserPipelineAsync(
+                    payload.Email,
+                    payload.GivenName ?? "",
+                    payload.FamilyName ?? "",
+                    "Google",
+                    payload.Subject,
+                    activeTenantId,
+                    "Voter"
+                );
             }
             catch (InvalidJwtException ex)
             {
@@ -105,12 +103,8 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region AuthenticateAppleUserAsync
-        #endregion
-
         #region Apple Authentication Pipeline
-
-        public async Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName, string assignedRole)
+        public async Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName)
         {
             var response = new ServiceResponse<ApplicationUser>();
             var activeTenantId = _tenantProvider.GetCurrentTenantId();
@@ -121,15 +115,8 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            if (assignedRole != "Voter" && assignedRole != "Candidate")
-            {
-                response.Message = "System Policy Violation: Direct signups are restricted exclusively to Voters or Candidates.";
-                return response;
-            }
-
             try
             {
-                // Apple public keys must be dynamically retrieved or validated via JsonWebKeySet (JWKS)
                 var handler = new JwtSecurityTokenHandler();
                 if (!handler.CanReadToken(idToken))
                 {
@@ -155,7 +142,16 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                return await ProcessExternalUserPipelineAsync(emailClaim, firstName, lastName, "Apple", appleUserId, activeTenantId, assignedRole);
+                // Strictly assign "Voter" as the default external role
+                return await ProcessExternalUserPipelineAsync(
+                    emailClaim,
+                    firstName,
+                    lastName,
+                    "Apple",
+                    appleUserId,
+                    activeTenantId,
+                    "Voter"
+                );
             }
             catch (Exception ex)
             {
@@ -166,11 +162,7 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region ProcessExternalUserPipelineAsync
-        #endregion
-
         #region Shared Core External Provisioning Pipeline
-
         private async Task<ServiceResponse<ApplicationUser>> ProcessExternalUserPipelineAsync(
             string email, string firstName, string lastName, string providerName, string providerKey, Guid tenantId, string assignedRole)
         {
@@ -265,8 +257,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
         }
-        #endregion
-
         #endregion
     }
 }

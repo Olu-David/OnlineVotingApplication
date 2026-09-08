@@ -251,6 +251,7 @@ namespace OnlineVotingApplication.Controllers
 
             return View(response.Data);
         }
+
         [HttpGet]
         [Authorize]
         public async Task<IActionResult> LiveResults(Guid electionEventId, CancellationToken cancellationToken = default)
@@ -264,43 +265,46 @@ namespace OnlineVotingApplication.Controllers
 
             // 1. Verify if the user has actually voted in this election event
             bool hasVoted = await _context.Votes
-       .AnyAsync(v => v.ElectionId == electionEventId
-                   && v.Voter != null
-                   && v.Voter.Email!.ToLower() == userEmail,
-                 cancellationToken);
-            // 2. Allow elevated management roles (SuperAdmin, PlatformAdmin, Official) to view results anytime
+                .AnyAsync(v => v.ElectionId == electionEventId
+                            && v.Voter != null
+                            && v.Voter.Email!.ToLower() == userEmail,
+                          cancellationToken);
+
+            // 2. Allow elevated management roles to view results anytime
             bool isManagement = User.IsInRole("SuperAdmin") || User.IsInRole("PlatformAdmin") || User.IsInRole("Official");
 
-            if (!hasVoted && !isManagement)
-            {
-                TempData["Error"] = "You must cast your vote in this election before you can view the live results.";
-                return RedirectToAction("Details", "ElectionEvent", new { id = electionEventId });
-            }
+            // 3. Instead of redirecting away, flag if they are unauthorized
+            bool canViewResults = hasVoted || isManagement;
 
-            // 3. Fetch vote counts filtered specifically for this election event
-            var voteData = await _context.Candidate
-                .Where(c => c.ElectionEventId == electionEventId)
-                .GroupJoin(
-                    _context.Votes.Where(v => v.ElectionId == electionEventId),
-                    candidate => candidate.Id,
-                    vote => vote.CandidateId,
-                    (candidate, votes) => new CandidateVoteDto
-                    {
-                        CandidateName = candidate.Name ?? "",
-                        VoteCount = votes.Count(),
-                        PositionName = candidate.Position != null ? candidate.Position.Name : "N/A"
-                    }
-                )
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
+            List<CandidateVoteDto> voteData = new();
+
+            if (canViewResults)
+            {
+                // Fetch vote counts only if authorized
+                voteData = await _context.Candidate
+                    .Where(c => c.ElectionEventId == electionEventId)
+                    .GroupJoin(
+                        _context.Votes.Where(v => v.ElectionId == electionEventId),
+                        candidate => candidate.Id,
+                        vote => vote.CandidateId,
+                        (candidate, votes) => new CandidateVoteDto
+                        {
+                            CandidateName = candidate.Name ?? "",
+                            VoteCount = votes.Count(),
+                            PositionName = candidate.Position != null ? candidate.Position.Name : "N/A"
+                        }
+                    )
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken);
+            }
 
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "LiveResults";
             ViewData["ElectionEventId"] = electionEventId;
+            ViewData["CanViewResults"] = canViewResults; // Pass the permission flag to the view
 
             return View(voteData);
         }
-
         // GET: /Voter/ManualEntry
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official,Tenant")]

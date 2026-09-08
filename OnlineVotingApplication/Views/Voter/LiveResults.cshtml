@@ -2,6 +2,11 @@
 @model IEnumerable<CandidateVoteDto>
 @{
     ViewData["Title"] = "Live Results";
+
+    // Read the authorization permission flag from ViewData passed by the controller
+    bool canViewResults = ViewData["CanViewResults"] is bool val && val;
+    Guid electionEventId = ViewData["ElectionEventId"] is Guid id ? id : Guid.Empty;
+
     var results = Model?.OrderByDescending(c => c.VoteCount).ToList() ?? new List<CandidateVoteDto>();
     int maxVotes = results.Any() ? results.Max(c => c.VoteCount) : 0;
 }
@@ -16,86 +21,126 @@
     </h1>
     <p class="text-muted mb-4">Real-time tally across all candidates.</p>
 
-    <div class="row g-4">
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
-                        Vote Tally Chart
-                    </h6>
-                    <canvas id="liveResultsChart" height="260"></canvas>
+    @if (!canViewResults)
+    {
+        <!-- Access Restriction Popup / Card for Voters who haven't voted yet -->
+        <div class="row justify-content-center my-5">
+            <div class="col-md-8 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-4 p-4 text-center bg-white">
+                    <div class="card-body py-4">
+                        <div class="mb-3 display-4" style="color: var(--votex-amber);">
+                            <i class="fas fa-lock"></i>
+                        </div>
+                        <h3 class="fw-bold mb-3" style="font-family: var(--votex-font-display); color: var(--votex-navy-900);">
+                            Ballot Submission Required
+                        </h3>
+                        <p class="text-muted mb-4 small" style="font-size: 0.95rem; line-height: 1.6;">
+                            To maintain election transparency and prevent bias, you must cast your vote in this election event before you can unlock and view the live monitoring charts.
+                        </p>
+                        <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+                            <a asp-controller="Ballot" asp-action="CastVote" asp-route-electionEventId="@electionEventId"
+                               class="btn text-dark fw-bold px-4 py-2 rounded-pill shadow-sm"
+                               style="background-color: var(--votex-amber);">
+                                <i class="fas fa-vote-yea me-2"></i>Cast Your Vote Now
+                            </a>
+                            <a asp-controller="Voter" asp-action="Index"
+                               class="btn btn-outline-secondary px-4 py-2 rounded-pill">
+                                Back to Dashboard
+                            </a>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
+    }
+    else
+    {
+        <!-- Normal Results Layout (Charts & Leaderboard) -->
+        <div class="row g-4">
+            <div class="col-lg-7">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
+                            Vote Tally Chart
+                        </h6>
+                        <canvas id="liveResultsChart" height="260"></canvas>
+                    </div>
+                </div>
+            </div>
 
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-body">
-                    <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
-                        Leaderboard
-                    </h6>
-                    @if (!results.Any())
-                    {
-                        <p class="text-muted small">No votes recorded yet.</p>
-                    }
-                    else
-                    {
-                        @for (int i = 0; i < results.Count; i++)
+            <div class="col-lg-5">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body">
+                        <h6 class="text-uppercase small fw-bold text-muted mb-3" style="font-family: var(--votex-font-mono); letter-spacing: 0.05em;">
+                            Leaderboard
+                        </h6>
+                        @if (!results.Any())
                         {
-                            var c = results[i];
-                            double pct = maxVotes > 0 ? (double)c.VoteCount / maxVotes * 100 : 0;
-                            <div class="result-bar-row @(i == 0 && c.VoteCount > 0 ? "is-leading" : "")">
-                                <div class="d-flex justify-content-between small mb-1">
-                                    <span class="fw-semibold" style="color: var(--votex-navy-900);">
-                                        #@(i + 1) @c.CandidateName
-                                        @if (i == 0 && c.VoteCount > 0)
-                                        {
-                                            <span class="badge rounded-pill ms-1" style="background: var(--votex-green); font-size: 0.65rem;">Leading</span>
-                                        }
-                                    </span>
-                                    <span class="text-muted">@c.VoteCount votes</span>
-                                </div>
-                                <div class="result-bar-track">
-                                    <div class="result-bar-fill" style="width: @pct.ToString("0")%;"></div>
-                                </div>
-                            </div>
+                            <p class="text-muted small">No votes recorded yet.</p>
                         }
-                    }
+                        else
+                        {
+                            @for (int i = 0; i < results.Count; i++)
+                            {
+                                var c = results[i];
+                                double pct = maxVotes > 0 ? (double)c.VoteCount / maxVotes * 100 : 0;
+                                <div class="result-bar-row @(i == 0 && c.VoteCount > 0 ? "is-leading" : "")">
+                                    <div class="d-flex justify-content-between small mb-1">
+                                        <span class="fw-semibold" style="color: var(--votex-navy-900);">
+                                            #@(i + 1) @c.CandidateName
+                                            @if (i == 0 && c.VoteCount > 0)
+                                            {
+                                                <span class="badge rounded-pill ms-1" style="background: var(--votex-green); font-size: 0.65rem;">Leading</span>
+                                            }
+                                        </span>
+                                        <span class="text-muted">@c.VoteCount votes</span>
+                                    </div>
+                                    <div class="result-bar-track">
+                                        <div class="result-bar-fill" style="width: @pct.ToString("0")%;"></div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
+    }
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-        const candidateNames = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(results.Select(c => c.CandidateName)));
-        const voteCounts = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(results.Select(c => c.VoteCount)));
+    @if (canViewResults)
+    {
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <script>
+            // Using Json.Serialize() satisfies the IDE compiler completely without syntax errors
+            const candidateNames = @Json.Serialize(results.Select(c => c.CandidateName));
+            const voteCounts = @Json.Serialize(results.Select(c => c.VoteCount));
 
-        const ctx = document.getElementById('liveResultsChart');
-        if (ctx) {
-            new Chart(ctx.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: candidateNames,
-                    datasets: [{
-                        label: 'Votes Cast',
-                        data: voteCounts,
-                        backgroundColor: '#f5a623',
-                        borderColor: '#0f1a38',
-                        borderWidth: 1,
-                        borderRadius: 6
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: { legend: { display: false } },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            const ctx = document.getElementById('liveResultsChart');
+            if (ctx) {
+                new Chart(ctx.getContext('2d'), {
+                    type: 'bar',
+                    data: {
+                        labels: candidateNames,
+                        datasets: [{
+                            label: 'Votes Cast',
+                            data: voteCounts,
+                            backgroundColor: '#f5a623',
+                            borderColor: '#0f1a38',
+                            borderWidth: 1,
+                            borderRadius: 6
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                        }
                     }
-                }
-            });
-        }
-    </script>
+                });
+            }
+        </script>
+    }
 }

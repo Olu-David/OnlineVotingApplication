@@ -83,12 +83,16 @@ namespace OnlineVotingApplication.Controllers
                 return Redirect(fallbackLoginPath);
             }
 
+            // Look up if user already exists in local DB
             var user = await _userManager.FindByEmailAsync(email);
-            ServiceResponse<ApplicationUser> authResponse;
+            bool isNewUserRegistration = false;
 
             if (user == null)
             {
-                // Only new Voters are allowed to register via Google/External auth
+                isNewUserRegistration = true;
+
+                // 1. Verify token/provider key validity using your internal services
+                ServiceResponse<ApplicationUser> authResponse;
                 if (info.LoginProvider == "Google")
                 {
                     authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
@@ -98,49 +102,77 @@ namespace OnlineVotingApplication.Controllers
                     authResponse = await _externalAuthService.AuthenticateAppleUserAsync(info.ProviderKey, firstName, lastName);
                 }
 
-                if (authResponse.Success && authResponse.Data != null)
+                if (!authResponse.Success)
                 {
-                    // Ensure newly registered external users get the Voter role
-                    if (!await _userManager.IsInRoleAsync(authResponse.Data, "Voter"))
-                    {
-                        await _userManager.AddToRoleAsync(authResponse.Data, "Voter");
-                    }
+                    TempData["Error"] = authResponse.Message ?? "External validation failed.";
+                    return Redirect(fallbackLoginPath);
+                }
+
+                // 2. Instantiate and Save the User to Identity Database (Passwords are left null intentionally for OAuth)
+                user = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    EmailConfirmed = true,
+                    FullName = $"{firstName} {lastName}",
+                    TenantId = null, // Set to null explicitly for external voters
+                    PhoneNumber = info.Principal.FindFirstValue(ClaimTypes.MobilePhone) ?? info.Principal.FindFirstValue(ClaimTypes.MobilePhone)
+                };
+
+                var createResult = await _userManager.CreateAsync(user);
+                if (!createResult.Succeeded)
+                {
+                    TempData["Error"] = $"User creation failed: {string.Join(", ", createResult.Errors.Select(e => e.Description))}";
+                    return Redirect(fallbackLoginPath);
+                }
+
+                // 3. Link external login provider identity info to the newly created local user
+                var linkLoginResult = await _userManager.AddLoginAsync(user, info);
+                if (!linkLoginResult.Succeeded)
+                {
+                    TempData["Error"] = "Failed to link external login identity provider to account.";
+                    return Redirect(fallbackLoginPath);
+                }
+
+                // 4. Grant user the designated Voter security access role
+                if (!await _userManager.IsInRoleAsync(user, "Voter"))
+                {
+                    await _userManager.AddToRoleAsync(user, "Voter");
                 }
             }
             else
             {
-                // Existing users (including other roles) are allowed to login
-                authResponse = new ServiceResponse<ApplicationUser> { Success = true, Data = user };
+                // Existing user: Link the provider login if they haven't logged in with this provider before
+                var logins = await _userManager.GetLoginsAsync(user);
+                if (!logins.Any(l => l.LoginProvider == info.LoginProvider && l.ProviderKey == info.ProviderKey))
+                {
+                    await _userManager.AddLoginAsync(user, info);
+                }
             }
 
-            if (!authResponse.Success || authResponse.Data == null)
-            {
-                TempData["Error"] = authResponse.Message ?? "Authentication processing failed.";
-                return Redirect(fallbackLoginPath);
-            }
-
-            var logins = await _userManager.GetLoginsAsync(authResponse.Data);
-            if (!logins.Any(l => l.LoginProvider == info.LoginProvider && l.ProviderKey == info.ProviderKey))
-            {
-                await _userManager.AddLoginAsync(authResponse.Data, info);
-            }
-
-            await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
+            // Sign the verified user into the HTTP Context Session
+            await _signInManager.SignInAsync(user, isPersistent: false);
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
             // 1. Respect explicit local returnUrl if available
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) && returnUrl != "/" && returnUrl != fallbackLoginPath)
             {
                 return LocalRedirect(returnUrl);
             }
 
-            // 2. Dynamic Role-based Routing
-            var roles = await _userManager.GetRolesAsync(authResponse.Data);
+            // 2. Dynamic Role-based Routing (Action string parameter first, Controller string parameter second)
+            var roles = await _userManager.GetRolesAsync(user);
+
+            // Handle runtime tracking context sync for brand new voters
+            if (isNewUserRegistration && !roles.Contains("Voter"))
+            {
+                roles.Add("Voter");
+            }
 
             if (roles.Contains("SuperAdmin"))
-                return RedirectToAction("Index", "SuperAdminDashboard");
+                return RedirectToAction("Dashboard", "SuperAdminDashboard");
             if (roles.Contains("Official"))
-                return RedirectToAction("Index", "Tenant");
+                return RedirectToAction("Dashboard", "Tenant");
             if (roles.Contains("Candidate"))
                 return RedirectToAction("Index", "Candidate");
             if (roles.Contains("Auditor"))
@@ -180,7 +212,6 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost("apple-callback")]
-        [AllowAnonymous]
         public async Task<IActionResult> AppleCallback([FromForm] string code, [FromForm] string? user)
         {
             if (string.IsNullOrEmpty(code))
@@ -190,73 +221,63 @@ namespace OnlineVotingApplication.Controllers
 
             try
             {
-                string clientSecret = GenerateAppleClientSecret();
-                var tokenResponse = await _appleAuthService.ValidateAuthorizationCodeAsync(code, clientSecret);
-
-                if (tokenResponse == null || string.IsNullOrEmpty(tokenResponse.IdToken))
-                {
-                    return BadRequest(new { success = false, message = "Failed to validate authorization code with Apple." });
-                }
-
-                var handler = new JwtSecurityTokenHandler();
-                var jwtToken = handler.ReadJwtToken(tokenResponse.IdToken);
-
-                var email = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
-                            ?? jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
-
-                var appleSubId = jwtToken.Claims.FirstOrDefault(c => c.Type == ClaimTypes.NameIdentifier)?.Value
-                               ?? jwtToken.Claims.FirstOrDefault(c => c.Type == "sub")?.Value;
-
-                if (string.IsNullOrEmpty(email))
-                {
-                    return BadRequest(new { success = false, message = "Could not extract email from Apple token." });
-                }
-
                 string firstName = "Apple";
                 string lastName = "User";
+
                 if (!string.IsNullOrEmpty(user))
                 {
-                    try
+                    using (JsonDocument doc = JsonDocument.Parse(user))
                     {
-                        using var doc = JsonDocument.Parse(user);
-                        if (doc.RootElement.TryGetProperty("name", out var nameProp))
+                        JsonElement root = doc.RootElement;
+                        if (root.TryGetProperty("name", out JsonElement nameElement))
                         {
-                            firstName = nameProp.TryGetProperty("firstName", out var f) ? f.GetString() ?? "Apple" : "Apple";
-                            lastName = nameProp.TryGetProperty("lastName", out var l) ? l.GetString() ?? "User" : "User";
+                            firstName = nameElement.TryGetProperty("firstName", out JsonElement fName) ? fName.GetString() ?? "Apple" : "Apple";
+                            lastName = nameElement.TryGetProperty("lastName", out JsonElement lName) ? lName.GetString() ?? "User" : "User";
                         }
                     }
-                    catch { /* Fallback parsing */ }
                 }
 
-                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(appleSubId ?? email, firstName, lastName);
+                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(code, firstName, lastName);
 
                 if (!authResponse.Success || authResponse.Data == null)
                 {
-                    return BadRequest(new { success = false, message = authResponse.Message });
+                    return BadRequest(new { success = false, message = authResponse.Message ?? "Apple authentication failed." });
                 }
 
                 var roles = await _userManager.GetRolesAsync(authResponse.Data);
                 if (!roles.Contains("Voter") && !roles.Any())
                 {
                     await _userManager.AddToRoleAsync(authResponse.Data, "Voter");
+                    roles.Add("Voter");
                 }
 
                 await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
-                return Ok(new { success = true, message = "Authenticated successfully via Apple", userId = authResponse.Data.Id });
+                _logger.LogInformation("User logged in successfully via Apple endpoint API.");
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Logged in successfully",
+                    userId = authResponse.Data.Id,
+                    roles = roles
+                });
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing Apple sign-in callback.");
-                return StatusCode(500, new { success = false, message = "An error occurred while processing Apple authentication." });
+                _logger.LogError(ex, "Error processing Apple Callback payload structural translation.");
+                return BadRequest(new { success = false, message = "Authentication runtime execution failed." });
             }
         }
         #endregion
+    
 
-        #region Helpers
-        private string GenerateAppleClientSecret()
+
+#region Helpers
+private string GenerateAppleClientSecret()
         {
             return "YOUR_GENERATED_APPLE_CLIENT_SECRET_JWT";
         }
         #endregion
     }
+
 }

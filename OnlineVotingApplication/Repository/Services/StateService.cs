@@ -29,49 +29,65 @@ namespace OnlineVotingApplication.Repository.Services
             _userManager = userManager;
         }
         #endregion
+
         #region CreateStateAsync
         public async Task<bool> CreateStateAsync(StateDTO state, string userId)
         {
-            // Wrap the transaction in a 'using' statement block to prevent database locking leaks
-            using (var transaction = await _context.Database.BeginTransactionAsync())
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
             {
+                return false;
+            }
+
+            bool isSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
+            if (!isSuperAdmin && !isOfficial)
+            {
+                return false;
+            }
+
+            var cleanedName = state.Name?.Trim();
+            if (string.IsNullOrEmpty(cleanedName))
+            {
+                return false;
+            }
+
+            // Check if the state already exists to avoid unique constraint violations
+            var stateExists = await _context.States
+                .AsNoTracking()
+                .AnyAsync(m => m.Name.ToLower() == cleanedName.ToLower());
+
+            if (stateExists)
+            {
+                return false;
+            }
+
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
                 try
                 {
-                    var user = await _userManager.FindByIdAsync(userId);
-                    if (user == null)
-                    {
-                        // The transaction is now safely disposed automatically when this exits
-                        return false;
-                    }
-
-                    bool IsSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
-                    bool IsOfficial = await _userManager.IsInRoleAsync(user, "Official");
-                    if (!IsSuperAdmin && !IsOfficial)
-                    {
-                        return false;
-                    }
-
                     var newState = new States
                     {
                         Id = state.Id ?? Guid.NewGuid(),
-                        Name = state.Name ?? ""
+                        Name = cleanedName
                     };
 
-                    _context.States.Add(newState);
+                    await _context.States.AddAsync(newState);
                     await _context.SaveChangesAsync();
-
-                    // Commits the changes cleanly to your SQL Server
                     await transaction.CommitAsync();
+
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    // Explicitly roll back any operations if an exception occurs
                     await transaction.RollbackAsync();
-                    _logger.LogError(ex, "Error creating state");
+                    _logger.LogError(ex, "Error creating state '{StateName}' for user {UserId}", cleanedName, userId);
                     return false;
                 }
-            }
+            });
         }
         #endregion
 

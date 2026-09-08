@@ -65,17 +65,15 @@ namespace OnlineVotingApplication.Repository.Services
         {
             var response = new ServiceResponse<ApplicationUser>();
 
-            // Determine if the role being registered is a Voter
-            bool isVoterRole = assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase);
-
-            // If it is NOT a voter role, require an official organization invite link/context
-            // (Note: If you are removing all tenant checks entirely here as well, you can remove this block, 
-            // but if non-voters still require an invite context, keep this inverted check)
-            if (!isVoterRole)
+            // 1. Check if user already exists
+            var existingUser = await _userManager.FindByEmailAsync(model.EmailAddress??"");
+            if (existingUser != null)
             {
-                // TODO: Add your non-voter tenant/invite validation here if needed, 
-                // or let non-voters pass if tenant checks are fully stripped out.
+                response.Message = "An account with this email address already exists.";
+                return response;
             }
+
+            bool isVoterRole = assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase);
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
@@ -86,7 +84,7 @@ namespace OnlineVotingApplication.Repository.Services
                     UserName = model.EmailAddress,
                     FullName = $"{model.FirstName} {model.LastName}",
                     PhoneNumber = model.PhoneNumber,
-                    TenantId = null, // Voters are tenant-independent
+                    TenantId = null,
                     EmailConfirmed = false,
                     IsApproved = false
                 };

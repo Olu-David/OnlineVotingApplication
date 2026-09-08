@@ -86,9 +86,15 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // Success path: Redirect to Login on your AuthService controller
-            TempData["SuccessMessage"] = newUserResponse.Message ?? "Registration successful. Awaiting approval.";
-            return RedirectToAction("Login", "AuthService");
+            // Success path: Redirect to SendConfirmationToken with the new user's ID
+            TempData["SuccessMessage"] = newUserResponse.Message ?? "Registration successful. Please verify your email.";
+
+            if (newUserResponse.Data != null)
+            {
+                return RedirectToAction(nameof(SendConfirmationToken), new { userId = newUserResponse.Data.Id });
+            }
+
+            return RedirectToAction(nameof(Login));
         }
         #endregion
 
@@ -96,6 +102,12 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> SendConfirmationToken(string userId)
         {
+            if (string.IsNullOrEmpty(userId))
+            {
+                TempData["Error"] = "Invalid user context, please register.";
+                return RedirectToAction(nameof(UserRegistration));
+            }
+
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null)
             {
@@ -156,7 +168,6 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(Login));
         }
         #endregion
-
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Login() => View();
@@ -382,4 +393,5 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
     }
+
 }

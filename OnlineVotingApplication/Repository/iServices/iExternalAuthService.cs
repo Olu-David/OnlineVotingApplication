@@ -7,13 +7,8 @@ namespace OnlineVotingApplication.Repository.iServices
 {
     public interface iExternalAuthService
     {
-        /// <summary>
-        /// Exchanges a Google OAuth2 Identity Token for a localized Application User system profile.
-        /// </summary
-        Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken);
-        /// <summary>
-        /// Exchanges an Apple Sign-In Identity Token for a localized Application User system profile.
-        /// </summary>
-        Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName);
+        Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken, string? phoneNumber = null);
+
+        Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName, string? phoneNumber = null);
     }
 }

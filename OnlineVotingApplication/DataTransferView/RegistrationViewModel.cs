@@ -31,10 +31,7 @@ namespace OnlineVotingApplication.DataTransferView
         [Required(ErrorMessage = "Enter Your PhoneNumber")]
         public string? PhoneNumber { get; set; } // Changed from internal to public for model binder access
 
-        [Required]
-        public string Roles { get; set; } = null!; // Changed from internal to public for model binder access
 
-        public DateTime DateOfBirth { get; set; }
     }
 }
  

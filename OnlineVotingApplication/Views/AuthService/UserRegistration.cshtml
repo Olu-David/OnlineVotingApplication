@@ -55,6 +55,11 @@
                             <input asp-for="EmailAddress" type="email" class="form-control" placeholder="name@example.com" required autocomplete="email" />
                             <span asp-validation-for="EmailAddress" class="text-danger small"></span>
                         </div>
+                        <div class="mb-3">
+                            <label asp-for="PhoneNumber" class="form-label">Phone Number</label>
+                            <input asp-for="PhoneNumber" type="tel" class="form-control" placeholder="+234..." autocomplete="tel" />
+                            <span asp-validation-for="PhoneNumber" class="text-danger small"></span>
+                        </div>
 
                         <div class="mb-3">
                             <label asp-for="Password" class="form-label">Password</label>

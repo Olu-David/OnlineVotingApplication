@@ -53,7 +53,7 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region Google Authentication Pipeline
-        public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken)
+        public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken, string? phoneNumber = null)
         {
             var response = new ServiceResponse<ApplicationUser>();
 
@@ -74,7 +74,8 @@ namespace OnlineVotingApplication.Repository.Services
                     payload.FamilyName ?? "",
                     "Google",
                     payload.Subject,
-                    "Voter"
+                    "Voter",
+                    phoneNumber
                 );
             }
             catch (InvalidJwtException ex)
@@ -93,7 +94,7 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region Apple Authentication Pipeline
-        public async Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName)
+        public async Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName, string? phoneNumber = null)
         {
             var response = new ServiceResponse<ApplicationUser>();
 
@@ -131,7 +132,8 @@ namespace OnlineVotingApplication.Repository.Services
                     lastName,
                     "Apple",
                     appleUserId,
-                    "Voter"
+                    "Voter",
+                    phoneNumber
                 );
             }
             catch (Exception ex)
@@ -145,7 +147,7 @@ namespace OnlineVotingApplication.Repository.Services
 
         #region Shared Core External Provisioning Pipeline
         private async Task<ServiceResponse<ApplicationUser>> ProcessExternalUserPipelineAsync(
-            string email, string firstName, string lastName, string providerName, string providerKey, string assignedRole)
+            string email, string firstName, string lastName, string providerName, string providerKey, string assignedRole, string? phoneNumber = null)
         {
             var response = new ServiceResponse<ApplicationUser>();
 
@@ -154,6 +156,13 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (existingUser != null)
             {
+                // Update phone number if missing on existing user and a new one was provided
+                if (!string.IsNullOrEmpty(phoneNumber) && string.IsNullOrEmpty(existingUser.PhoneNumber))
+                {
+                    existingUser.PhoneNumber = phoneNumber;
+                    await _userManager.UpdateAsync(existingUser);
+                }
+
                 // Check if external login link mapping is missing
                 var logins = await _userManager.GetLoginsAsync(existingUser);
                 var matchingLogin = logins.FirstOrDefault(l => l.LoginProvider == providerName && l.ProviderKey == providerKey);
@@ -186,6 +195,7 @@ namespace OnlineVotingApplication.Repository.Services
                     FullName = string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName)
                         ? $"External {providerName} User"
                         : $"{firstName} {lastName}".Trim(),
+                    PhoneNumber = phoneNumber, // Added phone number mapping here
                     EmailConfirmed = true, // Third-party trusted provider has pre-verified email profile state
                     IsApproved = false, // Awaiting administrative oversight review
                     TenantId = null // Explicitly tenant-independent

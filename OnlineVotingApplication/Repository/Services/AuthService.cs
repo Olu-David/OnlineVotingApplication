@@ -62,14 +62,15 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region RegisterUser
-        #region Registration
-
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
         {
             var response = new ServiceResponse<ApplicationUser>();
             var activeTenantId = _tenantProvider.GetCurrentTenantId();
 
-            if (activeTenantId == Guid.Empty)
+            // Only enforce tenant check if it's NOT a voter role
+            bool isVoterRole = assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase);
+
+            if (!isVoterRole && activeTenantId == Guid.Empty)
             {
                 response.Message = "Invalid context: An official organization invite link is required.";
                 return response;
@@ -84,12 +85,13 @@ namespace OnlineVotingApplication.Repository.Services
                     UserName = model.EmailAddress,
                     FullName = $"{model.FirstName} {model.LastName}",
                     PhoneNumber = model.PhoneNumber,
-                    TenantId = activeTenantId,
+                    // If it's a voter, leave TenantId null or handle it accordingly
+                    TenantId = isVoterRole ? (Guid?)null : activeTenantId,
                     EmailConfirmed = false,
                     IsApproved = false
                 };
 
-                if (assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase))
+                if (isVoterRole)
                 {
                     newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
                 }
@@ -439,6 +441,6 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #endregion
+      
     }
 }

@@ -57,8 +57,8 @@
         </li>
 
         <li class="nav-item">
-            <a asp-controller="Vote" asp-action="LiveResults"
-               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Vote" && currentAction == "LiveResults" ? "active bg-primary" : "")">
+            <a asp-controller="Voter" asp-action="LiveResults"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Voter" && currentAction == "LiveResults" ? "active bg-primary" : "")">
                 <i class="fas fa-chart-line me-2 text-info"></i><span>Live System Analytics</span>
             </a>
         </li>
@@ -73,12 +73,6 @@
                 <a asp-controller="SuperAdminDashboard" asp-action="AllTenants"
                    class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllTenants" ? "active bg-danger" : "")">
                     <i class="fas fa-network-wired me-2 text-warning"></i><span>Cross-Tenant Infrastructure</span>
-                </a>
-            </li>
-            <li class="nav-item">
-                <a asp-controller="AuditLog" asp-action="Index"
-                   class="nav-link text-white d-flex align-items-center @(currentCtrl == "AuditLog" ? "active bg-danger" : "")">
-                    <i class="fas fa-database me-2 text-info"></i><span>Global Master Audit Logs</span>
                 </a>
             </li>
         }
@@ -138,9 +132,9 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="SoftDeleted"
-                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "SoftDeleted" ? "active text-white fw-bold" : "")">
-                            <i class="fas fa-trash-alt me-2 text-danger"></i><span>Deleted Elections</span>
+                        <a asp-controller="ElectionEvent" asp-action="AllSoftDelete"
+                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "AllSoftDelete" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-trash-restore me-2 text-danger"></i><span>Deleted Elections</span>
                         </a>
                     </li>
                 </ul>
@@ -148,7 +142,7 @@
         </li>
 
         <!-- CANDIDATES & FORM BUILDER -->
-        <li class="nav-item">
+        <li class="nav-item mt-2">
             <a href="#CandidateMenu"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Candidate" ? "" : "collapsed")"
                data-bs-toggle="collapse"
@@ -164,7 +158,6 @@
                             <i class="fas fa-users me-2"></i><span>All Candidates</span>
                         </a>
                     </li>
-                    <!-- Added Pending Candidate Applications Queue Link -->
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
                            class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "PendingCandidateApplications" ? "active text-white fw-bold" : "")">
@@ -206,20 +199,26 @@
         </li>
 
         <!-- POSITIONS -->
-        <li class="nav-item">
+        <li class="nav-item mt-2">
             <a href="#PositionMenu"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Position" ? "" : "collapsed")"
                data-bs-toggle="collapse"
                aria-expanded="@(currentCtrl == "Position" ? "true" : "false")">
-                <span><i class="fas fa-bullseye me-2"></i> Electoral Positions</span>
+                <span><i class="fas fa-bullseye me-2"></i>Positions</span>
                 <i class="fas fa-chevron-down small ms-auto"></i>
             </a>
             <div class="collapse @(currentCtrl == "Position" ? "show" : "")" id="PositionMenu">
                 <ul class="nav flex-column ms-3 mt-1">
                     <li class="nav-item">
-                        <a asp-controller="Position" asp-action="AllPosition"
-                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "AllPosition" ? "active text-white fw-bold" : "")">
+                        <a asp-controller="Position" asp-action="Index"
+                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "Index" ? "active text-white fw-bold" : "")">
                             <i class="fas fa-list me-2"></i><span>All Positions</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Position" asp-action="AllSoftDelete"
+                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "AllSoftDelete" ? "active text-white fw-bold" : "")">
+                            <i class="fas fa-trash-restore me-2 text-danger"></i><span>Deleted Positions</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -261,7 +260,7 @@
             </div>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item mt-2">
             <a href="#Lgadropdown"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Lga" ? "" : "collapsed")"
                data-bs-toggle="collapse"
@@ -297,7 +296,7 @@
             </a>
         </li>
 
-        <li class="nav-item">
+        <li class="nav-item mt-2">
             <a href="#VoterSystemMenu"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "" : "collapsed")"
                data-bs-toggle="collapse"

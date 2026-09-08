@@ -92,7 +92,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Create(PositionDTO model, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> CreatePosition(PositionDTO model, CancellationToken cancellationToken = default)
         {
             string? userId = _userManager.GetUserId(User);
             if (string.IsNullOrEmpty(userId))

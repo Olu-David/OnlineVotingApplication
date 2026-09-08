@@ -292,8 +292,8 @@ namespace OnlineVotingApplication.Repository.Services
             var candidateExists = await _appDbContext.Candidate
                 .IgnoreQueryFilters()
                 .AnyAsync(x => x.Name == model.Name
-                                && x.ElectionEventId == model.ElectionEventId
-                                && x.TenantId == effectiveTenantId);
+                            && x.ElectionEventId == model.ElectionEventId
+                            && x.TenantId == effectiveTenantId);
 
             if (candidateExists)
             {
@@ -307,19 +307,9 @@ namespace OnlineVotingApplication.Repository.Services
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
 
-            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            // Upload file outside the transaction boundary to avoid holding locks during network I/O
             try
             {
-                if (await _userManager.IsInRoleAsync(user, "Voter"))
-                {
-                    var addRoleResult = await _userManager.AddToRoleAsync(user, "Candidate");
-                    if (!addRoleResult.Succeeded)
-                    {
-                        throw new Exception("Failed to upgrade user profile permissions to candidate.");
-                    }
-                    roleAdded = true;
-                }
-
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
                 {
                     using var stream = model.CandidateImageUrl.OpenReadStream();
@@ -331,64 +321,104 @@ namespace OnlineVotingApplication.Repository.Services
                     );
                     uploadedFileUrlPath = targetDatabasePathUrl;
                 }
-
-                var slugHelper = new SlugHelper();
-                var newCandidate = new Candidate
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = effectiveTenantId,
-                    ElectionEventId = targetElection.Id,
-                    Name = model.Name,
-                    Manifesto = model.Manifesto,
-                    CandidateImg = targetDatabasePathUrl,
-                    Slug = "candidate-" + slugHelper.GenerateSlug(model.Name ?? ""),
-                    PartyId = model.PartyId != Guid.Empty ? model.PartyId : null,
-                    PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
-                    StateId = model.StateId != Guid.Empty ? model.StateId : null,
-                    LgaId = model.LgaId != Guid.Empty ? model.LgaId : null,
-                    UserId = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    isApproved = true,
-                    CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
-                };
-
-                await _appDbContext.Candidate.AddAsync(newCandidate);
-
-                if (invitation != null)
-                {
-                    invitation.IsUsed = true;
-                    _appDbContext.candidateInvitations.Update(invitation);
-                }
-
-                await _appDbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                response.Data = newCandidate.CandidateID;
-                response.Success = true;
-                response.Message = "Nomination profile saved successfully and account role upgraded to candidate.";
-                return response;
             }
-            catch (Exception ex)
+            catch (Exception fileEx)
             {
-                await transaction.RollbackAsync();
-
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
-                {
-                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
-                }
-
-                if (roleAdded && await _userManager.IsInRoleAsync(user, "Candidate"))
-                {
-                    await _userManager.RemoveFromRoleAsync(user, "Candidate");
-                }
-
                 response.Success = false;
-                response.Message = $"Save Error: {ex.Message}";
+                response.Message = $"Supabase file upload failed: {fileEx.Message}";
                 return response;
             }
+
+            var strategy = _appDbContext.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+                try
+                {
+                    if (await _userManager.IsInRoleAsync(user, "Voter"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(user, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            throw new Exception("Failed to upgrade user profile permissions to candidate.");
+                        }
+                        roleAdded = true;
+                    }
+
+                    var slugHelper = new SlugHelper();
+                    var newCandidate = new Candidate
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = effectiveTenantId,
+                        ElectionEventId = targetElection.Id,
+                        Name = model.Name,
+                        Manifesto = model.Manifesto,
+                        CandidateImg = targetDatabasePathUrl,
+                        Slug = "candidate-" + slugHelper.GenerateSlug(model.Name ?? ""),
+                        PartyId = model.PartyId != Guid.Empty ? model.PartyId : null,
+                        PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
+                        StateId = model.StateId != Guid.Empty ? model.StateId : null,
+                        LgaId = model.LgaId != Guid.Empty ? model.LgaId : null,
+                        UserId = userId,
+                        CreatedAt = DateTime.UtcNow,
+                        isApproved = true,
+                        CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
+                    };
+
+                    await _appDbContext.Candidate.AddAsync(newCandidate);
+
+                    if (invitation != null)
+                    {
+                        invitation.IsUsed = true;
+                        _appDbContext.candidateInvitations.Update(invitation);
+                    }
+
+                    await _appDbContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    response.Data = newCandidate.CandidateID;
+                    response.Success = true;
+                    response.Message = "Nomination profile saved successfully and account role upgraded to candidate.";
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+
+                    // Cleanup uploaded file if DB saving fails
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    {
+                        try
+                        {
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
+                        }
+                    }
+
+                    // Rollback Identity role assignment if it was added during this failed attempt
+                    if (roleAdded && await _userManager.IsInRoleAsync(user, "Candidate"))
+                    {
+                        try
+                        {
+                            await _userManager.RemoveFromRoleAsync(user, "Candidate");
+                        }
+                        catch (Exception roleEx)
+                        {
+                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", userId);
+                        }
+                    }
+
+                    response.Success = false;
+                    response.Message = $"Save Error: {ex.Message}";
+                    return response;
+                }
+            });
         }
         #endregion
-
 
 
         #region CreateCandidateByOfficialAsync
@@ -407,8 +437,8 @@ namespace OnlineVotingApplication.Repository.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
-                                       && e.TenantId == currentTenantId
-                                       && !e.IsDeleted);
+                                        && e.TenantId == currentTenantId
+                                        && !e.IsDeleted);
 
             if (targetElection == null)
             {
@@ -445,19 +475,9 @@ namespace OnlineVotingApplication.Repository.Services
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
 
-            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            // Upload file outside the transaction boundary to avoid holding database locks during network I/O
             try
             {
-                if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                {
-                    var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
-                    if (!addRoleResult.Succeeded)
-                    {
-                        throw new Exception("Failed to upgrade target user permissions to Candidate role.");
-                    }
-                    roleAdded = true;
-                }
-
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
                 {
                     using var stream = model.CandidateImage.OpenReadStream();
@@ -469,60 +489,98 @@ namespace OnlineVotingApplication.Repository.Services
                     );
                     uploadedFileUrlPath = targetDatabasePathUrl;
                 }
-
-                var fullName = $"{targetUser.FullName}".Trim();
-                var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
-
-                var slugHelper = new SlugHelper();
-                var newCandidate = new Candidate
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = currentTenantId,
-                    ElectionEventId = targetElection.Id,
-                    UserId = targetUser.Id,
-                    Name = candidateName,
-                    Manifesto = model.Manifesto,
-                    CandidateImg = targetDatabasePathUrl,
-                    Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
-                    PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
-                    PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
-                    StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
-                    LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
-                    CreatedAt = DateTime.UtcNow,
-                    isApproved = true,
-                    CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
-                };
-
-                await _appDbContext.Candidate.AddAsync(newCandidate);
-                await _appDbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                response.Data = newCandidate.CandidateID;
-                response.Success = true;
-                response.Message = $"Candidate '{candidateName}' successfully created and assigned to {targetElection.Title}!";
-                return response;
             }
-            catch (Exception ex)
+            catch (Exception fileEx)
             {
-                await transaction.RollbackAsync();
-
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
-                {
-                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
-                }
-
-                if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                {
-                    await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
-                }
-
                 response.Success = false;
-                response.Message = $"Save Error: {ex.Message}";
+                response.Message = $"Supabase file upload failed: {fileEx.Message}";
                 return response;
             }
+
+            var strategy = _appDbContext.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+                try
+                {
+                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            throw new Exception("Failed to upgrade target user permissions to Candidate role.");
+                        }
+                        roleAdded = true;
+                    }
+
+                    var fullName = $"{targetUser.FullName}".Trim();
+                    var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
+
+                    var slugHelper = new SlugHelper();
+                    var newCandidate = new Candidate
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = currentTenantId,
+                        ElectionEventId = targetElection.Id,
+                        UserId = targetUser.Id,
+                        Name = candidateName,
+                        Manifesto = model.Manifesto,
+                        CandidateImg = targetDatabasePathUrl,
+                        Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
+                        PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
+                        PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
+                        StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
+                        LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
+                        CreatedAt = DateTime.UtcNow,
+                        isApproved = true,
+                        CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
+                    };
+
+                    await _appDbContext.Candidate.AddAsync(newCandidate);
+                    await _appDbContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    response.Data = newCandidate.CandidateID;
+                    response.Success = true;
+                    response.Message = $"Candidate '{candidateName}' successfully created and assigned to {targetElection.Title}!";
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    {
+                        try
+                        {
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
+                        }
+                    }
+
+                    if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        try
+                        {
+                            await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
+                        }
+                        catch (Exception roleEx)
+                        {
+                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", targetUser.Id);
+                        }
+                    }
+
+                    response.Success = false;
+                    response.Message = $"Save Error: {ex.Message}";
+                    return response;
+                }
+            });
         }
         #endregion
-
 
         #region CreateCandidateBySuperAdminAsync
         public async Task<ServiceResponse<string>> CreateCandidateBySuperAdminAsync(SuperAdminCandidateCreationViewModel model)
@@ -540,8 +598,8 @@ namespace OnlineVotingApplication.Repository.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
-                                       && e.TenantId == model.TenantId
-                                       && !e.IsDeleted);
+                                         && e.TenantId == model.TenantId
+                                         && !e.IsDeleted);
 
             if (targetElection == null)
             {
@@ -578,19 +636,9 @@ namespace OnlineVotingApplication.Repository.Services
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
 
-            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+            // Perform external file storage upload outside the database transaction boundary
             try
             {
-                if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                {
-                    var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
-                    if (!addRoleResult.Succeeded)
-                    {
-                        throw new Exception("Failed to upgrade target user permissions to Candidate role.");
-                    }
-                    roleAdded = true;
-                }
-
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
                 {
                     using var stream = model.CandidateImage.OpenReadStream();
@@ -602,57 +650,96 @@ namespace OnlineVotingApplication.Repository.Services
                     );
                     uploadedFileUrlPath = targetDatabasePathUrl;
                 }
-
-                var fullName = $"{targetUser.FullName}".Trim();
-                var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
-
-                var slugHelper = new SlugHelper();
-                var newCandidate = new Candidate
-                {
-                    Id = Guid.NewGuid(),
-                    TenantId = model.TenantId,
-                    ElectionEventId = targetElection.Id,
-                    UserId = targetUser.Id,
-                    Name = candidateName,
-                    Manifesto = model.Manifesto,
-                    CandidateImg = targetDatabasePathUrl,
-                    Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
-                    PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
-                    PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
-                    StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
-                    LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
-                    CreatedAt = DateTime.UtcNow,
-                    isApproved = true,
-                    CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
-                };
-
-                await _appDbContext.Candidate.AddAsync(newCandidate);
-                await _appDbContext.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                response.Data = newCandidate.CandidateID;
-                response.Success = true;
-                response.Message = $"Candidate '{candidateName}' successfully created and assigned to election '{targetElection.Title}'!";
-                return response;
             }
-            catch (Exception ex)
+            catch (Exception fileEx)
             {
-                await transaction.RollbackAsync();
-
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
-                {
-                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
-                }
-
-                if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                {
-                    await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
-                }
-
                 response.Success = false;
-                response.Message = $"Save Error: {ex.Message}";
+                response.Message = $"Supabase file upload failed: {fileEx.Message}";
                 return response;
             }
+
+            var strategy = _appDbContext.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
+                try
+                {
+                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            throw new Exception("Failed to upgrade target user permissions to Candidate role.");
+                        }
+                        roleAdded = true;
+                    }
+
+                    var fullName = $"{targetUser.FullName}".Trim();
+                    var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
+
+                    var slugHelper = new SlugHelper();
+                    var newCandidate = new Candidate
+                    {
+                        Id = Guid.NewGuid(),
+                        TenantId = model.TenantId,
+                        ElectionEventId = targetElection.Id,
+                        UserId = targetUser.Id,
+                        Name = candidateName,
+                        Manifesto = model.Manifesto,
+                        CandidateImg = targetDatabasePathUrl,
+                        Slug = "candidate-" + slugHelper.GenerateSlug(candidateName),
+                        PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
+                        PartyId = isPolitical && model.PartyId.HasValue && model.PartyId != Guid.Empty ? model.PartyId : null,
+                        StateId = isPolitical && model.StateId.HasValue && model.StateId != Guid.Empty ? model.StateId : null,
+                        LgaId = isPolitical && model.LgaId.HasValue && model.LgaId != Guid.Empty ? model.LgaId : null,
+                        CreatedAt = DateTime.UtcNow,
+                        isApproved = true,
+                        CandidateID = $"CAN-{Guid.NewGuid().ToString()[..6].ToUpperInvariant()}"
+                    };
+
+                    await _appDbContext.Candidate.AddAsync(newCandidate);
+                    await _appDbContext.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    response.Data = newCandidate.CandidateID;
+                    response.Success = true;
+                    response.Message = $"Candidate '{candidateName}' successfully created and assigned to election '{targetElection.Title}'!";
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    {
+                        try
+                        {
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
+                        }
+                    }
+
+                    if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        try
+                        {
+                            await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
+                        }
+                        catch (Exception roleEx)
+                        {
+                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", targetUser.Id);
+                        }
+                    }
+
+                    response.Success = false;
+                    response.Message = $"Save Error: {ex.Message}";
+                    return response;
+                }
+            });
         }
         #endregion
 

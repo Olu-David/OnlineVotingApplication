@@ -88,15 +88,17 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
                 }
-
                 var result = await _userManager.CreateAsync(newUser, model.Password ?? "");
                 if (!result.Succeeded)
                 {
                     response.Errors = result.Errors.Select(e => e.Description).ToList();
+
+                    // ADD THIS LINE: Join the errors into the message so it prints on screen
+                    response.Message = string.Join(" | ", response.Errors, response.Message);
+
                     await transaction.RollbackAsync();
                     return response;
                 }
-
                 await EnsureRolesExistAsync(new[] { assignedRole });
                 await _userManager.AddToRoleAsync(newUser, assignedRole);
 

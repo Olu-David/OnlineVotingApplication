@@ -30,7 +30,6 @@
     --votex-font-display: 'Fraunces', serif;
     --votex-font-body: 'Inter', sans-serif;
     --votex-font-mono: 'IBM Plex Mono', monospace;
-
 }
 
 /* ==========================================
@@ -63,7 +62,33 @@
     flex-shrink: 0;
 }
 
-/* ─── MOBILE RESPONSIVE OVERHAUL (OFF-CANVAS DRAWER) ─── */
+    /* The nav list (<ul class="nav flex-column flex-grow-1 overflow-y-auto">)
+   is a flex child inside this sidebar's own flex-column layout, meant to
+   fill the space between the brand/user-chip above and the footer below,
+   then scroll internally if the link list runs long. But flex items
+   default to min-height:auto, which refuses to shrink below their own
+   content's height — so instead of scrolling within its slot, the list
+   was forcing the WHOLE sidebar taller than 100vh, and overflow-y:auto
+   on .admin-sidebar never got the chance to do anything. min-height:0
+   removes that floor so the intended internal scroll actually happens. */
+    .admin-sidebar > ul.nav {
+        min-height: 0;
+    }
+
+    /* Bootstrap's base .nav class is display:flex + flex-wrap:wrap in a ROW
+   direction — the .flex-column utility class on this <ul> is meant to
+   override that, but something in the current stylesheet load order is
+   letting the row+wrap behavior win, so nav items wrap into a second
+   "column" instead of stacking in one list (visible as a horizontal
+   scrollbar at the bottom of the sidebar). Forcing it here directly,
+   scoped only to sidebar nav lists, guarantees correct stacking
+   regardless of what else is fighting it. */
+    .admin-sidebar ul.nav {
+        flex-direction: column !important;
+        flex-wrap: nowrap !important;
+        overflow-x: hidden !important;
+    }
+
 @media (max-width: 991.98px) {
     .admin-sidebar {
         position: fixed;

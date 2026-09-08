@@ -104,12 +104,17 @@ namespace OnlineVotingApplication
             var app = builder.Build();
 
             // Respect X-Forwarded headers from Render's load balancer
-            app.UseForwardedHeaders(new ForwardedHeadersOptions
+            var forwardedOptions = new ForwardedHeadersOptions
             {
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
-                                   Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
-            });
+                           Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+            };
 
+            // Crucial for Render: Clear default loopback restrictions
+            forwardedOptions.KnownNetworks.Clear();
+            forwardedOptions.KnownProxies.Clear();
+
+            app.UseForwardedHeaders(forwardedOptions);
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();

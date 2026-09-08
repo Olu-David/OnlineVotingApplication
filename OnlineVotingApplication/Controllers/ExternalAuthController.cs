@@ -62,13 +62,21 @@ namespace OnlineVotingApplication.Controllers
 
             if (remoteError != null)
             {
+                _logger.LogError("PROVIDER REMOTE ERROR: {RemoteError}", remoteError);
                 TempData["Error"] = $"Error from external provider: {remoteError}";
                 return Redirect(fallbackLoginPath);
+            }
+
+            // Diagnostic check to verify cookies are reaching Render
+            foreach (var cookie in Request.Cookies)
+            {
+                _logger.LogInformation("Incoming Cookie -> Key: {Key}, Value Length: {Length}", cookie.Key, cookie.Value?.Length);
             }
 
             var info = await _signInManager.GetExternalLoginInfoAsync();
             if (info == null)
             {
+                _logger.LogError("CRITICAL: GetExternalLoginInfoAsync returned null. External cookie was dropped on votezy.com.ng.");
                 TempData["Error"] = "Error loading external login information.";
                 return Redirect(fallbackLoginPath);
             }
@@ -79,6 +87,7 @@ namespace OnlineVotingApplication.Controllers
 
             if (string.IsNullOrEmpty(email))
             {
+                _logger.LogError("External provider did not return an email address.");
                 TempData["Error"] = "External provider did not return an email address.";
                 return Redirect(fallbackLoginPath);
             }
@@ -104,24 +113,26 @@ namespace OnlineVotingApplication.Controllers
 
                 if (!authResponse.Success)
                 {
+                    _logger.LogError("External validation failed for {Email}: {Message}", email, authResponse.Message);
                     TempData["Error"] = authResponse.Message ?? "External validation failed.";
                     return Redirect(fallbackLoginPath);
                 }
 
-                // 2. Instantiate and Save the User to Identity Database (Passwords are left null intentionally for OAuth)
+                // 2. Instantiate and Save the User to Identity Database
                 user = new ApplicationUser
                 {
                     UserName = email,
                     Email = email,
                     EmailConfirmed = true,
                     FullName = $"{firstName} {lastName}",
-                    TenantId = null, // Set to null explicitly for external voters
-                    PhoneNumber = info.Principal.FindFirstValue(ClaimTypes.MobilePhone) ?? info.Principal.FindFirstValue(ClaimTypes.MobilePhone)
+                    TenantId = null,
+                    PhoneNumber = info.Principal.FindFirstValue(ClaimTypes.MobilePhone) ?? info.Principal.FindFirstValue(ClaimTypes.HomePhone)
                 };
 
                 var createResult = await _userManager.CreateAsync(user);
                 if (!createResult.Succeeded)
                 {
+                    _logger.LogError("User creation failed for {Email}: {Errors}", email, string.Join(", ", createResult.Errors.Select(e => e.Description)));
                     TempData["Error"] = $"User creation failed: {string.Join(", ", createResult.Errors.Select(e => e.Description))}";
                     return Redirect(fallbackLoginPath);
                 }
@@ -130,6 +141,7 @@ namespace OnlineVotingApplication.Controllers
                 var linkLoginResult = await _userManager.AddLoginAsync(user, info);
                 if (!linkLoginResult.Succeeded)
                 {
+                    _logger.LogError("Failed to link external login for {Email}", email);
                     TempData["Error"] = "Failed to link external login identity provider to account.";
                     return Redirect(fallbackLoginPath);
                 }
@@ -160,7 +172,7 @@ namespace OnlineVotingApplication.Controllers
                 return LocalRedirect(returnUrl);
             }
 
-            // 2. Dynamic Role-based Routing (Action string parameter first, Controller string parameter second)
+            // 2. Dynamic Role-based Routing
             var roles = await _userManager.GetRolesAsync(user);
 
             // Handle runtime tracking context sync for brand new voters
@@ -181,6 +193,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
 
             // 3. Ultimate fallback
+            _logger.LogWarning("User {Email} authenticated successfully but had no matching role, falling back to Home Index.", email);
             return RedirectToAction("Index", "Home");
         }
         #endregion
@@ -270,8 +283,6 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-
-
         #region Helpers
         private string GenerateAppleClientSecret()
         {
@@ -279,5 +290,4 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
     }
-
 }

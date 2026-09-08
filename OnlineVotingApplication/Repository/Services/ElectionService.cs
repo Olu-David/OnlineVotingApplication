@@ -96,7 +96,7 @@ namespace OnlineVotingApplication.Repository.Services
             string folderPathSegment = "Election_Image"; // Your Supabase bucket name
             string? uploadedFileUrlPath = null;
 
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            // Perform file upload outside the database transaction boundary
             try
             {
                 if (model.UrlImage != null && model.UrlImage.Length > 0)
@@ -110,64 +110,79 @@ namespace OnlineVotingApplication.Repository.Services
                     );
                     uploadedFileUrlPath = targetDatabasePathUrl;
                 }
-
-                var election = new ElectionEvent
-                {
-                    Id = model.Id == Guid.Empty ? Guid.NewGuid() : model.Id,
-                    Title = model.Title,
-                    Description = model.Description,
-                    ElectionYear = DateTime.UtcNow.Year,
-                    StartDate = model.StartDate,
-                    EndDate = model.EndDate,
-                    IsActive = false,
-                    TenantId = currentTenant.Id,
-                    Category = currentTenant.TenantCategory,
-                    ImageUrl = targetDatabasePathUrl
-                };
-
-                await _context.ElectionEvents.AddAsync(election);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                // ── GENERATE THE COPYABLE REGISTRATION LINK ──
-                var request = _accessor.HttpContext?.Request;
-                if (request != null)
-                {
-                    var baseUrl = $"{request.Scheme}://{request.Host}";
-                    model.RegistrationLink = $"{baseUrl}/Candidate/CreateCandidate?electionEventId={election.Id}";
-                }
-
-                model.Id = election.Id;
-                model.PhotoImage = targetDatabasePathUrl;
-                response.Data = model;
-                response.Success = true;
-                response.Message = "Election workspace successfully generated.";
-                return response;
             }
-            catch (Exception ex)
+            catch (Exception fileEx)
             {
-                await transaction.RollbackAsync();
-
-                // Cleanup uploaded image from Supabase if transaction fails
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
-                {
-                    try
-                    {
-                        await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
-                    }
-                    catch
-                    {
-                        /* Suppress cleanup failure logs */
-                    }
-                }
-
-                _logger.LogError(ex, "Fatal error inside CreateElectionAsync for User {UserId}", userId);
-
                 response.Success = false;
-                response.Message = "An unexpected error occurred while writing election properties.";
-                response.Errors = new List<string> { ex.Message };
+                response.Message = $"Supabase file upload failed: {fileEx.Message}";
                 return response;
             }
+
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    var election = new ElectionEvent
+                    {
+                        Id = model.Id == Guid.Empty ? Guid.NewGuid() : model.Id,
+                        Title = model.Title,
+                        Description = model.Description,
+                        ElectionYear = DateTime.UtcNow.Year,
+                        StartDate = model.StartDate,
+                        EndDate = model.EndDate,
+                        IsActive = false,
+                        TenantId = currentTenant.Id,
+                        Category = currentTenant.TenantCategory,
+                        ImageUrl = targetDatabasePathUrl
+                    };
+
+                    await _context.ElectionEvents.AddAsync(election);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    // ── GENERATE THE COPYABLE REGISTRATION LINK ──
+                    var request = _accessor.HttpContext?.Request;
+                    if (request != null)
+                    {
+                        var baseUrl = $"{request.Scheme}://{request.Host}";
+                        model.RegistrationLink = $"{baseUrl}/Candidate/CreateCandidate?electionEventId={election.Id}";
+                    }
+
+                    model.Id = election.Id;
+                    model.PhotoImage = targetDatabasePathUrl;
+                    response.Data = model;
+                    response.Success = true;
+                    response.Message = "Election workspace successfully generated.";
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+
+                    // Cleanup uploaded image from Supabase if transaction fails
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    {
+                        try
+                        {
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned election image after DB error: {Path}", uploadedFileUrlPath);
+                        }
+                    }
+
+                    _logger.LogError(ex, "Fatal error inside CreateElectionAsync for User {UserId}", userId);
+
+                    response.Success = false;
+                    response.Message = "An unexpected error occurred while writing election properties.";
+                    response.Errors = new List<string> { ex.Message };
+                    return response;
+                }
+            });
         }
         #endregion
 

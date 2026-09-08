@@ -18,75 +18,90 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly AppDbContext _context;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IMemoryCache _cache;
+        private readonly ILogger<LgaService> _logger;
         #region LgaService
-        public LgaService(AppDbContext context, UserManager<ApplicationUser> userManager, IMemoryCache cache)
+        public LgaService(AppDbContext context, UserManager<ApplicationUser> userManager, IMemoryCache cache, ILogger<LgaService> logger)
         {
             _context = context;
             _userManager = userManager;
             _cache = cache;
+            _logger = logger;
         }
         #endregion
 
         #region CreateLgaAsync
-        public async Task<ServiceResponse<string>> CreateLgaAsync(LgaDTO lga, string Id)
+        public async Task<ServiceResponse<string>> CreateLgaAsync(LgaDTO lga, string Id)    
         {
+     var response = new ServiceResponse<string>();
 
-            var response = new ServiceResponse<string>();
-            var transaction = await _context.Database.BeginTransactionAsync();
-            try
+    // 1. Validate inputs early before hitting database strategy/transactions
+        var user = await _userManager.FindByIdAsync(Id);
+        if (user == null)
+    {
+        response.Success = false;
+        response.Message = "User does not exist";
+        return response;
+    }
+
+    bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+    if (!isAdmin)
+    {
+        response.Success = false;
+        response.Message = "Only Authorized user have Access to this feature";
+        return response;
+    }
+
+    // Check for duplicate LGA name within the same State
+    var lgaExists = await _context.Lgas
+        .AsNoTracking()
+        .AnyAsync(m => m.StateId == lga.StateId && m.Name.ToLower() == lga.Name.ToLower());
+
+    if (lgaExists)
+    {
+        response.Success = false;
+        response.Message = "LGA exists Already, try Another one";
+        return response;
+    }
+
+    var strategy = _context.Database.CreateExecutionStrategy();
+
+    return await strategy.ExecuteAsync(async () =>
+    {
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
+        {
+            var newLGA = new LGA
             {
+                Id = lga.Id == Guid.Empty ? Guid.NewGuid() : lga.Id,
+                Name = lga.Name,
+                StateId = lga.StateId
+            };
 
-                var user = await _userManager.FindByIdAsync(Id);
-                if (user == null)
-                {
-                    response.Success = false;
-                    response.Message = "User dose not exist";
-                    return response;
-                }
-                bool IsAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
-                if (!IsAdmin)
-                {
-                    response.Success = false;
-                    response.Message = "Only Authorized user have Access to this feature";
-                    return response;
+            await _context.Lgas.AddAsync(newLGA);
+            await _context.SaveChangesAsync();
+            await transaction.CommitAsync();
 
-                }
-                var createLGA = await _context.Lgas.AnyAsync(m => m.Id == lga.Id && m.Name == lga.Name);
-                if (createLGA)
-                {
-                    response.Success = false;
-                    response.Message = "LGA exists Already, try Another one";
-                    return response;
-                }
-
-                var newLGA = new LGA
-                {
-                    Name = lga.Name,
-                    StateId = lga.StateId
-                };
-                _context.Lgas.Add(newLGA);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                response.Success = true;
-                response.Message = "LGA Saved Succesfully to the database";
-                return response;
-            }
-
-            catch (Exception ex)
-            {
-                response.Success = false;
-                response.Message = "An Unexpected Error Occured";
-                response.Errors = new List<string>
-                {
-                    ex.Message
-                };
-                return response;
-            }
-
-
+            response.Success = true;
+            response.Message = "LGA Saved Successfully to the database";
+            return response;
         }
-        #endregion
+        catch (Exception ex)
+        {
+            await transaction.RollbackAsync();
+
+            _logger.LogError(ex, "Fatal error inside CreateLgaAsync for user {UserId}", Id);
+
+            response.Success = false;
+            response.Message = "An Unexpected Error Occured";
+            response.Errors = new List<string>
+            {
+                ex.Message
+            };
+            return response;
+        }
+    });
+}
+#endregion
 
         #region GetAllLgasAsync
         public async Task<PaginatedListViewModel<LgaDTO>> GetAllLgasAsync(int PageNumber = 1, int PageSize = 10)

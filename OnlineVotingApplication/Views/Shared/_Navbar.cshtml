@@ -63,12 +63,13 @@
         </button>
 
         <div class="collapse navbar-collapse" id="mainNavMenu">
+            <!-- Compacted nav list items with tighter spacing -->
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
                 <!-- Home Link -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Index"
-                       class="nav-link px-3 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
+                       class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
                         <i class="fas fa-home me-1 text-warning opacity-75"></i> Home
                     </a>
                 </li>
@@ -78,7 +79,7 @@
                     <!-- Dashboard Link -->
                     <li class="nav-item">
                         <a asp-controller="@dashCtrl" asp-action="Index"
-                           class="nav-link px-3 rounded-pill transition-all @(ctrl == dashCtrl ? "active shadow-xs" : "")">
+                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == "Index" ? "active shadow-xs" : "")">
                             <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
                         </a>
                     </li>
@@ -87,14 +88,8 @@
                     @if (isVoter)
                     {
                         <li class="nav-item">
-                            <a asp-controller="Ballot" asp-action="CastVote"
-                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Ballot" ? "active shadow-xs" : "")">
-                                <i class="fas fa-vote-yea me-1 text-warning"></i> Cast Vote
-                            </a>
-                        </li>
-                        <li class="nav-item">
-                            <a asp-controller="Voter" asp-action="MyVotes"
-                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Voter" && action == "MyVotes" ? "active shadow-xs" : "")">
+                            <a asp-controller="Voter" asp-action="MyHistory"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "MyHistory" ? "active shadow-xs" : "")">
                                 <i class="fas fa-history me-1 text-success opacity-75"></i> My Ballots
                             </a>
                         </li>
@@ -104,7 +99,7 @@
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle px-3 rounded-pill @(ctrl == "Candidate" ? "active" : "")"
+                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" ? "active" : "")"
                                role="button" data-bs-toggle="dropdown">
                                 <i class="fas fa-user-tie me-1 text-warning"></i> Campaign
                             </a>
@@ -124,7 +119,7 @@
                     {
                         <li class="nav-item">
                             <a asp-controller="Auditor" asp-action="Logs"
-                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Auditor" ? "active shadow-xs" : "")">
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Auditor" && action == "Logs" ? "active shadow-xs" : "")">
                                 <i class="fas fa-file-alt me-1 text-danger opacity-75"></i> Audit Logs
                             </a>
                         </li>
@@ -133,15 +128,16 @@
                     <!-- Live Results Available to all authenticated users -->
                     <li class="nav-item">
                         <a asp-controller="Voter" asp-action="LiveResults"
-                           class="nav-link px-3 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
-                            <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 7px; height: 7px;"></span> Live Results
+                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
+                            <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
                         </a>
                     </li>
                 }
 
+                <!-- Privacy Link -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Privacy"
-                       class="nav-link px-3 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
+                       class="nav-link px-2.5 py-1 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
                         Privacy
                     </a>
                 </li>
@@ -151,14 +147,14 @@
             <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10 border-top-0-lg">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
-                    <span class="badge @roleBadgeClass px-3 py-2 rounded-pill fw-semibold shadow-sm">
+                    <span class="badge @roleBadgeClass px-2.5 py-1.5 rounded-pill fw-semibold shadow-sm text-xs">
                         <i class="fas fa-shield-alt me-1 small"></i> @roleBadge
                     </span>
 
                     <div class="dropdown">
                         <button class="btn user-menu-btn d-flex align-items-center gap-2 dropdown-toggle border-0 rounded-pill px-2 py-1"
                                 type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:34px; height:34px;">
+                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:30px; height:30px; font-size: 0.8rem;">
                                 @nameInitial
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
@@ -213,18 +209,24 @@
     }
 
     .brand-logo-badge {
-        width: 36px;
-        height: 36px;
+        width: 34px;
+        height: 34px;
         background: #f5a623;
-        border-radius: 10px;
+        border-radius: 8px;
         display: flex;
         align-items: center;
         justify-content: center;
     }
 
+    /* Refined compact desktop text styling */
     .votezy-navbar .nav-link {
         color: rgba(255, 255, 255, 0.8) !important;
         font-weight: 500;
+        font-size: 0.875rem;
+        padding-left: 0.75rem !important;
+        padding-right: 0.75rem !important;
+        padding-top: 0.35rem !important;
+        padding-bottom: 0.35rem !important;
         transition: all 0.2s ease;
     }
 
@@ -235,7 +237,6 @@
         }
 
         .votezy-navbar .nav-link.active {
-            color: #ffffff !important;
             background-color: #f5a623 !important;
             color: #101d35 !important;
             font-weight: 600;

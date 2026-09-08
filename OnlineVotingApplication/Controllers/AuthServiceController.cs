@@ -34,31 +34,61 @@ namespace OnlineVotingApplication.Controllers
 
         public IActionResult Index() => View();
 
+
+        #region UserRegistration
+
         [HttpGet]
         [AllowAnonymous]
         public IActionResult UserRegistration() => View();
 
-        #region UserRegistration
         [HttpPost]
-        [AllowAnonymous]
         [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> UserRegistration(RegistrationViewModel model, string roles = "Voter")
         {
-            if (!ModelState.IsValid) return View(model);
-
-            var newUserResponse = await _authService.RegisterUser(model, roles);
-            if (!newUserResponse.Success)
+            if (!ModelState.IsValid)
             {
-                foreach (var error in newUserResponse.Errors ?? Enumerable.Empty<string>())
-                {
-                    ModelState.AddModelError(string.Empty, error);
-                }
-                TempData["Error"] = newUserResponse.Message ?? "Registration failed.";
+                model.Password = string.Empty;
+                model.ConfirmPassword = string.Empty;
                 return View(model);
             }
 
-            return RedirectToAction(nameof(SendConfirmationToken), new { userId = newUserResponse.Data?.Id });
+            var newUserResponse = await _authService.RegisterUser(model, roles);
+
+            if (!newUserResponse.Success)
+            {
+                // 1. Add specific errors if they exist
+                bool errorAdded = false;
+                if (newUserResponse.Errors != null && newUserResponse.Errors.Any())
+                {
+                    foreach (var error in newUserResponse.Errors)
+                    {
+                        ModelState.AddModelError(string.Empty, error);
+                        errorAdded = true;
+                    }
+                }
+
+                // 2. Fallback: If no specific errors list was provided, use the general Message property
+                if (!errorAdded && !string.IsNullOrEmpty(newUserResponse.Message))
+                {
+                    ModelState.AddModelError(string.Empty, newUserResponse.Message);
+                    errorAdded = true;
+                }
+
+                // 3. Ultimate fallback if the service returned false with zero errors and zero messages
+                if (!errorAdded)
+                {
+                    ModelState.AddModelError(string.Empty, "Registration failed. Please check your details and try again.");
+                }
+
+                // Clear passwords for security before returning view
+                model.Password = string.Empty;
+                model.ConfirmPassword = string.Empty;
+                return View(model);
+            }
+
+            // Success path: Redirect to Login on your AuthService controller
+            TempData["SuccessMessage"] = newUserResponse.Message ?? "Registration successful. Awaiting approval.";
+            return RedirectToAction("Login", "AuthService");
         }
         #endregion
 

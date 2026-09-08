@@ -33,7 +33,9 @@
                     <form asp-controller="AuthService" id="registrationForm" asp-action="UserRegistration" method="post">
                         @Html.AntiForgeryToken()
 
-                        <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>
+                        <!-- CHANGE ModelOnly TO All HERE -->
+                        <div asp-validation-summary="All" class="alert alert-danger p-2 small mb-3" role="alert"></div>
+
 
                         <div class="row g-3 mb-3">
                             <div class="col-sm-6">
@@ -115,7 +117,6 @@
         </div>
     </div>
 </div>
-
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
 
@@ -145,18 +146,19 @@
             setupPasswordToggle("togglePassword", "passwordInput", "toggleIcon");
             setupPasswordToggle("toggleConfirmPassword", "confirmPasswordInput", "toggleConfirmIcon");
 
-            // Form Submit Loading State
+            // Form Submit Loading State & Submission Safety
             form.addEventListener("submit", function (event) {
-                const isValid = typeof $(form).valid === "function" ? $(form).valid() : form.checkValidity();
-
-                if (isValid) {
+                // Check basic HTML5 validity first
+                if (form.checkValidity()) {
                     overlay.classList.remove("d-none");
                     overlay.classList.add("d-flex");
 
+                    // Disable button shortly after allowing the postback to carry form data
                     setTimeout(() => {
                         submitBtn.disabled = true;
                     }, 10);
                 } else {
+                    // Let HTML5 validation show native browser popups if invalid
                     event.preventDefault();
                 }
             });

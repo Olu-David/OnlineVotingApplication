@@ -58,10 +58,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Views\Shared\_Layout.cshtml.css" />
-  </ItemGroup>
-
-  <ItemGroup>
     <None Include="C:\Users\STICKZZOFFICIAL\source\repos\OnlineVotingApplication\OnlineVotingApplication\.editorconfig" />
   </ItemGroup>
 

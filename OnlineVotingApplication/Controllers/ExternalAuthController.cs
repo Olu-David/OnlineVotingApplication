@@ -88,6 +88,7 @@ namespace OnlineVotingApplication.Controllers
 
             if (user == null)
             {
+                // Only new Voters are allowed to register via Google/External auth
                 if (info.LoginProvider == "Google")
                 {
                     authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
@@ -96,9 +97,19 @@ namespace OnlineVotingApplication.Controllers
                 {
                     authResponse = await _externalAuthService.AuthenticateAppleUserAsync(info.ProviderKey, firstName, lastName);
                 }
+
+                if (authResponse.Success && authResponse.Data != null)
+                {
+                    // Ensure newly registered external users get the Voter role
+                    if (!await _userManager.IsInRoleAsync(authResponse.Data, "Voter"))
+                    {
+                        await _userManager.AddToRoleAsync(authResponse.Data, "Voter");
+                    }
+                }
             }
             else
             {
+                // Existing users (including other roles) are allowed to login
                 authResponse = new ServiceResponse<ApplicationUser> { Success = true, Data = user };
             }
 
@@ -117,28 +128,28 @@ namespace OnlineVotingApplication.Controllers
             await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
-            // 1. Respect explicit returnUrl if available and safe
+            // 1. Respect explicit local returnUrl if available
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
                 return LocalRedirect(returnUrl);
             }
 
-            // 2. Smart routing based on user roles (Sends voters straight to their page!)
-            if (await _userManager.IsInRoleAsync(authResponse.Data, "Voter"))
-            {
-                return RedirectToAction("Index", "Voter"); // Change "Index" / "Voter" to match your actual voter dashboard controller & action
-            }
-            else if (await _userManager.IsInRoleAsync(authResponse.Data, "SuperAdmin"))
-            {
-                return RedirectToAction("Index", "Admin"); // Change to match your admin route
-            }
-            else if (await _userManager.IsInRoleAsync(authResponse.Data, "Official"))
-            {
-                return RedirectToAction("Index", "Official"); // Change to match your official route
-            }
+            // 2. Dynamic Role-based Routing
+            var roles = await _userManager.GetRolesAsync(authResponse.Data);
+
+            if (roles.Contains("SuperAdmin"))
+                return RedirectToAction("Index", "SuperAdminDashboard");
+            if (roles.Contains("Official"))
+                return RedirectToAction("Index", "Tenant");
+            if (roles.Contains("Candidate"))
+                return RedirectToAction("Index", "Candidate");
+            if (roles.Contains("Auditor"))
+                return RedirectToAction("Index", "Auditor");
+            if (roles.Contains("Voter"))
+                return RedirectToAction("Index", "Voter");
 
             // 3. Ultimate fallback
-            return LocalRedirect("~/");
+            return RedirectToAction("Index", "Home");
         }
         #endregion
 
@@ -156,6 +167,12 @@ namespace OnlineVotingApplication.Controllers
             if (!authResponse.Success || authResponse.Data == null)
             {
                 return BadRequest(new { success = false, message = authResponse.Message });
+            }
+
+            var roles = await _userManager.GetRolesAsync(authResponse.Data);
+            if (!roles.Contains("Voter") && !roles.Any())
+            {
+                await _userManager.AddToRoleAsync(authResponse.Data, "Voter");
             }
 
             await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
@@ -216,6 +233,12 @@ namespace OnlineVotingApplication.Controllers
                 if (!authResponse.Success || authResponse.Data == null)
                 {
                     return BadRequest(new { success = false, message = authResponse.Message });
+                }
+
+                var roles = await _userManager.GetRolesAsync(authResponse.Data);
+                if (!roles.Contains("Voter") && !roles.Any())
+                {
+                    await _userManager.AddToRoleAsync(authResponse.Data, "Voter");
                 }
 
                 await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);

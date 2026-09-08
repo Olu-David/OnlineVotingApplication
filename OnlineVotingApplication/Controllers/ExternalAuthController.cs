@@ -220,8 +220,4 @@ namespace OnlineVotingApplication.Controllers
         #endregion
     }
 
-    public class GoogleTokenRequestModel
-    {
-        public string AccessToken { get; set; } = string.Empty;
-    }
 }

@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
-using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
 
 namespace OnlineVotingApplication.Controllers

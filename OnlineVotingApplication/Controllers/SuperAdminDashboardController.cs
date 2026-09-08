@@ -251,7 +251,9 @@ namespace OnlineVotingApplication.Controllers
         #endregion
 
         #region SwitchContext
+        
         [HttpPost]
+        [Authorize(Roles = "SuperAdmin")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")] // Protects tenant context session switching from rapid switching abuse
         public async Task<IActionResult> SwitchContext(Guid id)
@@ -472,6 +474,8 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(GetAllPendingTenants));
         }
         #endregion
+        
+
         #region CreateCandidateSuperAdmin
         // ==========================================
         // GET: /super-admin/candidates/create
@@ -734,6 +738,7 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(AllSystemUsers));
         }
         #endregion
+
         #region LiftPenalty
         [HttpPost]
         [ValidateAntiForgeryToken]
@@ -787,6 +792,7 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(PenaltyLockoutUser));
         }
         #endregion
+
         #region PenalizedUsers
         [HttpGet]
         public async Task<IActionResult> PenalizedUsers(int pageNumber = 1, int pageSize = 10)

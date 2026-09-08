@@ -277,27 +277,13 @@
         </footer>
     }
 
-    <script>
-        document.addEventListener("DOMContentLoaded", function () {
-            // Updated to match your exact layout IDs
-            const sidebar = document.querySelector(".admin-sidebar");
-            const toggleBtn = document.getElementById("sidebarMobileToggle");
-            const overlay = document.getElementById("sidebarOverlay");
-
-            function toggleMobileMenu() {
-                if (sidebar) sidebar.classList.toggle("mobile-open");
-                if (overlay) overlay.classList.toggle("show");
-            }
-
-            if (toggleBtn) {
-                toggleBtn.addEventListener("click", toggleMobileMenu);
-            }
-
-            if (overlay) {
-                overlay.addEventListener("click", toggleMobileMenu);
-            }
-        });
-    </script>
+    <!-- The mobile toggle / overlay / desktop-collapse / hover-expand
+         behavior for #adminSidebar all lives in site.js now. An inline
+         duplicate used to live here too, attaching a SECOND click handler
+         to the same toggle button — clicking it fired both handlers,
+         which toggled "mobile-open" on and back off in the same click.
+         That's why the sidebar felt unresponsive / scrollbar-like instead
+         of sliding open properly. Removed; site.js is the only handler now. -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script src="~/js/navbar.js" asp-append-version="true"></script>

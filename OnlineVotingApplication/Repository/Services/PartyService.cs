@@ -91,38 +91,53 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            var transaction = await _context.Database.BeginTransactionAsync();
-            try
-            {
-                var newParty = new Party
-                {
-                    Name = model.Name,
-                    Description = model.Description,
-                    LogoUrl = PartyLogoPathUrl
-                };
-                await _context.Party.AddAsync(newParty);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-                response.Success = true;
-                response.Message = "Party created successfully.";
-                return response;
-            }
-            catch (Exception ex)
+            return await strategy.ExecuteAsync(async () =>
             {
-                await transaction.RollbackAsync();
-
-                if (!string.IsNullOrEmpty(PartyLogoPathUrl) && !PartyLogoPathUrl.Contains("default-Party_Logo.png"))
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    await _supaBaseFileService.DeleteFileAsync(PartyLogoPathUrl, bucketName);
+                    var newParty = new Party
+                    {
+                        Name = cleanedtrim ?? string.Empty, // Used the cleaned version here too!
+                        Description = model.Description,
+                        LogoUrl = PartyLogoPathUrl
+                    };
+
+                    await _context.Party.AddAsync(newParty);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    response.Success = true;
+                    response.Message = "Party created successfully.";
+                    return response;
                 }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
 
-                response.Success = false;
-                response.Message = $"CRITICAL ERROR: {ex.Message} -> INNER: {ex.InnerException?.Message}";
-                return response;
-            }
+                    if (!string.IsNullOrEmpty(PartyLogoPathUrl) && !PartyLogoPathUrl.Contains("default-Party_Logo.png"))
+                    {
+                        try
+                        {
+                            await _supaBaseFileService.DeleteFileAsync(PartyLogoPathUrl, bucketName);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            // Log the failure to delete orphaned file, but don't mask the original error
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned logo file after database error: {Path}", PartyLogoPathUrl);
+                        }
+                    }
+
+                    response.Success = false;
+                    response.Message = $"CRITICAL ERROR: {ex.Message} -> INNER: {ex.InnerException?.Message}";
+                    return response;
+                }
+            });
         }
         #endregion
+
 
         #region AllPartyAsync
         public async Task<PaginatedListViewModel<PartyViewModel>> AllPartyAsync(int pageNumber = 1, int pageSize = 10)

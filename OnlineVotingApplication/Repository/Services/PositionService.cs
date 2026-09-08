@@ -115,82 +115,86 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<ServiceResponse<string>> CreatePositionAsync(PositionDTO model, string userId, Guid electionId)
         {
             var response = new ServiceResponse<string>();
-            await using var transaction = await _context.Database.BeginTransactionAsync();
+            var strategy = _context.Database.CreateExecutionStrategy();
 
-            try
+            return await strategy.ExecuteAsync(async () =>
             {
-                var user = await _userManager.FindByIdAsync(userId);
-                if (user == null)
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
                 {
-                    response.Success = false;
-                    response.Message = "User doesn't exist";
-                    return response;
-                }
-
-                bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
-                bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
-
-                if (!isAdmin && !isOfficial)
-                {
-                    response.Success = false;
-                    response.Message = "Only authorized users have access to this feature";
-                    return response;
-                }
-
-                // Verify target election belongs to active tenant if not SuperAdmin
-                if (!isAdmin)
-                {
-                    Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-                    var electionExists = await _context.ElectionEvents
-                        .AnyAsync(e => e.Id == electionId && e.TenantId == activeTenantId);
-
-                    if (!electionExists)
+                    var user = await _userManager.FindByIdAsync(userId);
+                    if (user == null)
                     {
                         response.Success = false;
-                        response.Message = "Unauthorized or invalid election target for your organization.";
+                        response.Message = "User doesn't exist";
                         return response;
                     }
-                }
 
-                var positionName = model.Name?.Trim().ToUpper();
+                    bool isAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+                    bool isOfficial = await _userManager.IsInRoleAsync(user, "Official");
 
-                // Check uniqueness strictly within this specific election
-                var exists = await _context.Position
-                    .AnyAsync(m => m.ElectionEventId == electionId && m.Name == positionName && !m.IsDeleted);
+                    if (!isAdmin && !isOfficial)
+                    {
+                        response.Success = false;
+                        response.Message = "Only authorized users have access to this feature";
+                        return response;
+                    }
 
-                if (exists)
-                {
-                    response.Success = false;
-                    response.Message = "Position already exists for this election event.";
+                    // Verify target election belongs to active tenant if not SuperAdmin
+                    if (!isAdmin)
+                    {
+                        Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+                        var electionExists = await _context.ElectionEvents
+                            .AnyAsync(e => e.Id == electionId && e.TenantId == activeTenantId);
+
+                        if (!electionExists)
+                        {
+                            response.Success = false;
+                            response.Message = "Unauthorized or invalid election target for your organization.";
+                            return response;
+                        }
+                    }
+
+                    var positionName = model.Name?.Trim().ToUpper();
+
+                    // Check uniqueness strictly within this specific election
+                    var exists = await _context.Position
+                        .AnyAsync(m => m.ElectionEventId == electionId && m.Name == positionName && !m.IsDeleted);
+
+                    if (exists)
+                    {
+                        response.Success = false;
+                        response.Message = "Position already exists for this election event.";
+                        return response;
+                    }
+
+                    var newPosition = new Positions
+                    {
+                        Id = Guid.NewGuid(),
+                        Name = positionName ?? string.Empty,
+                        IsDeleted = false,
+                        ElectionEventId = electionId
+                    };
+
+                    _context.Position.Add(newPosition);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    _cache.Remove($"ref:Positions_Election_{electionId}");
+
+                    response.Success = true;
+                    response.Message = "Position created successfully";
                     return response;
                 }
-
-                var newPosition = new Positions
+                catch (Exception ex)
                 {
-                    Id = Guid.NewGuid(),
-                    Name = positionName ?? string.Empty,
-                    IsDeleted = false,
-                    ElectionEventId = electionId
-                };
-
-                _context.Position.Add(newPosition);
-                await _context.SaveChangesAsync();
-                await transaction.CommitAsync();
-
-                _cache.Remove($"ref:Positions_Election_{electionId}");
-
-                response.Success = true;
-                response.Message = "Position created successfully";
-                return response;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                response.Success = false;
-                response.Message = "An unexpected error occurred during database save operation.";
-                response.Errors = new List<string> { ex.Message, ex.InnerException?.Message ?? "" };
-                return response;
-            }
+                    await transaction.RollbackAsync();
+                    response.Success = false;
+                    response.Message = "An unexpected error occurred during database save operation.";
+                    response.Errors = new List<string> { ex.Message, ex.InnerException?.Message ?? "" };
+                    return response;
+                }
+            });
         }
         #endregion
 

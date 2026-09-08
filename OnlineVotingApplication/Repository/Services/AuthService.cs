@@ -139,8 +139,9 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             bool isSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isVoter = await _userManager.IsInRoleAsync(user, "Voter");
 
-            if (!isSuperAdmin)
+            if (!isSuperAdmin && !isVoter)
             {
                 var currentTenantId = _tenantProvider.GetCurrentTenantId();
 

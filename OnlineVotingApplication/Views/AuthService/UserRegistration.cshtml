@@ -30,7 +30,7 @@
                         <span class="fw-semibold text-primary">Creating your account…</span>
                     </div>
 
-                    <form id="registrationForm" asp-action="Register" method="post">
+                    <form asp-controller="AuthService" id="registrationForm" asp-action="UserRegistration" method="post">
                         @Html.AntiForgeryToken()
 
                         <div asp-validation-summary="ModelOnly" class="alert alert-danger p-2 small mb-3" role="alert"></div>

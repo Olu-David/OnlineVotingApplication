@@ -102,10 +102,39 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region ApplyAsCandidate
-        // ==========================================
-        // POST: Apply as a Candidate
-        // ==========================================
+        #region ApplyAsCandidate (1)
+
+        [HttpGet("apply")]
+        [Authorize(Roles = ("Voter"))]
+        public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
+        {
+            var election = await _context.ElectionEvents
+                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
+
+            if (election == null)
+            {
+                TempData["Error"] = "Election event not found.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            var positions = await _context.Position
+                .Where(p => p.ElectionEventId == electionEventId)
+                .ToListAsync();
+
+            var model = new CandidateApplicationViewModel
+            {
+                ElectionEventId = election.Id,
+                TenantId = election.TenantId,
+                PositionOptions = new SelectList(positions, "Id", "Name")
+            };
+
+            return View(model);
+        }
+        #endregion
+
+
+        #region ApplyAsCandidate(2)
+
         [HttpPost("apply")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
@@ -892,37 +921,6 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region ApplyAsCandidate (2)
-        // ==========================================
-        // GET: Apply as a Candidate
-        // ==========================================
 
-        [HttpGet("apply")]
-        [Authorize(Roles = ("Voter"))]
-        public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
-        {
-            var election = await _context.ElectionEvents
-                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
-
-            if (election == null)
-            {
-                TempData["Error"] = "Election event not found.";
-                return RedirectToAction("Index", "Home");
-            }
-
-            var positions = await _context.Position
-                .Where(p => p.ElectionEventId == electionEventId)
-                .ToListAsync();
-
-            var model = new CandidateApplicationViewModel
-            {
-                ElectionEventId = election.Id,
-                TenantId = election.TenantId,
-                PositionOptions = new SelectList(positions, "Id", "Name")
-            };
-
-            return View(model);
-        }
-        #endregion
     }
 }

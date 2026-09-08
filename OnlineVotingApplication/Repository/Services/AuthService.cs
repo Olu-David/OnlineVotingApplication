@@ -27,7 +27,7 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly ILogger<AuthService> _logger;
         private readonly NotificationChannel _channel;
 
-        #region AuthService
+        #region Constructor & Private Helpers
         public AuthService(
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
@@ -45,9 +45,7 @@ namespace OnlineVotingApplication.Repository.Services
             _logger = logger;
             _channel = channel;
         }
-        #endregion
 
-        #region EnsureRolesExistAsync
         private async Task EnsureRolesExistAsync(string[] roles)
         {
             foreach (var role in roles)
@@ -61,69 +59,67 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region RegisterUser
-        #region Registration
-
+        #region Registration & Authentication
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
         {
             var response = new ServiceResponse<ApplicationUser>();
-           
-         
+            var activeTenantId = _tenantProvider.GetCurrentTenantId();
 
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
-            try
+            if (activeTenantId == Guid.Empty)
             {
-                var newUser = new ApplicationUser
-                {
-                    Email = model.EmailAddress,
-                    UserName = model.EmailAddress,
-                    FullName = $"{model.FirstName} {model.LastName}",
-                    PhoneNumber = model.PhoneNumber,
-                    TenantId = null,
-                    EmailConfirmed = false,
-                    IsApproved = false
-                };
+                response.Message = "Invalid context: An official organization invite link is required.";
+                return response;
+            }
 
-                if (assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase))
-                {
-                    newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
-                }
-                var result = await _userManager.CreateAsync(newUser, model.Password ?? "");
-                if (!result.Succeeded)
-                {
-                    response.Errors = result.Errors.Select(e => e.Description).ToList();
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
 
-                    // CORRECTED: Join just the errors into the message property
-                    response.Message = string.Join(" | ", response.Errors);
+            return await strategy.ExecuteAsync(async () =>
+            {
+                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                try
+                {
+                    var newUser = new ApplicationUser
+                    {
+                        Email = model.EmailAddress,
+                        UserName = model.EmailAddress,
+                        FullName = $"{model.FirstName} {model.LastName}",
+                        PhoneNumber = model.PhoneNumber,
+                        TenantId = activeTenantId,
+                        EmailConfirmed = false,
+                        IsApproved = false
+                    };
 
-                    await transaction.RollbackAsync();
+                    if (assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase))
+                    {
+                        newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
+                    }
+
+                    var result = await _userManager.CreateAsync(newUser, model.Password ?? "");
+                    if (!result.Succeeded)
+                    {
+                        response.Errors = result.Errors.Select(e => e.Description).ToList();
+                        await transaction.RollbackAsync();
+                        return response;
+                    }
+
+                    await EnsureRolesExistAsync(new[] { assignedRole });
+                    await _userManager.AddToRoleAsync(newUser, assignedRole);
+
+                    await transaction.CommitAsync();
+                    response.Data = newUser;
+                    response.Success = true;
+                    response.Message = "Registration successful. Awaiting approval.";
                     return response;
                 }
-                await EnsureRolesExistAsync(new[] { assignedRole });
-                await _userManager.AddToRoleAsync(newUser, assignedRole);
-
-                await transaction.CommitAsync();
-                response.Data = newUser;
-                response.Success = true;
-                response.Message = "Registration successful. Awaiting approval.";
-                return response;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                _logger.LogError(ex, "Registration failure for {Email}", model.EmailAddress);
-
-                // TEMPORARY FIX: Expose the real error to your response message
-                response.Message = $"ERROR: {ex.Message} | Inner: {ex.InnerException?.Message}";
-                return response;
-            }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    _logger.LogError(ex, "Registration failure for {Email}", model.EmailAddress);
+                    response.Message = "An unexpected error occurred.";
+                    return response;
+                }
+            });
         }
-        #endregion
-
-        #region LoginUserAsync
-        #endregion
-
-        #region Core Authentication & Login
 
         public async Task<(SignInResult Result, bool RequiresTwoFactor, string? ErrorMessage)> LoginUserAsync(LoginViewModel model)
         {
@@ -132,8 +128,6 @@ namespace OnlineVotingApplication.Repository.Services
                 return (SignInResult.Failed, false, "Email and password are required.");
             }
 
-            // 1. Find the user safely, bypassing Global Query Filters (multi-tenancy) 
-            // This prevents the app from hiding the user when the tenant context is empty.
             string normalizedEmail = model.EmailAddress.ToUpperInvariant();
             var user = await _dbContext.Users
                 .IgnoreQueryFilters()
@@ -150,11 +144,10 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 var currentTenantId = _tenantProvider.GetCurrentTenantId();
 
-                // 2. Fallback: If the URL/request doesn't have a tenant yet, grab it from the user's account safely
                 if (currentTenantId == Guid.Empty && user.TenantId.HasValue && user.TenantId.Value != Guid.Empty)
                 {
-                    currentTenantId = user.TenantId.Value; // Safely unwrap the nullable Guid
-                    _tenantProvider.SetTenantContext(currentTenantId); // Force set it for this request session
+                    currentTenantId = user.TenantId.Value;
+                    _tenantProvider.SetTenantContext(currentTenantId);
                 }
 
                 if (currentTenantId == Guid.Empty)
@@ -162,20 +155,17 @@ namespace OnlineVotingApplication.Repository.Services
                     return (SignInResult.Failed, false, "You must enter through an active organization domain.");
                 }
 
-                // 3. Ensure user belongs to the active tenant context
                 if (!user.TenantId.HasValue || user.TenantId.Value != currentTenantId)
                 {
                     return (SignInResult.Failed, false, "Invalid email or password combination.");
                 }
             }
 
-            // 4. Ensure email is confirmed
             if (!await _userManager.IsEmailConfirmedAsync(user))
             {
                 return (SignInResult.NotAllowed, false, "Please confirm your email before logging in.");
             }
 
-            // 5. Attempt sign in using standard ASP.NET Identity sign-in manager
             var result = await _signInManager.PasswordSignInAsync(user, model.Password, model.RememberMe, lockoutOnFailure: true);
 
             if (result.Succeeded) return (result, false, null);
@@ -186,11 +176,8 @@ namespace OnlineVotingApplication.Repository.Services
             return (SignInResult.Failed, false, "Invalid email or password combination.");
         }
         #endregion
-        #region SendConfirmationTokenAsync
-        #endregion
 
-        #region Identity Token & Email Lifecycle Validation
-
+        #region Email Confirmation & Token Lifecycle
         public async Task<ServiceResponse<ApplicationUser>> SendConfirmationTokenAsync(ApplicationUser user, string confirmationLink)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -226,9 +213,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
-        #endregion
 
-        #region ConfirmEmailAsync
         public async Task<bool> ConfirmEmailAsync(string userId, string token)
         {
             if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token)) return false;
@@ -245,59 +230,7 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region TwoFactorAuthentication
-        public async Task<bool> TwoFactorAuthentication(ApplicationUser user)
-        {
-            if (user == null || !user.TwoFactorEnabled) return false;
-
-            var token = await _userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultEmailProvider);
-
-            try
-            {
-                string subject = "Your 2FA Login Code";
-                string message = $"Your security code is: <b>{token}</b>. It expires in 5 minutes.";
-
-                var emailJob = new NotificationJob(user.Email ?? "", subject, message, NotificationType.Email);
-                await _channel.Writer.WriteAsync(emailJob);
-
-                return true;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-        #endregion
-
-        #region ConfirmTwoFactorAsync
-        public async Task<ServiceResponse<ApplicationUser>> ConfirmTwoFactorAsync(string userId, string token, bool rememberMe)
-        {
-            var response = new ServiceResponse<ApplicationUser>();
-            var user = await _userManager.FindByIdAsync(userId);
-
-            if (user == null)
-            {
-                response.Success = false;
-                response.Message = "User session expired. Please login again.";
-                return response;
-            }
-
-            bool isValid = await _userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultEmailProvider, token);
-            if (!isValid)
-            {
-                response.Success = false;
-                response.Message = "Invalid or expired code.";
-                return response;
-            }
-
-            await _signInManager.SignInAsync(user, rememberMe);
-            response.Success = true;
-            response.Data = user;
-            return response;
-        }
-        #endregion
-
-        #region ForgotPasswordAsync
+        #region Password Management
         public async Task<bool> ForgotPasswordAsync(ApplicationUser user, string callbackUrl)
         {
             if (user == null || string.IsNullOrEmpty(callbackUrl)) return false;
@@ -330,9 +263,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return false;
             }
         }
-        #endregion
 
-        #region ResetPasswordAsync
         public async Task<ServiceResponse<ApplicationUser>> ResetPasswordAsync(ApplicationUser user, string token, string password)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -368,9 +299,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             return response;
         }
-        #endregion
 
-        #region ChangePasswordAsync
         public async Task<ServiceResponse<ApplicationUser>> ChangePasswordAsync(string userId, ChangePasswordDTO model)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -398,7 +327,66 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-        #region LockOutUserAsync
+        #region Two-Factor Authentication (2FA)
+        public async Task<bool> TwoFactorAuthentication(ApplicationUser user)
+        {
+            if (user == null || !user.TwoFactorEnabled) return false;
+
+            var token = await _userManager.GenerateTwoFactorTokenAsync(user, TokenOptions.DefaultEmailProvider);
+
+            try
+            {
+                string subject = "Your 2FA Login Code";
+                string message = $"Your security code is: <b>{token}</b>. It expires in 5 minutes.";
+
+                var emailJob = new NotificationJob(user.Email ?? "", subject, message, NotificationType.Email);
+                await _channel.Writer.WriteAsync(emailJob);
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public async Task<ServiceResponse<ApplicationUser>> ConfirmTwoFactorAsync(string userId, string token, bool rememberMe)
+        {
+            var response = new ServiceResponse<ApplicationUser>();
+            var user = await _userManager.FindByIdAsync(userId);
+
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "User session expired. Please login again.";
+                return response;
+            }
+
+            bool isValid = await _userManager.VerifyTwoFactorTokenAsync(user, TokenOptions.DefaultEmailProvider, token);
+            if (!isValid)
+            {
+                response.Success = false;
+                response.Message = "Invalid or expired code.";
+                return response;
+            }
+
+            await _signInManager.SignInAsync(user, rememberMe);
+            response.Success = true;
+            response.Data = user;
+            return response;
+        }
+
+        public async Task<bool> SetTwoFactorAuthentication(ApplicationUser user)
+        {
+            if (user == null) return false;
+            if (user.TwoFactorEnabled) return true;
+
+            var result = await _userManager.SetTwoFactorEnabledAsync(user, true);
+            return result.Succeeded;
+        }
+        #endregion
+
+        #region Account Administration & Lockout
         public async Task<ServiceResponse<ApplicationUser>> LockOutUserAsync(string userId)
         {
             var response = new ServiceResponse<ApplicationUser>();
@@ -425,19 +413,6 @@ namespace OnlineVotingApplication.Repository.Services
             response.Message = "User has been successfully locked out.";
             return response;
         }
-        #endregion
-
-        #region SetTwoFactorAuthentication
-        public async Task<bool> SetTwoFactorAuthentication(ApplicationUser user)
-        {
-            if (user == null) return false;
-            if (user.TwoFactorEnabled) return true;
-
-            var result = await _userManager.SetTwoFactorEnabledAsync(user, true);
-            return result.Succeeded;
-        }
-        #endregion
-
         #endregion
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using OnlineVotingApplication.Areas.Identity.Data;
@@ -89,10 +89,7 @@ namespace OnlineVotingApplication.Controllers
 
             if (user == null)
             {
-                isNewUserRegistration = true;
-
-                // 1. Verify token/provider key validity using your internal services
-                ServiceResponse<ApplicationUser> authResponse;
+                // Only new Voters are allowed to register via Google/External auth
                 if (info.LoginProvider == "Google")
                 {
                     authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
@@ -155,7 +152,7 @@ namespace OnlineVotingApplication.Controllers
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
             // 1. Respect explicit local returnUrl if available
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) && returnUrl != "/" && returnUrl != fallbackLoginPath)
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
                 return LocalRedirect(returnUrl);
             }
@@ -164,6 +161,12 @@ namespace OnlineVotingApplication.Controllers
             var roles = await _userManager.GetRolesAsync(user);
 
             // Handle runtime tracking context sync for brand new voters
+            if (isNewUserRegistration && !roles.Contains("Voter"))
+            {
+                roles.Add("Voter");
+            }
+
+            // FIX: Overrides internal entity memory lag for freshly created voters
             if (isNewUserRegistration && !roles.Contains("Voter"))
             {
                 roles.Add("Voter");
@@ -237,7 +240,7 @@ namespace OnlineVotingApplication.Controllers
                     }
                 }
 
-                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(code, firstName, lastName);
+                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(appleSubId ?? email, firstName, lastName);
 
                 if (!authResponse.Success || authResponse.Data == null)
                 {
@@ -252,15 +255,7 @@ namespace OnlineVotingApplication.Controllers
                 }
 
                 await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
-                _logger.LogInformation("User logged in successfully via Apple endpoint API.");
-
-                return Ok(new
-                {
-                    success = true,
-                    message = "Logged in successfully",
-                    userId = authResponse.Data.Id,
-                    roles = roles
-                });
+                return Ok(new { success = true, message = "Authenticated successfully via Apple", userId = authResponse.Data.Id });
             }
             catch (Exception ex)
             {
@@ -279,5 +274,4 @@ private string GenerateAppleClientSecret()
         }
         #endregion
     }
-
 }

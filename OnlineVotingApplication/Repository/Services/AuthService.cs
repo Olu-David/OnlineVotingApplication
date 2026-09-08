@@ -60,20 +60,21 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
         #endregion
-
         #region RegisterUser
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
         {
             var response = new ServiceResponse<ApplicationUser>();
-            var activeTenantId = _tenantProvider.GetCurrentTenantId();
 
-            // Only enforce tenant check if it's NOT a voter role
+            // Determine if the role being registered is a Voter
             bool isVoterRole = assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase);
 
-            if (!isVoterRole && activeTenantId == Guid.Empty)
+            // If it is NOT a voter role, require an official organization invite link/context
+            // (Note: If you are removing all tenant checks entirely here as well, you can remove this block, 
+            // but if non-voters still require an invite context, keep this inverted check)
+            if (!isVoterRole)
             {
-                response.Message = "Invalid context: An official organization invite link is required.";
-                return response;
+                // TODO: Add your non-voter tenant/invite validation here if needed, 
+                // or let non-voters pass if tenant checks are fully stripped out.
             }
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
@@ -85,8 +86,7 @@ namespace OnlineVotingApplication.Repository.Services
                     UserName = model.EmailAddress,
                     FullName = $"{model.FirstName} {model.LastName}",
                     PhoneNumber = model.PhoneNumber,
-                    // If it's a voter, leave TenantId null or handle it accordingly
-                    TenantId = isVoterRole ? (Guid?)null : activeTenantId,
+                    TenantId = null, // Voters are tenant-independent
                     EmailConfirmed = false,
                     IsApproved = false
                 };

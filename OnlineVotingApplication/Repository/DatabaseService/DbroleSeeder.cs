@@ -63,7 +63,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                         Id = Guid.NewGuid(),
                         Title = defaultElectionTitle,
                         Category = TenantCategory.Political,
-                        TenantId = defaultTenant.Id, // <-- Crucial: Tie election to default tenant
+                        TenantId = defaultTenant.Id, // Tie election to default tenant
                         CreatedAt = DateTime.UtcNow
                     };
 
@@ -94,7 +94,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                 }
 
                 // -------------------------------------------------------------
-                // 4. PREPARE SEED USERS 
+                // 4. PREPARE SEED USERS (Voter & Admins have null TenantId)
                 // -------------------------------------------------------------
                 var users = new List<(ApplicationUser User, string Password, string Role)>
                 {
@@ -102,7 +102,10 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     (new ApplicationUser { FullName = "Platform Co-Admin 1", UserName = "platformadmin1@election.com", Email = "platformadmin1@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
                     (new ApplicationUser { FullName = "Platform Co-Admin 2", UserName = "platformadmin2@election.com", Email = "platformadmin2@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "PlatformAdmin"),
                     (new ApplicationUser { FullName = "Election Official", UserName = "official@election.com", Email = "official@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Official"),
-                    (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Voter"),
+                    
+                    // Voter is independent of tenant (TenantId = null)
+                    (new ApplicationUser { FullName = "Voter User", UserName = "voter@election.com", Email = "voter@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = null }, "SecureP@ss123!", "Voter"),
+
                     (new ApplicationUser { FullName = "Auditor User", UserName = "auditor@election.com", Email = "auditor@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Auditor"),
                     (new ApplicationUser { FullName = "Candidate User", UserName = "candidate@election.com", Email = "candidate@election.com", EmailConfirmed = true, profileImage = "", StateId = null, TenantId = defaultTenant.Id }, "SecureP@ss123!", "Candidate")
                 };
@@ -115,12 +118,14 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                     try
                     {
                         var existingUser = await userManager.FindByEmailAsync(user.Email ?? "");
-                        bool isGlobalAdmin = role == "SuperAdmin" || role == "PlatformAdmin";
+
+                        // Define roles that are independent of a specific tenant organization
+                        bool isTenantIndependent = role == "SuperAdmin" || role == "PlatformAdmin" || role == "Voter";
 
                         if (existingUser == null)
                         {
-                            // Global admins are guaranteed null TenantId; standard roles get the defaultTenant.Id
-                            user.TenantId = isGlobalAdmin ? null : defaultTenant.Id;
+                            // Independent roles get null TenantId; standard organizational roles get defaultTenant.Id
+                            user.TenantId = isTenantIndependent ? null : defaultTenant.Id;
 
                             var result = await userManager.CreateAsync(user, password);
                             if (result.Succeeded)
@@ -143,7 +148,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                                 logger.LogInformation("Assigned missing role '{Role}' to existing user: {Email}", role, existingUser.Email);
                             }
 
-                            // Sync profile details and handle TenantId carefully
+                            // Sync profile details and handle TenantId correctly
                             bool changed = false;
 
                             if (existingUser.FullName != user.FullName)
@@ -152,7 +157,7 @@ namespace OnlineVotingApplication.Repository.DatabaseService
                                 changed = true;
                             }
 
-                            if (isGlobalAdmin)
+                            if (isTenantIndependent)
                             {
                                 if (existingUser.TenantId != null)
                                 {

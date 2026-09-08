@@ -19,7 +19,6 @@ namespace OnlineVotingApplication.Repository.Services
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly RoleManager<IdentityRole> _roleManager;
         private readonly AppDbContext _dbContext;
-        private readonly ITenantProvider _tenantProvider;
         private readonly ILogger<ExternalAuthService> _logger;
         private readonly IHttpClientFactory _httpClientFactory;
 
@@ -28,14 +27,12 @@ namespace OnlineVotingApplication.Repository.Services
             UserManager<ApplicationUser> userManager,
             RoleManager<IdentityRole> roleManager,
             AppDbContext dbContext,
-            ITenantProvider tenantProvider,
             ILogger<ExternalAuthService> logger,
             IHttpClientFactory httpClientFactory)
         {
             _userManager = userManager;
             _roleManager = roleManager;
             _dbContext = dbContext;
-            _tenantProvider = tenantProvider;
             _logger = logger;
             _httpClientFactory = httpClientFactory;
         }
@@ -59,13 +56,6 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<ServiceResponse<ApplicationUser>> AuthenticateGoogleUserAsync(string idToken)
         {
             var response = new ServiceResponse<ApplicationUser>();
-            var activeTenantId = _tenantProvider.GetCurrentTenantId();
-
-            if (activeTenantId == Guid.Empty)
-            {
-                response.Message = "Invalid context: An official organization workspace invitation link is required.";
-                return response;
-            }
 
             try
             {
@@ -77,14 +67,13 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                // Strictly assign "Voter" as the default external role
+                // Strictly assign "Voter" as the default external role (Tenant-independent)
                 return await ProcessExternalUserPipelineAsync(
                     payload.Email,
                     payload.GivenName ?? "",
                     payload.FamilyName ?? "",
                     "Google",
                     payload.Subject,
-                    activeTenantId,
                     "Voter"
                 );
             }
@@ -107,13 +96,6 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<ServiceResponse<ApplicationUser>> AuthenticateAppleUserAsync(string idToken, string firstName, string lastName)
         {
             var response = new ServiceResponse<ApplicationUser>();
-            var activeTenantId = _tenantProvider.GetCurrentTenantId();
-
-            if (activeTenantId == Guid.Empty)
-            {
-                response.Message = "Invalid context: An official organization workspace invitation link is required.";
-                return response;
-            }
 
             try
             {
@@ -142,14 +124,13 @@ namespace OnlineVotingApplication.Repository.Services
                     return response;
                 }
 
-                // Strictly assign "Voter" as the default external role
+                // Strictly assign "Voter" as the default external role (Tenant-independent)
                 return await ProcessExternalUserPipelineAsync(
                     emailClaim,
                     firstName,
                     lastName,
                     "Apple",
                     appleUserId,
-                    activeTenantId,
                     "Voter"
                 );
             }
@@ -164,7 +145,7 @@ namespace OnlineVotingApplication.Repository.Services
 
         #region Shared Core External Provisioning Pipeline
         private async Task<ServiceResponse<ApplicationUser>> ProcessExternalUserPipelineAsync(
-            string email, string firstName, string lastName, string providerName, string providerKey, Guid tenantId, string assignedRole)
+            string email, string firstName, string lastName, string providerName, string providerKey, string assignedRole)
         {
             var response = new ServiceResponse<ApplicationUser>();
 
@@ -173,13 +154,6 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (existingUser != null)
             {
-                // Safety guard checking multi-tenant consistency parameters
-                if (existingUser.TenantId != tenantId)
-                {
-                    response.Message = "This email profile is already bound to another localized organization space.";
-                    return response;
-                }
-
                 // Check if external login link mapping is missing
                 var logins = await _userManager.GetLoginsAsync(existingUser);
                 var matchingLogin = logins.FirstOrDefault(l => l.LoginProvider == providerName && l.ProviderKey == providerKey);
@@ -212,9 +186,9 @@ namespace OnlineVotingApplication.Repository.Services
                     FullName = string.IsNullOrWhiteSpace(firstName) && string.IsNullOrWhiteSpace(lastName)
                         ? $"External {providerName} User"
                         : $"{firstName} {lastName}".Trim(),
-                    TenantId = tenantId,
                     EmailConfirmed = true, // Third-party trusted provider has pre-verified email profile state
-                    IsApproved = false // Still sits unapproved until tenant admin oversight authorizes ballot usage
+                    IsApproved = false, // Awaiting administrative oversight review
+                    TenantId = null // Explicitly tenant-independent
                 };
 
                 if (assignedRole == "Voter")

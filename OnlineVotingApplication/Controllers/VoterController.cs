@@ -251,21 +251,52 @@ namespace OnlineVotingApplication.Controllers
 
             return View(response.Data);
         }
-
         [HttpGet]
-        public async Task<IActionResult> LiveResults(CancellationToken cancellationToken = default)
+        [Authorize]
+        public async Task<IActionResult> LiveResults(Guid electionEventId, CancellationToken cancellationToken = default)
         {
+            var userEmail = User.Identity?.Name?.Trim().ToLower();
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                TempData["Error"] = "You must be logged in to view live results.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // 1. Verify if the user has actually voted in this election event
+            bool hasVoted = await _context.Votes
+       .AnyAsync(v => v.ElectionId == electionEventId
+                   && v.Voter != null
+                   && v.Voter.Email!.ToLower() == userEmail,
+                 cancellationToken);
+            // 2. Allow elevated management roles (SuperAdmin, PlatformAdmin, Official) to view results anytime
+            bool isManagement = User.IsInRole("SuperAdmin") || User.IsInRole("PlatformAdmin") || User.IsInRole("Official");
+
+            if (!hasVoted && !isManagement)
+            {
+                TempData["Error"] = "You must cast your vote in this election before you can view the live results.";
+                return RedirectToAction("Details", "ElectionEvent", new { id = electionEventId });
+            }
+
+            // 3. Fetch vote counts filtered specifically for this election event
             var voteData = await _context.Candidate
-                .Select(c => new CandidateVoteDto
-                {
-                    CandidateName = c.Name ?? "",
-                    VoteCount = _context.Votes.Count(v => v.CandidateId == c.Id)
-                })
+                .Where(c => c.ElectionEventId == electionEventId)
+                .GroupJoin(
+                    _context.Votes.Where(v => v.ElectionId == electionEventId),
+                    candidate => candidate.Id,
+                    vote => vote.CandidateId,
+                    (candidate, votes) => new CandidateVoteDto
+                    {
+                        CandidateName = candidate.Name ?? "",
+                        VoteCount = votes.Count(),
+                        PositionName = candidate.Position != null ? candidate.Position.Name : "N/A"
+                    }
+                )
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "LiveResults";
+            ViewData["ElectionEventId"] = electionEventId;
 
             return View(voteData);
         }

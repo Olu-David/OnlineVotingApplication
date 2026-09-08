@@ -34,42 +34,42 @@
                        isAuditor ? "Auditor" :
                        isVoter ? "Voter" : "User";
 
-    // Maps to the role-badge--* colour variants defined in navbar.css,
-    // shared with the sidebar's per-role accent so a role reads the
-    // same everywhere it appears in the app.
     string roleBadgeClass = isSuperAdmin ? "role-badge--superadmin" :
-                       isOfficial ? "role-badge--official" :
-                       isCandidate ? "role-badge--candidate" :
-                       isAuditor ? "role-badge--auditor" :
-                       isVoter ? "role-badge--voter" : "role-badge--guest";
+                            isOfficial ? "role-badge--official" :
+                            isCandidate ? "role-badge--candidate" :
+                            isAuditor ? "role-badge--auditor" :
+                            isVoter ? "role-badge--voter" : "role-badge--guest";
 
     string userName = User.Identity?.Name ?? "User";
     string nameInitial = !string.IsNullOrEmpty(userName) ? userName.Substring(0, 1).ToUpper() : "?";
 }
 
-<nav class="navbar navbar-expand-lg navbar-dark shadow-sm" style="background:#1a2e5a; border-bottom:3px solid #f5a623;">
-    <div class="container">
+<nav class="navbar navbar-expand-lg navbar-dark votezy-navbar sticky-top shadow-sm">
+    <div class="container py-1">
 
         <!-- Brand Logo -->
-        <a asp-controller="Home" asp-action="Index" class="navbar-brand fw-bold">
-            <i class="fas fa-vote-yea me-2 text-warning"></i>Votezy
+        <a asp-controller="Home" asp-action="Index" class="navbar-brand fw-bold d-flex align-items-center gap-2">
+            <div class="brand-logo-badge shadow-sm">
+                <i class="fas fa-vote-yea text-dark"></i>
+            </div>
+            <span class="fs-4 tracking-wide text-white">Vote<span class="text-warning">zy</span></span>
         </a>
 
         <!-- Mobile Toggle Button -->
-        <button class="navbar-toggler border-0" type="button"
+        <button class="navbar-toggler border-0 shadow-none px-2 py-1" type="button"
                 data-bs-toggle="collapse" data-bs-target="#mainNavMenu"
                 aria-controls="mainNavMenu" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>
 
         <div class="collapse navbar-collapse" id="mainNavMenu">
-            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
                 <!-- Home Link -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Index"
-                       class="nav-link @(ctrl == "Home" && action == "Index" ? "active" : "")">
-                        <i class="fas fa-home me-1"></i> Home
+                       class="nav-link px-3 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
+                        <i class="fas fa-home me-1 text-warning opacity-75"></i> Home
                     </a>
                 </li>
 
@@ -78,8 +78,8 @@
                     <!-- Dashboard Link -->
                     <li class="nav-item">
                         <a asp-controller="@dashCtrl" asp-action="Index"
-                           class="nav-link dash-link @(ctrl == dashCtrl ? "active" : "")">
-                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                           class="nav-link px-3 rounded-pill transition-all @(ctrl == dashCtrl ? "active shadow-xs" : "")">
+                            <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
                         </a>
                     </li>
 
@@ -88,14 +88,14 @@
                     {
                         <li class="nav-item">
                             <a asp-controller="Ballot" asp-action="CastVote"
-                               class="nav-link vote-link @(ctrl == "Ballot" ? "active" : "")">
-                                <i class="fas fa-vote-yea me-1 text-warning"></i> Vote
+                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Ballot" ? "active shadow-xs" : "")">
+                                <i class="fas fa-vote-yea me-1 text-warning"></i> Cast Vote
                             </a>
                         </li>
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="MyVotes"
-                               class="nav-link @(ctrl == "Voter" && action == "MyVotes" ? "active" : "")">
-                                <i class="fas fa-history me-1"></i> My Votes
+                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Voter" && action == "MyVotes" ? "active shadow-xs" : "")">
+                                <i class="fas fa-history me-1 text-success opacity-75"></i> My Ballots
                             </a>
                         </li>
                     }
@@ -104,17 +104,17 @@
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle @(ctrl == "Candidate" ? "active" : "")"
+                            <a class="nav-link dropdown-toggle px-3 rounded-pill @(ctrl == "Candidate" ? "active" : "")"
                                role="button" data-bs-toggle="dropdown">
-                                <i class="fas fa-user-tie me-1"></i> Campaign
+                                <i class="fas fa-user-tie me-1 text-warning"></i> Campaign
                             </a>
-                            <ul class="dropdown-menu border-0 shadow">
-                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item"><i class="fas fa-home me-2"></i> Overview</a></li>
-                                <li><a asp-controller="Candidate" asp-action="Vote" class="dropdown-item"><i class="fas fa-vote-yea me-2"></i> Ballot view</a></li>
-                                <li><a asp-controller="Candidate" asp-action="Position" class="dropdown-item"><i class="fas fa-id-badge me-2"></i> Position</a></li>
-                                <li><hr class="dropdown-divider" /></li>
-                                <li><a asp-controller="Candidate" asp-action="Manifesto" class="dropdown-item"><i class="fas fa-scroll me-2"></i> Manifesto</a></li>
-                                <li><a asp-controller="Candidate" asp-action="VoteCount" class="dropdown-item"><i class="fas fa-chart-bar me-2"></i> Vote Count</a></li>
+                            <ul class="dropdown-menu border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown">
+                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-home me-2 text-primary"></i> Overview</a></li>
+                                <li><a asp-controller="Candidate" asp-action="Vote" class="dropdown-item rounded-2 py-2"><i class="fas fa-vote-yea me-2 text-warning"></i> Ballot view</a></li>
+                                <li><a asp-controller="Candidate" asp-action="Position" class="dropdown-item rounded-2 py-2"><i class="fas fa-id-badge me-2 text-info"></i> Position</a></li>
+                                <li><hr class="dropdown-divider my-1 opacity-25" /></li>
+                                <li><a asp-controller="Candidate" asp-action="Manifesto" class="dropdown-item rounded-2 py-2"><i class="fas fa-scroll me-2 text-success"></i> Manifesto</a></li>
+                                <li><a asp-controller="Candidate" asp-action="VoteCount" class="dropdown-item rounded-2 py-2"><i class="fas fa-chart-bar me-2 text-danger"></i> Vote Count</a></li>
                             </ul>
                         </li>
                     }
@@ -124,67 +124,67 @@
                     {
                         <li class="nav-item">
                             <a asp-controller="Auditor" asp-action="Logs"
-                               class="nav-link @(ctrl == "Auditor" ? "active" : "")">
-                                <i class="fas fa-file-alt me-1"></i> Audit Logs
+                               class="nav-link px-3 rounded-pill transition-all @(ctrl == "Auditor" ? "active shadow-xs" : "")">
+                                <i class="fas fa-file-alt me-1 text-danger opacity-75"></i> Audit Logs
                             </a>
                         </li>
                     }
 
                     <!-- Live Results Available to all authenticated users -->
                     <li class="nav-item">
-                        <a asp-controller="Results" asp-action="LiveCount"
-                           class="nav-link @(ctrl == "Results" ? "active" : "")">
-                            <i class="fas fa-chart-line me-1"></i> Live Results
+                        <a asp-controller="Voter" asp-action="LiveResults"
+                           class="nav-link px-3 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
+                            <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 7px; height: 7px;"></span> Live Results
                         </a>
                     </li>
                 }
 
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Privacy"
-                       class="nav-link @(ctrl == "Home" && action == "Privacy" ? "active" : "")">
+                       class="nav-link px-3 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
                         Privacy
                     </a>
                 </li>
             </ul>
 
             <!-- Right side: User Profile & Authentication actions -->
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10 border-top-0-lg">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
-                    <span class="role-badge @roleBadgeClass">@roleBadge</span>
+                    <span class="badge @roleBadgeClass px-3 py-2 rounded-pill fw-semibold shadow-sm">
+                        <i class="fas fa-shield-alt me-1 small"></i> @roleBadge
+                    </span>
 
                     <div class="dropdown">
-                        <button class="btn btn-outline-light d-flex align-items-center gap-2 dropdown-toggle"
+                        <button class="btn user-menu-btn d-flex align-items-center gap-2 dropdown-toggle border-0 rounded-pill px-2 py-1"
                                 type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center" style="width:30px; height:30px;">
+                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:34px; height:34px;">
                                 @nameInitial
                             </span>
-                            <span class="d-none d-lg-inline small">@userName</span>
+                            <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow">
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
                             <li>
-                                <div class="dropdown-item-text">
-                                    <div class="fw-semibold small text-truncate" style="max-width: 180px;">@userName</div>
-                                    <small class="text-muted">Role: @roleBadge</small>
+                                <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
+                                    <div class="fw-bold small text-dark text-truncate">@userName</div>
+                                    <small class="text-muted text-uppercase tracking-wider" style="font-size: 0.65rem;">Role: @roleBadge</small>
                                 </div>
                             </li>
-                            <li><hr class="dropdown-divider" /></li>
-                            <li><a asp-controller="@dashCtrl" asp-action="Index" class="dropdown-item"><i class="fas fa-tachometer-alt me-2"></i> Dashboard</a></li>
+                            <li><a asp-controller="@dashCtrl" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-tachometer-alt me-2 text-primary"></i> Dashboard</a></li>
 
                             @if (isVoter)
                             {
-                                <li><a asp-controller="Voter" asp-action="Profile" class="dropdown-item"><i class="fas fa-user-circle me-2"></i> Voter Profile</a></li>
+                                <li><a asp-controller="Voter" asp-action="Profile" class="dropdown-item rounded-2 py-2"><i class="fas fa-user-circle me-2 text-info"></i> Voter Profile</a></li>
                             }
                             @if (isCandidate)
                             {
-                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item"><i class="fas fa-user-tie me-2"></i> Candidate Portal</a></li>
+                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-user-tie me-2 text-warning"></i> Candidate Portal</a></li>
                             }
 
-                            <li><hr class="dropdown-divider" /></li>
+                            <li><hr class="dropdown-divider my-1 opacity-25" /></li>
                             <li>
-                                <!-- Integrated with your custom AuthServiceController Logout method -->
                                 <form asp-controller="AuthService" asp-action="Logout" method="post" class="m-0">
-                                    <button type="submit" class="dropdown-item text-danger">
+                                    <button type="submit" class="dropdown-item text-danger rounded-2 py-2 fw-semibold">
                                         <i class="fas fa-sign-out-alt me-2"></i> Sign Out
                                     </button>
                                 </form>
@@ -194,10 +194,79 @@
                 }
                 else
                 {
-                    <a asp-action="Login" asp-controller="AuthService" class="btn btn-outline-light btn-sm px-3">Sign In</a>
-                    <a asp-action="UserRegistration" asp-controller="AuthService" class="btn btn-warning btn-sm fw-semibold text-dark px-3">Register</a>
+                    <div class="d-flex align-items-center gap-2 w-100">
+                        <a asp-action="Login" asp-controller="AuthService" class="btn btn-outline-light btn-sm px-3 rounded-pill fw-semibold">Sign In</a>
+                        <a asp-action="UserRegistration" asp-controller="AuthService" class="btn btn-warning btn-sm fw-bold text-dark px-3 rounded-pill shadow-sm">Register</a>
+                    </div>
                 }
             </div>
         </div>
     </div>
 </nav>
+
+<!-- Navbar Styling Additions -->
+<style>
+    .votezy-navbar {
+        background: linear-gradient(135deg, #101d35 0%, #1a2e5a 100%);
+        border-bottom: 3px solid #f5a623;
+        backdrop-filter: blur(10px);
+    }
+
+    .brand-logo-badge {
+        width: 36px;
+        height: 36px;
+        background: #f5a623;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .votezy-navbar .nav-link {
+        color: rgba(255, 255, 255, 0.8) !important;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+        .votezy-navbar .nav-link:hover,
+        .votezy-navbar .nav-link:focus {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
+
+        .votezy-navbar .nav-link.active {
+            color: #ffffff !important;
+            background-color: #f5a623 !important;
+            color: #101d35 !important;
+            font-weight: 600;
+        }
+
+            .votezy-navbar .nav-link.active i {
+                color: #101d35 !important;
+            }
+
+    .user-menu-btn {
+        background-color: rgba(255, 255, 255, 0.05);
+        transition: background-color 0.2s ease;
+    }
+
+        .user-menu-btn:hover {
+            background-color: rgba(255, 255, 255, 0.12);
+        }
+
+    .animate-dropdown {
+        animation: fadeInDropdown 0.2s ease-in-out;
+    }
+
+    @@keyframes fadeInDropdown {
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+</style>

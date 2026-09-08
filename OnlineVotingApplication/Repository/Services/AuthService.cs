@@ -93,8 +93,8 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     response.Errors = result.Errors.Select(e => e.Description).ToList();
 
-                    // ADD THIS LINE: Join the errors into the message so it prints on screen
-                    response.Message = string.Join(" | ", response.Errors, response.Message);
+                    // CORRECTED: Join just the errors into the message property
+                    response.Message = string.Join(" | ", response.Errors);
 
                     await transaction.RollbackAsync();
                     return response;

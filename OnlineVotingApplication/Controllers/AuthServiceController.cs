@@ -45,16 +45,38 @@ namespace OnlineVotingApplication.Controllers
         [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> UserRegistration(RegistrationViewModel model, string roles = "Voter")
         {
-            if (!ModelState.IsValid) return View(model);
+            if (!ModelState.IsValid)
+            {
+                model.Password = string.Empty;
+                model.ConfirmPassword = string.Empty;
+                return View(model);
+            }
 
             var newUserResponse = await _authService.RegisterUser(model, roles);
             if (!newUserResponse.Success)
             {
-                foreach (var error in newUserResponse.Errors ?? Enumerable.Empty<string>())
+                // 1. Add Identity-specific errors if they exist
+                if (newUserResponse.Errors != null && newUserResponse.Errors.Any())
                 {
-                    ModelState.AddModelError(string.Empty, error);
+                    foreach (var error in newUserResponse.Errors)
+                    {
+                        ModelState.AddModelError(string.Empty, error);
+                    }
                 }
-                TempData["Error"] = newUserResponse.Message ?? "Registration failed.";
+
+                // 2. Fallback / Main Message: If a message exists and wasn't already added, show it
+                if (!string.IsNullOrEmpty(newUserResponse.Message) && !ModelState.Values.SelectMany(v => v.Errors).Any(e => e.ErrorMessage == newUserResponse.Message))
+                {
+                    ModelState.AddModelError(string.Empty, newUserResponse.Message);
+                }
+
+                // Ultimate fallback if both are empty
+                if (ModelState.ErrorCount == 0)
+                {
+                    ModelState.AddModelError(string.Empty, "An unexpected error occurred during registration.");
+                }
+                model.Password = string.Empty;
+                model.ConfirmPassword = string.Empty;
                 return View(model);
             }
 

@@ -60,20 +60,15 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
         #endregion
+
         #region RegisterUser
+        #region Registration
+
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
         {
             var response = new ServiceResponse<ApplicationUser>();
-
-            // 1. Check if user already exists
-            var existingUser = await _userManager.FindByEmailAsync(model.EmailAddress??"");
-            if (existingUser != null)
-            {
-                response.Message = "An account with this email address already exists.";
-                return response;
-            }
-
-            bool isVoterRole = assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase);
+           
+         
 
             using var transaction = await _dbContext.Database.BeginTransactionAsync();
             try
@@ -89,7 +84,7 @@ namespace OnlineVotingApplication.Repository.Services
                     IsApproved = false
                 };
 
-                if (isVoterRole)
+                if (assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase))
                 {
                     newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
                 }
@@ -115,7 +110,9 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 await transaction.RollbackAsync();
                 _logger.LogError(ex, "Registration failure for {Email}", model.EmailAddress);
-                response.Message = "An unexpected error occurred.";
+
+                // TEMPORARY FIX: Expose the real error to your response message
+                response.Message = $"ERROR: {ex.Message} | Inner: {ex.InnerException?.Message}";
                 return response;
             }
         }
@@ -439,6 +436,6 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-      
+        #endregion
     }
 }

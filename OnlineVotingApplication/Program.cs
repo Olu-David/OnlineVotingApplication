@@ -124,6 +124,11 @@ namespace OnlineVotingApplication
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
+            app.Use((context, next) =>
+            {
+                context.Request.Scheme = "https";
+                return next();
+            });
 
             if (app.Environment.EnvironmentName != "Testing")
             {
@@ -146,9 +151,10 @@ namespace OnlineVotingApplication
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
-            // Ensure the application listens on Render's required port (defaults to 10000 or uses PORT env variable)
+            
+            // Use the PORT variable dynamically without hardcoding "http://"
             var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
-            app.Urls.Add($"http://*:{port}");
+            app.Urls.Add($"http://0.0.0.0:{port}");
 
             await app.RunAsync();
         }

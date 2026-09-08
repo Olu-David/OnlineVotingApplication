@@ -83,7 +83,7 @@ public static class IdentityAndSecurityExtensions
             options.AccessDeniedPath = "/Home/AccessDenied";
             options.Cookie.HttpOnly = true;
             options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-            options.Cookie.SameSite = SameSiteMode.Strict;
+            options.Cookie.SameSite = SameSiteMode.Lax; // <-- Changed from Strict to Lax for OAuth support
             options.Cookie.Name = "OnlineVotingApplicationAuth";
             options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
             options.SlidingExpiration = true;

@@ -208,7 +208,6 @@
                 }
             </div>
         </main>
-
         <footer class="border-top footer text-muted py-5 bg-light">
             <div class="container">
                 <div class="mb-4">
@@ -216,57 +215,104 @@
                     <p class="text-muted small">Explore recent polls, category positions, and archived voting history.</p>
                 </div>
 
-                <div class="row row-cols-1 row-cols-md-3 row-cols-lg-5 g-3">
-                    @if (pastElectionsList.Any())
-                    {
-                        foreach (var election in pastElectionsList)
-                        {
-                            <div class="col">
-                                <div class="card h-100 shadow-sm border-secondary">
-                                    <div style="height: 120px; overflow: hidden; background-color: #e9ecef;" class="position-relative">
-                                        @if (!string.IsNullOrEmpty(election.ImageUrl))
-                                        {
-                                            <img src="@election.ImageUrl" class="w-100 h-100 object-fit-cover" alt="@election.Title" />
-                                        }
-                                        else
-                                        {
-                                            <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">
-                                                <i class="fa fa-image fa-2x"></i>
+                @if (pastElectionsList != null && pastElectionsList.Any())
+                {
+                    var topElections = pastElectionsList.Take(10).ToList();
+
+                    <!-- MOBILE VIEW: Vertical stack of up to 10 top elections -->
+                    <div class="d-md-none">
+                        <div class="row row-cols-1 g-3">
+                            @foreach (var election in topElections)
+                            {
+                                <div class="col">
+                                    <div class="card h-100 shadow-sm border-secondary card-compact">
+                                        <div class="row g-0 align-items-center">
+                                            <div class="col-4" style="height: 80px; background-color: #e9ecef;">
+                                                @if (!string.IsNullOrEmpty(election.ImageUrl))
+                                                {
+                                                    <img src="@election.ImageUrl" class="w-100 h-100 object-fit-cover rounded-start" alt="@election.Title" />
+                                                }
+                                                else
+                                                {
+                                                    <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                                        <i class="fa fa-image"></i>
+                                                    </div>
+                                                }
                                             </div>
-                                        }
-                                        <span class="position-absolute top-0 end-0 badge bg-dark m-1 small">Concluded</span>
-                                    </div>
-
-                                    <div class="card-body d-flex flex-column p-3">
-                                        <h6 class="card-title text-dark fw-bold text-truncate mb-1" title="@election.Title">
-                                            @election.Title
-                                        </h6>
-
-                                        <p class="card-text small text-primary mb-2 text-truncate" title="@election.Description">
-                                            <i class="fa fa-tag me-1"></i> @(!string.IsNullOrEmpty(election.Description) ? election.Description : "General Poll")
-                                        </p>
-
-                                        <div class="mt-auto">
-                                            <div class="text-muted small mb-2" style="font-size: 0.75rem;">
-                                                <i class="fa fa-calendar-check me-1"></i> Ended: @election.EndDate.ToString("MMM dd, yyyy")
+                                            <div class="col-8">
+                                                <div class="card-body py-2 px-3">
+                                                    <h6 class="card-title text-dark fw-bold text-truncate mb-1" style="font-size: 0.9rem;" title="@election.Title">
+                                                        @election.Title
+                                                    </h6>
+                                                    <div class="text-muted small mb-2" style="font-size: 0.7rem;">
+                                                        <i class="fa fa-calendar-check me-1"></i> Ended: @election.EndDate.ToString("MMM dd, yyyy")
+                                                    </div>
+                                                    <a asp-controller="Voter" asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark btn-sm py-0 px-2" style="font-size: 0.75rem;">
+                                                        View Results
+                                                    </a>
+                                                </div>
                                             </div>
-
-                                            <a asp-controller="Voter" asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark btn-sm w-100">
-                                                View Results
-                                            </a>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="col-12">
-                            <p class="text-muted small italic">No recent concluded elections found.</p>
+                            }
                         </div>
-                    }
-                </div>
+                    </div>
+
+                    <!-- DESKTOP / TABLET VIEW: Smooth horizontal scrolling carousel slider -->
+                    <div class="d-none d-md-block position-relative">
+                        <div class="election-slider-container overflow-x-auto pb-3" style="scrollbar-width: thin;">
+                            <div class="d-flex flex-row flex-nowrap gap-3" style="width: max-content;">
+                                @foreach (var election in topElections)
+                                {
+                                    <div style="width: 210px; flex: 0 0 auto;">
+                                        <div class="card h-100 shadow-sm border-secondary card-compact">
+                                            <div style="height: 90px; overflow: hidden; background-color: #e9ecef;" class="position-relative">
+                                                @if (!string.IsNullOrEmpty(election.ImageUrl))
+                                                {
+                                                    <img src="@election.ImageUrl" class="w-100 h-100 object-fit-cover" alt="@election.Title" />
+                                                }
+                                                else
+                                                {
+                                                    <div class="w-100 h-100 d-flex align-items-center justify-content-center text-muted">
+                                                        <i class="fa fa-image"></i>
+                                                    </div>
+                                                }
+                                                <span class="position-absolute top-0 end-0 badge bg-dark m-1" style="font-size: 0.55rem;">Concluded</span>
+                                            </div>
+
+                                            <div class="card-body d-flex flex-column p-2">
+                                                <h6 class="card-title text-dark fw-bold text-truncate mb-1" style="font-size: 0.85rem;" title="@election.Title">
+                                                    @election.Title
+                                                </h6>
+
+                                                <p class="card-text small text-primary mb-2 text-truncate" style="font-size: 0.75rem;" title="@election.Description">
+                                                    <i class="fa fa-tag me-1"></i> @(!string.IsNullOrEmpty(election.Description) ? election.Description : "General Poll")
+                                                </p>
+
+                                                <div class="mt-auto">
+                                                    <div class="text-muted small mb-2" style="font-size: 0.7rem;">
+                                                        <i class="fa fa-calendar-check me-1"></i> @election.EndDate.ToString("MMM dd, yyyy")
+                                                    </div>
+
+                                                    <a asp-controller="Voter" asp-action="Details" asp-route-id="@election.Id" class="btn btn-outline-dark btn-sm w-100 py-1" style="font-size: 0.75rem;">
+                                                        View Results
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="col-12">
+                        <p class="text-muted small fst-italic">No recent concluded elections found.</p>
+                    </div>
+                }
 
                 <div class="row mt-4 pt-3 border-top">
                     <div class="col-md-6 text-center text-md-start small">

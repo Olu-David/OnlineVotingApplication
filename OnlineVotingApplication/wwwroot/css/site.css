@@ -678,3 +678,16 @@
         margin: 2.5rem auto 0;
     }
 }
+/* Custom styling for sleek horizontal slider track */
+.election-slider-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.election-slider-container::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,0.2);
+    border-radius: 10px;
+}
+
+.election-slider-container::-webkit-scrollbar-track {
+    background: rgba(0,0,0,0.03);
+}

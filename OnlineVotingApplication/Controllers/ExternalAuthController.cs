@@ -89,7 +89,10 @@ namespace OnlineVotingApplication.Controllers
 
             if (user == null)
             {
-                // Only new Voters are allowed to register via Google/External auth
+                isNewUserRegistration = true;
+
+                // 1. Verify token/provider key validity using your internal services
+                ServiceResponse<ApplicationUser> authResponse;
                 if (info.LoginProvider == "Google")
                 {
                     authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
@@ -152,7 +155,7 @@ namespace OnlineVotingApplication.Controllers
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
             // 1. Respect explicit local returnUrl if available
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) && returnUrl != "/" && returnUrl != fallbackLoginPath)
             {
                 return LocalRedirect(returnUrl);
             }
@@ -161,12 +164,6 @@ namespace OnlineVotingApplication.Controllers
             var roles = await _userManager.GetRolesAsync(user);
 
             // Handle runtime tracking context sync for brand new voters
-            if (isNewUserRegistration && !roles.Contains("Voter"))
-            {
-                roles.Add("Voter");
-            }
-
-            // FIX: Overrides internal entity memory lag for freshly created voters
             if (isNewUserRegistration && !roles.Contains("Voter"))
             {
                 roles.Add("Voter");
@@ -240,7 +237,7 @@ namespace OnlineVotingApplication.Controllers
                     }
                 }
 
-                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(appleSubId ?? email, firstName, lastName);
+                var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(code, firstName, lastName);
 
                 if (!authResponse.Success || authResponse.Data == null)
                 {
@@ -255,7 +252,15 @@ namespace OnlineVotingApplication.Controllers
                 }
 
                 await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
-                return Ok(new { success = true, message = "Authenticated successfully via Apple", userId = authResponse.Data.Id });
+                _logger.LogInformation("User logged in successfully via Apple endpoint API.");
+
+                return Ok(new
+                {
+                    success = true,
+                    message = "Logged in successfully",
+                    userId = authResponse.Data.Id,
+                    roles = roles
+                });
             }
             catch (Exception ex)
             {
@@ -264,14 +269,15 @@ namespace OnlineVotingApplication.Controllers
             }
         }
         #endregion
-    
 
 
-#region Helpers
-private string GenerateAppleClientSecret()
+
+        #region Helpers
+        private string GenerateAppleClientSecret()
         {
             return "YOUR_GENERATED_APPLE_CLIENT_SECRET_JWT";
         }
         #endregion
     }
+
 }

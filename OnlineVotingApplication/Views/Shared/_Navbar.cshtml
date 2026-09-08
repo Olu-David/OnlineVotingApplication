@@ -76,13 +76,16 @@
 
                 @if (isAuth && !isBlocked)
                 {
-                    <!-- Dashboard Link -->
-                    <li class="nav-item">
-                        <a asp-controller="@dashCtrl" asp-action="Index"
-                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == "Index" ? "active shadow-xs" : "")">
-                            <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
-                        </a>
-                    </li>
+                    <!-- Dashboard Link (Hidden for candidates since they use the Campaign dropdown) -->
+                    @if (!isCandidate)
+                    {
+                        <li class="nav-item">
+                            <a asp-controller="@dashCtrl" asp-action="Index"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == "Index" ? "active shadow-xs" : "")">
+                                <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
+                            </a>
+                        </li>
+                    }
 
                     <!-- Voter Specific Navigation -->
                     @if (isVoter)
@@ -99,17 +102,27 @@
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" ? "active" : "")"
-                               role="button" data-bs-toggle="dropdown">
+                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" || (ctrl == "Voter" && (action == "BallotBreakdown" || action == "LiveResults")) ? "active" : "")"
+                               role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user-tie me-1 text-warning"></i> Campaign
                             </a>
                             <ul class="dropdown-menu border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown">
-                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-home me-2 text-primary"></i> Overview</a></li>
-                                <li><a asp-controller="Candidate" asp-action="Vote" class="dropdown-item rounded-2 py-2"><i class="fas fa-vote-yea me-2 text-warning"></i> Ballot view</a></li>
-                                <li><a asp-controller="Candidate" asp-action="Position" class="dropdown-item rounded-2 py-2"><i class="fas fa-id-badge me-2 text-info"></i> Position</a></li>
+                                <li>
+                                    <a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2 @(ctrl == "Candidate" && action == "Index" ? "active bg-light text-dark fw-bold" : "")">
+                                        <i class="fas fa-home me-2 text-primary"></i> Overview
+                                    </a>
+                                </li>
+                                <li>
+                                    <a asp-controller="Voter" asp-action="BallotBreakdown" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "BallotBreakdown" ? "active bg-light text-dark fw-bold" : "")">
+                                        <i class="fas fa-vote-yea me-2 text-warning"></i> Ballot Breakdown
+                                    </a>
+                                </li>
                                 <li><hr class="dropdown-divider my-1 opacity-25" /></li>
-                                <li><a asp-controller="Candidate" asp-action="Manifesto" class="dropdown-item rounded-2 py-2"><i class="fas fa-scroll me-2 text-success"></i> Manifesto</a></li>
-                                <li><a asp-controller="Candidate" asp-action="VoteCount" class="dropdown-item rounded-2 py-2"><i class="fas fa-chart-bar me-2 text-danger"></i> Vote Count</a></li>
+                                <li>
+                                    <a asp-controller="Voter" asp-action="LiveResults" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "LiveResults" ? "active bg-light text-dark fw-bold" : "")">
+                                        <span class="spinner-grow spinner-grow-sm me-2 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                                    </a>
+                                </li>
                             </ul>
                         </li>
                     }
@@ -125,13 +138,16 @@
                         </li>
                     }
 
-                    <!-- Live Results Available to all authenticated users -->
-                    <li class="nav-item">
-                        <a asp-controller="Voter" asp-action="LiveResults"
-                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
-                            <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
-                        </a>
-                    </li>
+                    <!-- Live Results Available to all authenticated users (except candidates who have it in their dropdown) -->
+                    @if (!isCandidate)
+                    {
+                        <li class="nav-item">
+                            <a asp-controller="Voter" asp-action="LiveResults"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
+                                <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                            </a>
+                        </li>
+                    }
                 }
 
                 <!-- Privacy Link -->

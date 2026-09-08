@@ -60,44 +60,40 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region Registration & Authentication
+
+        #region RegisterUser
         public async Task<ServiceResponse<ApplicationUser>> RegisterUser(RegistrationViewModel model, string assignedRole = "Voter")
         {
             var response = new ServiceResponse<ApplicationUser>();
             var activeTenantId = _tenantProvider.GetCurrentTenantId();
-
-            if (activeTenantId == Guid.Empty)
-            {
-                response.Message = "Invalid context: An official organization invite link is required.";
-                return response;
-            }
-
             var strategy = _dbContext.Database.CreateExecutionStrategy();
 
             return await strategy.ExecuteAsync(async () =>
             {
-                using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
                 try
                 {
                     var newUser = new ApplicationUser
                     {
                         Email = model.EmailAddress,
                         UserName = model.EmailAddress,
-                        FullName = $"{model.FirstName} {model.LastName}",
+                        FullName = $"{model.FirstName} {model.LastName}".Trim(),
                         PhoneNumber = model.PhoneNumber,
-                        TenantId = activeTenantId,
+                        TenantId = activeTenantId != Guid.Empty ? activeTenantId : null,
                         EmailConfirmed = false,
                         IsApproved = false
                     };
 
-                    if (assignedRole.Equals("Voter", StringComparison.OrdinalIgnoreCase))
+                    if (string.Equals(assignedRole, "Voter", StringComparison.OrdinalIgnoreCase))
                     {
-                        newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N").Substring(0, 6).ToUpper()}";
+                        newUser.VoterRegistrationID = $"VOT-{DateTime.Now:yyyyMMdd}-{Guid.NewGuid().ToString("N")[..6].ToUpperInvariant()}";
                     }
 
                     var result = await _userManager.CreateAsync(newUser, model.Password ?? "");
                     if (!result.Succeeded)
                     {
                         response.Errors = result.Errors.Select(e => e.Description).ToList();
+                        response.Success = false;
                         await transaction.RollbackAsync();
                         return response;
                     }
@@ -106,6 +102,7 @@ namespace OnlineVotingApplication.Repository.Services
                     await _userManager.AddToRoleAsync(newUser, assignedRole);
 
                     await transaction.CommitAsync();
+
                     response.Data = newUser;
                     response.Success = true;
                     response.Message = "Registration successful. Awaiting approval.";
@@ -115,11 +112,13 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     await transaction.RollbackAsync();
                     _logger.LogError(ex, "Registration failure for {Email}", model.EmailAddress);
+                    response.Success = false;
                     response.Message = "An unexpected error occurred.";
                     return response;
                 }
             });
         }
+        #endregion
 
         public async Task<(SignInResult Result, bool RequiresTwoFactor, string? ErrorMessage)> LoginUserAsync(LoginViewModel model)
         {

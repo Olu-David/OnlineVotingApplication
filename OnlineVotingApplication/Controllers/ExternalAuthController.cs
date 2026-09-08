@@ -58,19 +58,19 @@ namespace OnlineVotingApplication.Controllers
         [HttpGet]
         public async Task<IActionResult> ExternalLoginCallback(string? returnUrl = null, string? remoteError = null)
         {
-            returnUrl ??= Url.Content("~/");
+            string fallbackLoginPath = Url.Content("~/");
 
             if (remoteError != null)
             {
                 TempData["Error"] = $"Error from external provider: {remoteError}";
-                return RedirectToAction("Login", "Account");
+                return Redirect(fallbackLoginPath);
             }
 
             var info = await _signInManager.GetExternalLoginInfoAsync();
             if (info == null)
             {
                 TempData["Error"] = "Error loading external login information.";
-                return RedirectToAction("Login", "Account");
+                return Redirect(fallbackLoginPath);
             }
 
             var email = info.Principal.FindFirstValue(ClaimTypes.Email);
@@ -80,7 +80,7 @@ namespace OnlineVotingApplication.Controllers
             if (string.IsNullOrEmpty(email))
             {
                 TempData["Error"] = "External provider did not return an email address.";
-                return RedirectToAction("Login", "Account");
+                return Redirect(fallbackLoginPath);
             }
 
             var user = await _userManager.FindByEmailAsync(email);
@@ -88,7 +88,6 @@ namespace OnlineVotingApplication.Controllers
 
             if (user == null)
             {
-                // Matches the exact method signatures matching your interface definitions
                 if (info.LoginProvider == "Google")
                 {
                     authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
@@ -106,10 +105,9 @@ namespace OnlineVotingApplication.Controllers
             if (!authResponse.Success || authResponse.Data == null)
             {
                 TempData["Error"] = authResponse.Message ?? "Authentication processing failed.";
-                return RedirectToAction("Login", "Account");
+                return Redirect(fallbackLoginPath);
             }
 
-            // Ensure external login info is linked to the user account if not already
             var logins = await _userManager.GetLoginsAsync(authResponse.Data);
             if (!logins.Any(l => l.LoginProvider == info.LoginProvider && l.ProviderKey == info.ProviderKey))
             {
@@ -119,7 +117,28 @@ namespace OnlineVotingApplication.Controllers
             await _signInManager.SignInAsync(authResponse.Data, isPersistent: false);
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
-            return LocalRedirect(returnUrl);
+            // 1. Respect explicit returnUrl if available and safe
+            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+            {
+                return LocalRedirect(returnUrl);
+            }
+
+            // 2. Smart routing based on user roles (Sends voters straight to their page!)
+            if (await _userManager.IsInRoleAsync(authResponse.Data, "Voter"))
+            {
+                return RedirectToAction("Index", "Voter"); // Change "Index" / "Voter" to match your actual voter dashboard controller & action
+            }
+            else if (await _userManager.IsInRoleAsync(authResponse.Data, "SuperAdmin"))
+            {
+                return RedirectToAction("Index", "Admin"); // Change to match your admin route
+            }
+            else if (await _userManager.IsInRoleAsync(authResponse.Data, "Official"))
+            {
+                return RedirectToAction("Index", "Official"); // Change to match your official route
+            }
+
+            // 3. Ultimate fallback
+            return LocalRedirect("~/");
         }
         #endregion
 
@@ -132,7 +151,6 @@ namespace OnlineVotingApplication.Controllers
                 return BadRequest(new { success = false, message = "Google Access Token is missing." });
             }
 
-            // Matches: AuthenticateGoogleUserAsync(string idToken)
             var authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(model.AccessToken);
 
             if (!authResponse.Success || authResponse.Data == null)
@@ -193,7 +211,6 @@ namespace OnlineVotingApplication.Controllers
                     catch { /* Fallback parsing */ }
                 }
 
-                // Matches: AuthenticateAppleUserAsync(string idToken, string firstName, string lastName)
                 var authResponse = await _externalAuthService.AuthenticateAppleUserAsync(appleSubId ?? email, firstName, lastName);
 
                 if (!authResponse.Success || authResponse.Data == null)
@@ -219,5 +236,4 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
     }
-
 }

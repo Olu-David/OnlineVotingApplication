@@ -277,8 +277,12 @@ namespace OnlineVotingApplication.Controllers
 
             election.Title = model.Title;
             election.ElectionYear = model.ElectionYear;
-            election.StartDate = model.StartDate;
-            election.EndDate = model.EndDate;
+
+            // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
+            election.StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc);
+            election.EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc);
+            // ───────────────────────────────────────────────────
+
             election.IsActive = model.IsActive;
             election.Category = model.Category;
 

@@ -81,7 +81,7 @@ namespace OnlineVotingApplication.Controllers
         // Create Position
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Create(Guid? electionId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> CreatePosition(Guid? electionId, CancellationToken cancellationToken = default)
         {
             await PopulateElectionsViewBagAsync(electionId, cancellationToken);
             return View(new PositionDTO { ElectionId = electionId ?? Guid.Empty });
@@ -163,7 +163,7 @@ namespace OnlineVotingApplication.Controllers
         // Edit Position
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Edit(Guid id, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> EditPosition(Guid id, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
@@ -200,7 +200,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Edit(EditPositionModel model, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> EditPosition(EditPositionModel model, CancellationToken cancellationToken = default)
         {
             if (!ModelState.IsValid)
             {
@@ -269,7 +269,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> Delete(Guid id, Guid electionId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> DeletePosition(Guid id, Guid electionId, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");

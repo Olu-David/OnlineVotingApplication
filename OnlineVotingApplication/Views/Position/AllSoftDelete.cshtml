@@ -42,14 +42,15 @@
                         <tr>
                             <th class="ps-4 py-3">Position Name</th>
                             <th class="py-3">Deleted Date</th>
-                            <th class="text-end pe-4 py-3">Status</th>
+                            <th class="py-3">Status</th>
+                            <th class="text-end pe-4 py-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
                         @if (Model == null || Model.Items == null || !Model.Items.Any())
                         {
                             <tr>
-                                <td colspan="3" class="text-center py-5 text-muted">
+                                <td colspan="4" class="text-center py-5 text-muted">
                                     <i class="fas fa-trash fa-2x mb-2 d-block text-black-50"></i>
                                     No deleted positions found in the trash.
                                 </td>
@@ -59,7 +60,6 @@
                         {
                             @foreach (var position in Model.Items)
                             {
-                                // Updated to match position.Id and handle singular Position model namespace
                                 var rawMatch = softDeletedRawList?.FirstOrDefault(p => p.Id.ToString() == position.PositionId);
 
                                 <tr>
@@ -67,8 +67,25 @@
                                     <td class="text-muted">
                                         @(rawMatch != null ? rawMatch.DeletedAt.ToString("g") : "N/A")
                                     </td>
-                                    <td class="text-end pe-4">
+                                    <td>
                                         <span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">Soft Deleted</span>
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <div class="btn-group" role="group">
+                                            <!-- Unlink / Restore Button -->
+                                            <form asp-action="Restore" asp-route-id="@position.PositionId" method="post" class="d-inline">
+                                                <button type="submit" class="btn btn-sm btn-outline-success me-1" title="Unlink / Restore">
+                                                    <i class="fas fa-undo me-1"></i> Unlink
+                                                </button>
+                                            </form>
+
+                                            <!-- Permanent Delete Button -->
+                                            <form asp-controller="Position" asp-action="DeletePosition" asp-route-id="@position.PositionId" method="post" class="d-inline" onsubmit="return confirm('Are you sure you want to permanently delete this position? This action cannot be undone.');">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete Permanently">
+                                                    <i class="fas fa-trash-alt me-1"></i> Delete
+                                                </button>
+                                            </form>
+                                        </div>
                                     </td>
                                 </tr>
                             }

@@ -48,7 +48,7 @@ namespace OnlineVotingApplication.Repository.Services
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
 
-            var baseQuery = _context.Position
+            var baseQuery = _context.Position.IgnoreQueryFilters()
                 .AsNoTracking()
                 .Include(p => p.ElectionEvent)
                 .Where(p => p.ElectionEventId == electionGuid && !p.IsDeleted);

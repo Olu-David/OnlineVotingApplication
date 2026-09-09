@@ -63,7 +63,7 @@ namespace OnlineVotingApplication.Controllers
                 if (firstElection == Guid.Empty)
                 {
                     TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
-                    return RedirectToAction("Dashboard", "Tenant");
+                    return RedirectToAction("CreatePosition", "Position");
                 }
 
                 electionId = firstElection.ToString();

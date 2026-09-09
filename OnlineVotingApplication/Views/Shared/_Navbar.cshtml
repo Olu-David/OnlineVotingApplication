@@ -175,7 +175,9 @@
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
+                        <!-- UPDATE THIS LINE: Changed dropdown-menu-end to dropdown-menu-mobile-fix dropdown-menu-lg-end -->
+                   <ul class="dropdown-menu dropdown-menu-mobile-fix dropdown-menu-lg-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
+
                             <li>
                                 <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
                                     <div class="fw-bold small text-dark text-truncate">@userName</div>
@@ -274,6 +276,17 @@
     .animate-dropdown {
         animation: fadeInDropdown 0.2s ease-in-out;
     }
+
+
+@media (max-width: 991.98px) {
+    .dropdown-menu-mobile-fix {
+        position: absolute !important;
+        right: 0 !important;
+        left: auto !important;
+        transform: none !important;
+        float: none !important;
+    }
+}
 
     @@keyframes fadeInDropdown {
         from {

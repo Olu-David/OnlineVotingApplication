@@ -6,6 +6,7 @@ using OnlineVotingApplication.Config;
 using OnlineVotingApplication.Repository.iServices;
 using OnlineVotingApplication.Repository.Services;
 using Resend;
+using System.Threading.RateLimiting;
 
 namespace OnlineVotingApplication
 {
@@ -66,11 +67,52 @@ namespace OnlineVotingApplication
                 options.Cookie.IsEssential = true;
             });
 
-            // 7. External Auth Service Registrations – already done inside AddVotingInfrastructure
-            // No need to add them again here.
+            builder.Services.AddRateLimiter(options =>
+            {
+                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // 8. (Optional) Additional RateLimiter policies – but we already have a global one from AddCustomIdentityAndSecurity.
-            // We'll keep the container clean by not duplicating it.
+                // Your Global Limiter...
+                options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+                {
+                    var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetSlidingWindowLimiter(clientIp, _ =>
+                        new SlidingWindowRateLimiterOptions
+                        {
+                            PermitLimit = 20,
+                            Window = TimeSpan.FromMinutes(1),
+                            SegmentsPerWindow = 4,
+                            QueueLimit = 5
+                        });
+                });
+
+                // Your Strict Policy...
+                options.AddPolicy("StrictPolicy", httpContext =>
+                {
+                    var identifier = httpContext.User.Identity?.IsAuthenticated == true
+                        ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                        : httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(identifier, _ =>
+                        new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 10,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0
+                        });
+                });
+
+                options.OnRejected = async (context, token) =>
+                {
+                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+                    context.HttpContext.Response.ContentType = "application/json";
+                    await context.HttpContext.Response.WriteAsJsonAsync(new
+                    {
+                        success = false,
+                        message = "Too many failed attempts or requests. Please try again later."
+                    }, token);
+                };
+            });
 
             // ==========================================
             // BUILD THE APPLICATION

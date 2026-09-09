@@ -11,53 +11,53 @@ public static class IdentityAndSecurityExtensions
     public static IServiceCollection AddCustomIdentityAndSecurity(this IServiceCollection services)
     {
         // 1. DDoS and Brute Force Protection Engine (Rate Limiter)
-        services.AddRateLimiter(options =>
-        {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        //services.AddRateLimiter(options =>
+        //{
+        //    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-            // Global sliding window limiter (Protects all general routes by IP)
-            options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-            {
-                var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        //    // Global sliding window limiter (Protects all general routes by IP)
+        //    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        //    {
+        //        var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
-                return RateLimitPartition.GetSlidingWindowLimiter(clientIp, _ =>
-                    new SlidingWindowRateLimiterOptions
-                    {
-                        PermitLimit = 20,
-                        Window = TimeSpan.FromMinutes(1),
-                        SegmentsPerWindow = 4,
-                        QueueLimit = 5
-                    });
-            });
+        //        return RateLimitPartition.GetSlidingWindowLimiter(clientIp, _ =>
+        //            new SlidingWindowRateLimiterOptions
+        //            {
+        //                PermitLimit = 20,
+        //                Window = TimeSpan.FromMinutes(1),
+        //                SegmentsPerWindow = 4,
+        //                QueueLimit = 5
+        //            });
+        //    });
 
-            // Strict policy for critical/sensitive actions (Voting, Registration, Auth endpoints)
-            options.AddPolicy("StrictPolicy", httpContext =>
-            {
-                var identifier = httpContext.User.Identity?.IsAuthenticated == true
-                    ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
-                      ?? httpContext.Connection.RemoteIpAddress?.ToString()
-                    : httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+        //    // Strict policy for critical/sensitive actions (Voting, Registration, Auth endpoints)
+        //    options.AddPolicy("StrictPolicy", httpContext =>
+        //    {
+        //        var identifier = httpContext.User.Identity?.IsAuthenticated == true
+        //            ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+        //              ?? httpContext.Connection.RemoteIpAddress?.ToString()
+        //            : httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
 
-                return RateLimitPartition.GetFixedWindowLimiter(identifier, _ =>
-                    new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 10,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0
-                    });
-            });
+        //        return RateLimitPartition.GetFixedWindowLimiter(identifier, _ =>
+        //            new FixedWindowRateLimiterOptions
+        //            {
+        //                PermitLimit = 10,
+        //                Window = TimeSpan.FromMinutes(1),
+        //                QueueLimit = 0
+        //            });
+        //    });
 
-            options.OnRejected = async (context, token) =>
-            {
-                context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                context.HttpContext.Response.ContentType = "application/json";
-                await context.HttpContext.Response.WriteAsJsonAsync(new
-                {
-                    success = false,
-                    message = "Too many failed attempts or requests. Please try again later."
-                }, token);
-            };
-        });
+        //    options.OnRejected = async (context, token) =>
+        //    {
+        //        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        //        context.HttpContext.Response.ContentType = "application/json";
+        //        await context.HttpContext.Response.WriteAsJsonAsync(new
+        //        {
+        //            success = false,
+        //            message = "Too many failed attempts or requests. Please try again later."
+        //        }, token);
+        //    };
+        //});
 
         // 2. Identity Management Membership Strategy
         services.AddIdentity<ApplicationUser, IdentityRole>(options =>

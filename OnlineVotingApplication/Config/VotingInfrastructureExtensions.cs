@@ -81,7 +81,6 @@ public static class VotingInfrastructureExtensions
                 throw new InvalidOperationException("Could not determine database provider from connection string. Set 'DatabaseProvider' explicitly.");
             }
         }
-
         services.AddDbContext<AppDbContext>(options =>
         {
             if (usePostgres)
@@ -90,7 +89,9 @@ public static class VotingInfrastructureExtensions
                 {
                     npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                     npgsql.CommandTimeout(60);
-                });
+                })
+                // ─── ADD THIS LINE TO IGNORE THE WARNING ───
+                .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             }
             else
             {

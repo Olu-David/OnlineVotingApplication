@@ -108,7 +108,7 @@ namespace OnlineVotingApplication.Controllers
         [Authorize(Roles = ("Voter"))]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
-            var election = await _context.ElectionEvents
+            var election = await _context.ElectionEvents.IgnoreQueryFilters()
                 .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
 
             if (election == null)

@@ -39,17 +39,23 @@ namespace OnlineVotingApplication
             builder.Services.AddVotingInfrastructure(builder.Configuration, builder.Environment);
 
             // 4. Identity, Security & Google Auth Middleware
-            builder.Services.AddCustomIdentityAndSecurity();
-
             builder.Services.AddAuthentication()
     .AddGoogle(googleOptions =>
     {
         googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
         googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
         
-        // Ensure correlation cookie survives mobile-to-desktop view switches
         googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
         googleOptions.CorrelationCookie.SameSite = SameSiteMode.Lax;
+        googleOptions.CorrelationCookie.HttpOnly = true;
+
+        // Add this event to loosen restrictions on the correlation cookie during redirects
+        googleOptions.Events.OnRemoteFailure = context =>
+        {
+            context.Response.Redirect("/Home/Index?error=OAuthFailed");
+            context.HandleResponse();
+            return Task.CompletedTask;
+        };
     });
 
             // 5. Session Setup

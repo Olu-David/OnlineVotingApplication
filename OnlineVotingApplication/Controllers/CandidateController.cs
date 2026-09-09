@@ -8,6 +8,7 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using System.Net.WebSockets;
 using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
@@ -104,7 +105,7 @@ namespace OnlineVotingApplication.Controllers
 
         #region ApplyAsCandidate (1)
 
-
+        [HttpGet]
         [Authorize(Roles = ("Voter"))]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
@@ -139,6 +140,18 @@ namespace OnlineVotingApplication.Controllers
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
         {
+            var Voter= await _userManager.GetUserAsync(User);
+            if(Voter == null)
+            {
+                TempData["Error"] = "You must be logged in to apply as a candidate.";
+                return RedirectToAction("Login", "Account");
+            }
+            bool isVoter= await _userManager.IsInRoleAsync(Voter, "Voter");
+            if(!isVoter)
+            {
+                TempData["Error"] = "Only registered voters can apply as candidates.";
+                return RedirectToAction("Index", "Home");
+            }
             if (!ModelState.IsValid)
             {
                 var positions = await _context.Position.IgnoreQueryFilters()

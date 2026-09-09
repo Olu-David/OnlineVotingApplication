@@ -71,7 +71,7 @@ namespace OnlineVotingApplication
             {
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-                // Your Global Limiter...
+                // Global sliding window limiter (Protects all general routes by IP)
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
                 {
                     var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -85,7 +85,7 @@ namespace OnlineVotingApplication
                         });
                 });
 
-                // Your Strict Policy...
+                // Strict policy for critical/sensitive actions (Voting, Registration, Auth endpoints)
                 options.AddPolicy("StrictPolicy", httpContext =>
                 {
                     var identifier = httpContext.User.Identity?.IsAuthenticated == true
@@ -99,6 +99,19 @@ namespace OnlineVotingApplication
                             PermitLimit = 10,
                             Window = TimeSpan.FromMinutes(1),
                             QueueLimit = 0
+                        });
+                });
+
+                // ADDED: Standard policy to satisfy controllers currently looking for it
+                options.AddPolicy("StandardPolicy", httpContext =>
+                {
+                    var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+                    return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ =>
+                        new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 50,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 5
                         });
                 });
 

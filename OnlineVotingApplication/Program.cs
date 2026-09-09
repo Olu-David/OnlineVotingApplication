@@ -29,7 +29,10 @@ namespace OnlineVotingApplication
                            ?? string.Empty;
             });
 
-            // 3. Infrastructure & Database setup
+            // 3. 🔥 ADD IDENTITY & SECURITY FIRST (UserManager, RoleManager, Cookies, RateLimiter)
+            builder.Services.AddCustomIdentityAndSecurity();
+
+            // 4. Infrastructure & Database setup (now Identity is available)
             if (builder.Environment.IsEnvironment("Testing"))
             {
                 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -38,26 +41,24 @@ namespace OnlineVotingApplication
 
             builder.Services.AddVotingInfrastructure(builder.Configuration, builder.Environment);
 
-            // 4. Identity, Security & Google Auth Middleware
+            // 5. Google Authentication (uses Identity cookies)
             builder.Services.AddAuthentication()
-         .AddGoogle(googleOptions =>
-    {
-          googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
-          googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+                .AddGoogle(googleOptions =>
+                {
+                    googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+                    googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+                    googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+                    googleOptions.CorrelationCookie.SameSite = SameSiteMode.Lax;
+                    googleOptions.CorrelationCookie.HttpOnly = true;
+                    googleOptions.Events.OnRemoteFailure = context =>
+                    {
+                        context.Response.Redirect("/Home/Index?error=OAuthFailed");
+                        context.HandleResponse();
+                        return Task.CompletedTask;
+                    };
+                });
 
-             // Let ASP.NET Core automatically match the request scheme from Render's proxy headers
-         googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
-        googleOptions.CorrelationCookie.SameSite = SameSiteMode.Lax;
-        googleOptions.CorrelationCookie.HttpOnly = true;
-
-        googleOptions.Events.OnRemoteFailure = context =>
-        {
-            context.Response.Redirect("/Home/Index?error=OAuthFailed");
-            context.HandleResponse();
-            return Task.CompletedTask;
-        };
-    });
-            // 5. Session Setup
+            // 6. Session Setup
             builder.Services.AddSession(options =>
             {
                 options.IdleTimeout = TimeSpan.FromMinutes(30);
@@ -65,47 +66,11 @@ namespace OnlineVotingApplication
                 options.Cookie.IsEssential = true;
             });
 
-            // 6. External Auth Service Registrations
-            builder.Services.AddHttpClient<IGoogleAuthService, GoogleAuthService>(client =>
-            {
-                client.BaseAddress = new Uri("https://www.googleapis.com/");
-                client.DefaultRequestHeaders.Add("Accept", "application/json");
-            });
+            // 7. External Auth Service Registrations – already done inside AddVotingInfrastructure
+            // No need to add them again here.
 
-            builder.Services.AddHttpClient<IAppleAuthService, AppleAuthService>(client =>
-            {
-                client.BaseAddress = new Uri("https://appleid.apple.com/");
-                client.DefaultRequestHeaders.Add("Accept", "application/json");
-            });
-
-            // 7. Advanced Rate Limiter Policy Setup
-            builder.Services.AddRateLimiter(options =>
-            {
-                options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-
-                options.AddSlidingWindowLimiter("StandardPolicy", opt =>
-                {
-                    opt.PermitLimit = 100;
-                    opt.Window = TimeSpan.FromMinutes(1);
-                    opt.SegmentsPerWindow = 4;
-                    opt.QueueLimit = 5;
-                    opt.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
-                });
-
-                options.OnRejected = async (context, cancellationToken) =>
-                {
-                    context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
-                    if (context.HttpContext.Request.Headers["X-Requested-With"] == "XMLHttpRequest")
-                    {
-                        await context.HttpContext.Response.WriteAsJsonAsync(new { error = "Too many requests. Please try again later." }, cancellationToken);
-                    }
-                    else
-                    {
-                        context.HttpContext.Response.ContentType = "text/plain";
-                        await context.HttpContext.Response.WriteAsync("Too many requests. Please slow down.", cancellationToken);
-                    }
-                };
-            });
+            // 8. (Optional) Additional RateLimiter policies – but we already have a global one from AddCustomIdentityAndSecurity.
+            // We'll keep the container clean by not duplicating it.
 
             // ==========================================
             // BUILD THE APPLICATION
@@ -116,14 +81,13 @@ namespace OnlineVotingApplication
             var forwardedOptions = new ForwardedHeadersOptions
             {
                 ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
-                           Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+                                    Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
             };
-
-            // Crucial for Render: Clear default loopback restrictions
             forwardedOptions.KnownNetworks.Clear();
             forwardedOptions.KnownProxies.Clear();
-          
+
             app.UseForwardedHeaders(forwardedOptions);
+
             if (app.Environment.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -133,6 +97,8 @@ namespace OnlineVotingApplication
                 app.UseExceptionHandler("/Home/Error");
                 app.UseHsts();
             }
+
+            // Force HTTPS scheme for absolute URLs
             app.Use((context, next) =>
             {
                 context.Request.Scheme = "https";
@@ -150,7 +116,7 @@ namespace OnlineVotingApplication
             app.UseRouting();
             app.UseSession();
 
-            app.UseRateLimiter();
+            app.UseRateLimiter(); // The global rate limiter from AddCustomIdentityAndSecurity
 
             // Middleware execution order
             app.UseAuthentication();
@@ -160,7 +126,6 @@ namespace OnlineVotingApplication
                 name: "default",
                 pattern: "{controller=Home}/{action=Index}/{id?}");
 
-            
             // Use the PORT variable dynamically without hardcoding "http://"
             var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
             app.Urls.Add($"http://0.0.0.0:{port}");

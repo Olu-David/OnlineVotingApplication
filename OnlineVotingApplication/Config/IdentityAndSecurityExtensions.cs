@@ -83,14 +83,14 @@ services.ConfigureApplicationCookie(options =>
     options.LogoutPath = "/Home/Logout";
     options.AccessDeniedPath = "/Home/AccessDenied";
     options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // <-- Change this line
     options.Cookie.SameSite = SameSiteMode.Lax; 
     options.Cookie.Name = "OnlineVotingApplicationAuth";
     options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
     options.SlidingExpiration = true;
 });
 
-  // 3. Application Security Cookie Policies
+  // 4. Application Security Cookie Policies
 services.ConfigureExternalCookie(options =>
 {
     options.Cookie.Name = "OnlineVotingApplicationExternalCookie";

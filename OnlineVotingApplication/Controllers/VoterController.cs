@@ -18,17 +18,19 @@ namespace OnlineVotingApplication.Controllers
         private readonly IVoteService _voteService;
         private readonly IAuditLogService _auditLogService;
         private readonly ITenantProvider _tenantProvider;
-
+        private readonly ILogger<VoterController> _logger;
         public VoterController(
             AppDbContext context,
             IVoteService voteService,
             IAuditLogService auditLogService,
-            ITenantProvider tenantProvider)
+            ITenantProvider tenantProvider,
+            ILogger<VoterController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _voteService = voteService ?? throw new ArgumentNullException(nameof(voteService));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         // ─── Helper: tenant check only for admin roles ─────────────────────────────
@@ -48,12 +50,7 @@ namespace OnlineVotingApplication.Controllers
         // GET: /Voter/Index – shows all elections (no tenant filter)
         [HttpGet]
         [Authorize(Roles = "Voter")]
-        public async Task<IActionResult> Index(
-     string? searchTerm,
-     string? sortBy,
-     int page = 1,
-     int pageSize = 10,
-     CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Index(string? searchTerm,string? sortBy,int page = 1,int pageSize = 10,CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Index";
@@ -87,7 +84,15 @@ namespace OnlineVotingApplication.Controllers
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Details";
 
-            var election = await _context.ElectionEvents
+            _logger.LogInformation("Details called with Id: {Id}", id);
+
+            if (id == Guid.Empty)
+            {
+                TempData["ErrorMessage"] = "Invalid election ID.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            var election = await _context.ElectionEvents.IgnoreQueryFilters()
                 .Include(e => e.Positions!)!
                     .ThenInclude(p => p.Candidates!)
                 .AsNoTracking()
@@ -95,7 +100,8 @@ namespace OnlineVotingApplication.Controllers
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election not found.";
+                _logger.LogWarning("Election with Id {Id} not found in the database.", id);
+                TempData["ErrorMessage"] = "Election not found. It may have been deleted or you may have followed an outdated link.";
                 return RedirectToAction(nameof(Index));
             }
 
@@ -111,7 +117,6 @@ namespace OnlineVotingApplication.Controllers
 
             return View(election);
         }
-
         // GET: /Voter/RequestCode
         [HttpGet]
         [Authorize(Roles = "Voter")]

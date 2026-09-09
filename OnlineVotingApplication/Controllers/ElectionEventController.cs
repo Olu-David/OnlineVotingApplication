@@ -161,17 +161,14 @@ namespace OnlineVotingApplication.Controllers
                 TempData["ErrorMessage"] = "Active organization context not found.";
                 return RedirectToAction(nameof(Index));
             }
+
             var election = new ElectionEvent
             {
                 Id = Guid.NewGuid(),
                 Title = model.Title,
                 ElectionYear = model.ElectionYear,
-
-                // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
-                StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc),
-                EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc),
-                // ───────────────────────────────────────────────────
-
+                StartDate = model.StartDate,
+                EndDate = model.EndDate,
                 IsActive = model.IsActive,
                 Category = model.Category,
                 TenantId = effectiveTenantId,
@@ -277,12 +274,8 @@ namespace OnlineVotingApplication.Controllers
 
             election.Title = model.Title;
             election.ElectionYear = model.ElectionYear;
-
-            // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
-            election.StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc);
-            election.EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc);
-            // ───────────────────────────────────────────────────
-
+            election.StartDate = model.StartDate;
+            election.EndDate = model.EndDate;
             election.IsActive = model.IsActive;
             election.Category = model.Category;
 

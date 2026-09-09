@@ -117,7 +117,7 @@ namespace OnlineVotingApplication
             // Crucial for Render: Clear default loopback restrictions
             forwardedOptions.KnownNetworks.Clear();
             forwardedOptions.KnownProxies.Clear();
-
+          
             app.UseForwardedHeaders(forwardedOptions);
             if (app.Environment.IsDevelopment())
             {

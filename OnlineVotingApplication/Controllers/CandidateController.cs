@@ -104,8 +104,8 @@ namespace OnlineVotingApplication.Controllers
 
         #region ApplyAsCandidate (1)
 
-        [HttpGet("apply")]
-        [Authorize(Roles = ("Voter"))]
+
+        [Authorize(Roles = ("voter"))]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
             var election = await _context.ElectionEvents.IgnoreQueryFilters()
@@ -117,7 +117,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Home");
             }
 
-            var positions = await _context.Position
+            var positions = await _context.Position.IgnoreQueryFilters()
                 .Where(p => p.ElectionEventId == electionEventId)
                 .ToListAsync();
 
@@ -141,7 +141,7 @@ namespace OnlineVotingApplication.Controllers
         {
             if (!ModelState.IsValid)
             {
-                var positions = await _context.Position
+                var positions = await _context.Position.IgnoreQueryFilters()
                     .Where(p => p.ElectionEventId == model.ElectionEventId)
                     .ToListAsync();
 

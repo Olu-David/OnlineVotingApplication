@@ -164,8 +164,8 @@ namespace OnlineVotingApplication.Controllers
             var election = new ElectionEvent
             {
                 Id = Guid.NewGuid(),
-                Title = model.Title,
-                ElectionYear = model.ElectionYear,
+                Title = model?.Title??"",
+                ElectionYear = model!.ElectionYear,
 
                 // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
                 StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc),
@@ -275,7 +275,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(Index));
             }
 
-            election.Title = model.Title;
+            election.Title = model.Title??"";
             election.ElectionYear = model.ElectionYear;
 
             // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────

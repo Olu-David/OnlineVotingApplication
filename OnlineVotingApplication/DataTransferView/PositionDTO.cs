@@ -11,7 +11,7 @@ namespace OnlineVotingApplication.DataTransferView
         [Required]
         public int MaxChoice { get; set; } = 1;
         [Required]
-        public Guid? ElectionId { get; set; }
+        public Guid ElectionId { get; set; }
         public Guid? CandidateId {  get; set; }
 
         public virtual ICollection<CandidateViewModel>? Candidates { get; set; }

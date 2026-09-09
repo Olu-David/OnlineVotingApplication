@@ -128,7 +128,7 @@ namespace OnlineVotingApplication.Repository.Services
                     var election = new ElectionEvent
                     {
                         Id = model.Id == Guid.Empty ? Guid.NewGuid() : model.Id,
-                        Title = model.Title,
+                        Title = model.Title??"",
                         Description = model.Description,
                         ElectionYear = DateTime.UtcNow.Year,
                         StartDate = model.StartDate,

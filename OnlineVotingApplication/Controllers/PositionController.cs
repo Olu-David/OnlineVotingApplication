@@ -43,35 +43,36 @@ namespace OnlineVotingApplication.Controllers
         // Index / List Positions
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> CreatePosition(string? electionId)
+        public async Task<IActionResult> Index(string? electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // Fetch the raw items
-            var electionEntities = await _context.ElectionEvents
-                .AsNoTracking()
-                .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
-                .OrderByDescending(e => e.CreatedAt)
-                .ToListAsync();
-
-            // Map to SelectListItem
-            var selectListItems = electionEntities.Select(e => new SelectListItem
+            if (string.IsNullOrEmpty(electionId))
             {
-                Value = e.Id.ToString(),
-                Text = e.Title // Double-check if your database column is 'Title' or 'Name'
-            }).ToList();
+                var firstElection = await _context.ElectionEvents
+                    .AsNoTracking()
+                    .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .Select(e => e.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
 
-            // Assign as a true SelectList object
-            ViewBag.ElectionEvents = new SelectList(selectListItems, "Value", "Text", electionId);
-            ViewBag.IsSuperAdmin = isSuperAdmin;
+                if (firstElection == Guid.Empty)
+                {
+                    TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
+                    return RedirectToAction("Dashboard", "Tenant");
+                }
 
-            var model = new PositionDTO
-            {
-                ElectionId = string.IsNullOrEmpty(electionId) ? Guid.Empty : Guid.Parse(electionId)
-            };
+                electionId = firstElection.ToString();
+            }
 
-            return View(model);
+            ViewBag.ElectionId = electionId;
+            var paginatedPositions = await _positionService.GetAllPositionsAsync(electionId, pageNumber, pageSize);
+
+            return View(paginatedPositions);
         }
         #endregion
 
@@ -80,6 +81,8 @@ namespace OnlineVotingApplication.Controllers
         // Create Position
         // ─────────────────────────────────────────────
         [HttpGet]
+        #region Create (GET)
+        [HttpGet]
         public async Task<IActionResult> CreatePosition(Guid? electionId, CancellationToken cancellationToken = default)
         {
             await PopulateElectionsViewBagAsync(electionId, cancellationToken);
@@ -87,7 +90,7 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region Create (2)
+        #region Create (POST)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
@@ -102,7 +105,7 @@ namespace OnlineVotingApplication.Controllers
 
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            if (model.ElectionId == null || model.ElectionId == Guid.Empty)
+            if (model.ElectionId == Guid.Empty)
             {
                 ModelState.AddModelError(nameof(model.ElectionId), "Please select a valid election event.");
             }
@@ -117,7 +120,7 @@ namespace OnlineVotingApplication.Controllers
 
                 var belongsToTenant = await _context.ElectionEvents
                     .AsNoTracking()
-                    .AnyAsync(e => e.Id == model.ElectionId.Value && e.TenantId == activeTenantId, cancellationToken);
+                    .AnyAsync(e => e.Id == model.ElectionId && e.TenantId == activeTenantId, cancellationToken);
 
                 if (!belongsToTenant)
                 {
@@ -127,11 +130,12 @@ namespace OnlineVotingApplication.Controllers
 
             if (!ModelState.IsValid)
             {
+                // Repopulates the dropdown so the view doesn't crash when redisplaying with errors!
                 await PopulateElectionsViewBagAsync(model.ElectionId, cancellationToken);
                 return View(model);
             }
 
-            var result = await _positionService.CreatePositionAsync(model, userId, model.ElectionId!.Value);
+            var result = await _positionService.CreatePositionAsync(model, userId, model.ElectionId);
 
             if (!result.Success)
             {
@@ -156,13 +160,14 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(Index), new { electionId = model.ElectionId });
         }
         #endregion
+        #endregion
 
         #region Edit
         // ─────────────────────────────────────────────
         // Edit Position
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> EditPosition(Guid id, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Edit(Guid id, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
@@ -199,7 +204,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> EditPosition(EditPositionModel model, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Edit(EditPositionModel model, CancellationToken cancellationToken = default)
         {
             if (!ModelState.IsValid)
             {
@@ -268,7 +273,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> DeletePosition(Guid id, Guid electionId, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Delete(Guid id, Guid electionId, CancellationToken cancellationToken = default)
         {
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");

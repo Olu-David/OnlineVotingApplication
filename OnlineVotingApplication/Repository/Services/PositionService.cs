@@ -80,7 +80,7 @@ namespace OnlineVotingApplication.Repository.Services
                     {
                         Id = m.Id,
                         Name = m.Name,
-                        ElectionId = m.ElectionEventId
+                        ElectionId = m.ElectionEventId??Guid.Empty
                     })
                     .ToListAsync();
 
@@ -344,7 +344,7 @@ namespace OnlineVotingApplication.Repository.Services
                     {
                         Id = m.Id,
                         Name = m.Name,
-                        ElectionId = m.ElectionEventId
+                        ElectionId = m.ElectionEventId??Guid.Empty
                     })
                     .ToListAsync();
 

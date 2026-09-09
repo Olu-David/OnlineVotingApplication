@@ -15,7 +15,7 @@ namespace OnlineVotingApplication.Controllers
     public class ExternalAuthController : Controller
     {
         private readonly iExternalAuthService _externalAuthService;
-        private readonly IAppleAuthService _appleAuthService;
+        private readonly IAppleAuthService _appleAuthService; // if you need it for API
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly ILogger<ExternalAuthController> _logger;
@@ -67,16 +67,10 @@ namespace OnlineVotingApplication.Controllers
                 return Redirect(fallbackLoginPath);
             }
 
-            // Diagnostic check to verify cookies are reaching Render
-            foreach (var cookie in Request.Cookies)
-            {
-                _logger.LogInformation("Incoming Cookie -> Key: {Key}, Value Length: {Length}", cookie.Key, cookie.Value?.Length);
-            }
-
             var info = await _signInManager.GetExternalLoginInfoAsync();
             if (info == null)
             {
-                _logger.LogError("CRITICAL: GetExternalLoginInfoAsync returned null. External cookie was dropped on votezy.com.ng.");
+                _logger.LogError("CRITICAL: GetExternalLoginInfoAsync returned null.");
                 TempData["Error"] = "Error loading external login information.";
                 return Redirect(fallbackLoginPath);
             }
@@ -92,7 +86,7 @@ namespace OnlineVotingApplication.Controllers
                 return Redirect(fallbackLoginPath);
             }
 
-            // Look up if user already exists in local DB
+            // Look up if user already exists
             var user = await _userManager.FindByEmailAsync(email);
             bool isNewUserRegistration = false;
 
@@ -100,31 +94,13 @@ namespace OnlineVotingApplication.Controllers
             {
                 isNewUserRegistration = true;
 
-                // 1. Verify token/provider key validity using your internal services
-                ServiceResponse<ApplicationUser> authResponse;
-                if (info.LoginProvider == "Google")
-                {
-                    authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(info.ProviderKey);
-                }
-                else
-                {
-                    authResponse = await _externalAuthService.AuthenticateAppleUserAsync(info.ProviderKey, firstName, lastName);
-                }
-
-                if (!authResponse.Success)
-                {
-                    _logger.LogError("External validation failed for {Email}: {Message}", email, authResponse.Message);
-                    TempData["Error"] = authResponse.Message ?? "External validation failed.";
-                    return Redirect(fallbackLoginPath);
-                }
-
-                // 2. Instantiate and Save the User to Identity Database
+                // 1. Create a new user (NO token validation – the provider already validated the user)
                 user = new ApplicationUser
                 {
                     UserName = email,
                     Email = email,
                     EmailConfirmed = true,
-                    FullName = $"{firstName} {lastName}",
+                    FullName = $"{firstName} {lastName}".Trim(),
                     TenantId = null,
                     PhoneNumber = info.Principal.FindFirstValue(ClaimTypes.MobilePhone) ?? info.Principal.FindFirstValue(ClaimTypes.HomePhone)
                 };
@@ -137,16 +113,16 @@ namespace OnlineVotingApplication.Controllers
                     return Redirect(fallbackLoginPath);
                 }
 
-                // 3. Link external login provider identity info to the newly created local user
+                // 2. Link external login to the new user
                 var linkLoginResult = await _userManager.AddLoginAsync(user, info);
                 if (!linkLoginResult.Succeeded)
                 {
                     _logger.LogError("Failed to link external login for {Email}", email);
-                    TempData["Error"] = "Failed to link external login identity provider to account.";
+                    TempData["Error"] = "Failed to link external login.";
                     return Redirect(fallbackLoginPath);
                 }
 
-                // 4. Grant user the designated Voter security access role
+                // 3. Assign default role (Voter)
                 if (!await _userManager.IsInRoleAsync(user, "Voter"))
                 {
                     await _userManager.AddToRoleAsync(user, "Voter");
@@ -154,7 +130,7 @@ namespace OnlineVotingApplication.Controllers
             }
             else
             {
-                // Existing user: Link the provider login if they haven't logged in with this provider before
+                // Existing user: Link the provider if not already linked
                 var logins = await _userManager.GetLoginsAsync(user);
                 if (!logins.Any(l => l.LoginProvider == info.LoginProvider && l.ProviderKey == info.ProviderKey))
                 {
@@ -162,20 +138,17 @@ namespace OnlineVotingApplication.Controllers
                 }
             }
 
-            // Sign the verified user into the HTTP Context Session
+            // Sign in the user
             await _signInManager.SignInAsync(user, isPersistent: false);
             _logger.LogInformation("{Email} logged in successfully via web flow ({Provider}).", email, info.LoginProvider);
 
-            // 1. Respect explicit local returnUrl if available
+            // Redirect logic
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl) && returnUrl != "/" && returnUrl != fallbackLoginPath)
             {
                 return LocalRedirect(returnUrl);
             }
 
-            // 2. Dynamic Role-based Routing
             var roles = await _userManager.GetRolesAsync(user);
-
-            // Handle runtime tracking context sync for brand new voters
             if (isNewUserRegistration && !roles.Contains("Voter"))
             {
                 roles.Add("Voter");
@@ -192,13 +165,11 @@ namespace OnlineVotingApplication.Controllers
             if (roles.Contains("Voter"))
                 return RedirectToAction("Index", "Voter");
 
-            // 3. Ultimate fallback
-            _logger.LogWarning("User {Email} authenticated successfully but had no matching role, falling back to Home Index.", email);
             return RedirectToAction("Index", "Home");
         }
         #endregion
 
-        #region API / Direct Token Callbacks (JSON Responses)
+        #region API / Direct Token Callbacks (JSON Responses) – unchanged
         [HttpPost("google-callback")]
         public async Task<IActionResult> GoogleCallback([FromBody] GoogleTokenRequestModel model)
         {
@@ -207,6 +178,7 @@ namespace OnlineVotingApplication.Controllers
                 return BadRequest(new { success = false, message = "Google Access Token is missing." });
             }
 
+            // Now the service validates the actual ID token
             var authResponse = await _externalAuthService.AuthenticateGoogleUserAsync(model.AccessToken);
 
             if (!authResponse.Success || authResponse.Data == null)
@@ -277,16 +249,9 @@ namespace OnlineVotingApplication.Controllers
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error processing Apple Callback payload structural translation.");
-                return BadRequest(new { success = false, message = "Authentication runtime execution failed." });
+                _logger.LogError(ex, "Error processing Apple Callback.");
+                return BadRequest(new { success = false, message = "Authentication runtime error." });
             }
-        }
-        #endregion
-
-        #region Helpers
-        private string GenerateAppleClientSecret()
-        {
-            return "YOUR_GENERATED_APPLE_CLIENT_SECRET_JWT";
         }
         #endregion
     }

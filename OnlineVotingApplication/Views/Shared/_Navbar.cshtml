@@ -48,7 +48,7 @@
     <div class="container py-1">
 
         <!-- Brand Logo -->
-        <a asp-controller="Home" asp-action="Index" class="navbar-brand fw-bold d-flex align-items-center gap-2">
+        <a asp-controller="@(isAuth && !isBlocked ? dashCtrl : "Home")" asp-action="Index" class="navbar-brand fw-bold d-flex align-items-center gap-2">
             <div class="brand-logo-badge shadow-sm">
                 <i class="fas fa-vote-yea text-dark"></i>
             </div>
@@ -65,13 +65,16 @@
         <div class="collapse navbar-collapse" id="mainNavMenu">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
-                <!-- Home Link -->
-                <li class="nav-item">
-                    <a asp-controller="Home" asp-action="Index"
-                       class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
-                        <i class="fas fa-home me-1 text-warning opacity-75"></i> Home
-                    </a>
-                </li>
+                <!-- Home Link: Only shown to guests/unauthenticated users -->
+                @if (!isAuth || isBlocked)
+                {
+                    <li class="nav-item">
+                        <a asp-controller="Home" asp-action="Index"
+                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
+                            <i class="fas fa-home me-1 text-warning opacity-75"></i> Home
+                        </a>
+                    </li>
+                }
 
                 @if (isAuth && !isBlocked)
                 {
@@ -168,7 +171,7 @@
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-mobile-fix dropdown-menu-lg-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
+                        <ul class="dropdown-menu dropdown-menu-mobile-fix dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
                             <li>
                                 <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
                                     <div class="fw-bold small text-dark text-truncate">@userName</div>
@@ -188,7 +191,7 @@
 
                             <li><hr class="dropdown-divider my-1 opacity-25" /></li>
                             <li>
-                                <form asp-controller="AuthService" asp-action="Logout" method="post" class="m-0">
+                                <form asp-controller="AuthService" asp-action="LogoutUser" method="post" class="m-0">
                                     <button type="submit" class="dropdown-item text-danger rounded-2 py-2 fw-semibold">
                                         <i class="fas fa-sign-out-alt me-2"></i> Sign Out
                                     </button>
@@ -237,53 +240,60 @@
         transition: all 0.2s ease;
     }
 
-    .votezy-navbar .nav-link:hover,
-    .votezy-navbar .nav-link:focus {
-        color: #ffffff !important;
-        background-color: rgba(255, 255, 255, 0.08);
-    }
+        .votezy-navbar .nav-link:hover,
+        .votezy-navbar .nav-link:focus {
+            color: #ffffff !important;
+            background-color: rgba(255, 255, 255, 0.08);
+        }
 
-    .votezy-navbar .nav-link.active {
-        background-color: #f5a623 !important;
-        color: #101d35 !important;
-        font-weight: 600;
-    }
+        .votezy-navbar .nav-link.active {
+            background-color: #f5a623 !important;
+            color: #101d35 !important;
+            font-weight: 600;
+        }
 
-    .votezy-navbar .nav-link.active i {
-        color: #101d35 !important;
-    }
+            .votezy-navbar .nav-link.active i {
+                color: #101d35 !important;
+            }
 
     .user-menu-btn {
         background-color: rgba(255, 255, 255, 0.05);
         transition: background-color 0.2s ease;
     }
 
-    .user-menu-btn:hover {
-        background-color: rgba(255, 255, 255, 0.12);
-    }
+        .user-menu-btn:hover {
+            background-color: rgba(255, 255, 255, 0.12);
+        }
 
     .animate-dropdown {
         animation: fadeInDropdown 0.2s ease-in-out;
     }
 
     @@media (max-width: 991.98px) {
-        .dropdown-menu-mobile-fix {
-            position: absolute !important;
-            right: 0 !important;
-            left: auto !important;
-            transform: none !important;
-            float: none !important;
-        }
+        .dropdown-menu-mobile-fix
+
+    {
+        position: absolute !important;
+        right: 0 !important;
+        left: auto !important;
+        transform: none !important;
+        float: none !important;
+    }
+
     }
 
     @@keyframes fadeInDropdown {
-        from {
-            opacity: 0;
-            transform: translateY(8px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
     }
 </style>

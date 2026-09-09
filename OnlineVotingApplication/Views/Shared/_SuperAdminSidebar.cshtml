@@ -285,3 +285,19 @@
         }
     </div>
 </nav>
+
+<style>
+    /* ─── Mobile scroll fix for SuperAdmin sidebar ─── */
+    @@media (max-width: 991.98px) {
+        .admin-sidebar {
+            overflow-y: auto !important;
+            -webkit-overflow-scrolling: touch;
+            height: 100vh; /* fallback */
+            height: 100dvh; /* modern browsers – respects dynamic viewport */
+        }
+            /* Let the sidebar itself handle scrolling; disable inner nav scroll to avoid double scroll */
+            .admin-sidebar ul.nav {
+                overflow-y: visible !important;
+            }
+    }
+</style>

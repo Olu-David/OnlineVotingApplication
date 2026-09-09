@@ -303,27 +303,40 @@
 /* Nav links: quiet by default, a left accent bar + tinted fill when
    active — replaces the flat bootstrap-blue highlight with each
    role's own colour (set by --sidebar-accent). */
+/* ─── COMPACT SIDEBAR OVERRIDES ─── */
 .admin-sidebar .nav-link {
-    border-radius: 8px;
-    transition: background 0.15s ease, color 0.15s ease;
-    color: rgba(255, 255, 255, 0.72);
-    border-left: 3px solid transparent;
-    font-size: 0.92rem;
+    padding: 0.35rem 0.6rem !important;
+    font-size: 0.85rem !important;
+    border-radius: 6px !important;
 }
 
-    .admin-sidebar .nav-link:hover {
-        background: rgba(255, 255, 255, 0.07);
-        color: #fff;
-    }
+.admin-sidebar .sidebar-section-label {
+    margin-top: 0.5rem !important;
+    margin-bottom: 0.15rem !important;
+}
 
-    .admin-sidebar .nav-link.active {
-        background-color: var(--sidebar-accent);
-        background-color: rgba(0, 0, 0, 0.16); /* Replace with your desired black/white tint or use a dedicated rgba variable */
-        border-left-color: var(--sidebar-accent);
-        color: #fff !important;
-        font-weight: 600;
-    }
+.admin-sidebar .nav {
+    gap: 1px !important;
+}
 
+.admin-sidebar .dropdown-menu {
+    font-size: 0.8rem !important;
+}
+
+.admin-sidebar .dropdown-item {
+    padding: 0.25rem 0.6rem !important;
+    font-size: 0.8rem !important;
+}
+
+/* Hover effect for better UX */
+.admin-sidebar .nav-link:hover {
+    background: rgba(255, 255, 255, 0.08) !important;
+}
+
+.admin-sidebar .nav-link.active {
+    background: rgba(255, 255, 255, 0.12) !important;
+    border-left: 3px solid var(--sidebar-accent, #f5a623);
+}
 /* Brand icon */
 .brand-icon {
     width: 36px;

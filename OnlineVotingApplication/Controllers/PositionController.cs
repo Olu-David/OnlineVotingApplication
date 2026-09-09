@@ -53,20 +53,20 @@ namespace OnlineVotingApplication.Controllers
 
             if (string.IsNullOrEmpty(electionId))
             {
-                var firstElection = await _context.ElectionEvents
+                var firstElectionId = await _context.ElectionEvents
                     .AsNoTracking()
                     .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
                     .OrderByDescending(e => e.CreatedAt)
-                    .Select(e => e.Id)
+                    .Select(e => (Guid?)e.Id)
                     .FirstOrDefaultAsync(cancellationToken);
 
-                if (firstElection == Guid.Empty)
+                if (firstElectionId == null || firstElectionId == Guid.Empty)
                 {
                     TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
                     return RedirectToAction("CreatePosition", "Position");
                 }
 
-                electionId = firstElection.ToString();
+                electionId = firstElectionId.Value.ToString();
             }
 
             ViewBag.ElectionId = electionId;

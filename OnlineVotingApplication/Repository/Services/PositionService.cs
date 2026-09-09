@@ -41,14 +41,20 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (!Guid.TryParse(electionId, out Guid electionGuid))
             {
-                return new PaginatedListViewModel<PositionDTO>();
+                return new PaginatedListViewModel<PositionDTO>
+                {
+                    Items = new List<PositionDTO>(),
+                    PageNumber = pageNumber,
+                    PageSize = pageSize,
+                    TotalItems = 0
+                };
             }
 
-            // Optional Tenant Verification check for extra safety
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
 
-            var baseQuery = _context.Position.IgnoreQueryFilters()
+            // Use standard query filters unless bypassing them is an explicit requirement
+            var baseQuery = _context.Position
                 .AsNoTracking()
                 .Include(p => p.ElectionEvent)
                 .Where(p => p.ElectionEventId == electionGuid && !p.IsDeleted);
@@ -58,15 +64,16 @@ namespace OnlineVotingApplication.Repository.Services
                 baseQuery = baseQuery.Where(p => p.ElectionEvent != null && p.ElectionEvent.TenantId == activeTenantId);
             }
 
-            // 1. Get the total count from DB strictly for this election & tenant
+            // 1. Get total count strictly for this election & tenant scope
             int totalItems = await baseQuery.CountAsync();
 
             string cacheKey = $"ref:Positions_Election_{electionGuid}_Tenant_{activeTenantId}_Page_{pageNumber}_Size_{pageSize}";
 
-            if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? positions))
+            if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? positions) || positions == null)
             {
-                // 2. Fetch only the requested page slice
+                // 2. Fetch only the requested page slice ordered consistently
                 positions = await baseQuery
+                    .OrderBy(m => m.Name) // Added stable ordering to prevent pagination shifting bugs
                     .Skip((pageNumber - 1) * pageSize)
                     .Take(pageSize)
                     .Select(m => new PositionDTO
@@ -83,7 +90,7 @@ namespace OnlineVotingApplication.Repository.Services
             // 3. Return the unified model
             return new PaginatedListViewModel<PositionDTO>
             {
-                Items = positions ?? new List<PositionDTO>(),
+                Items = positions,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalItems = totalItems

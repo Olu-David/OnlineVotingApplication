@@ -1,49 +1,174 @@
-﻿<!-- Support & Contact Form Section -->
-<div class="card border-0 shadow-sm rounded-4 p-4 bg-white" id="support-form-section">
-    <div class="text-center mb-4">
-        <span class="badge bg-primary-subtle text-primary fw-semibold px-3 py-2 rounded-pill mb-2">Get in Touch</span>
-        <h4 class="fw-bold text-dark">Support & Inquiry Form</h4>
-        <p class="text-muted small">Need assistance with your ballot, registration, or tenant setup? Send us a message.</p>
+﻿@{
+    ViewData["Title"] = "Privacy Policy & Data Security";
+}
+
+<div class="container py-5">
+    <!-- Hero Header -->
+    <div class="row justify-content-center mb-5">
+        <div class="col-lg-8 text-center">
+            <span class="badge bg-primary-subtle text-primary fw-semibold px-3 py-2 rounded-pill mb-3">
+                <i class="fas fa-lock me-1"></i> Trust & Transparency
+            </span>
+            <h1 class="fw-bold text-dark display-5 mb-3">Privacy Policy</h1>
+            <p class="text-muted lead fs-6">
+                Your trust is foundational to secure elections. Learn how Votezy protects, encrypts, and handles your data across our platform.
+            </p>
+            <div class="d-inline-flex align-items-center gap-2 text-muted small bg-light px-3 py-1.5 rounded-pill mt-2">
+                <i class="far fa-calendar-alt text-primary"></i> Effective Date: September 2026
+            </div>
+        </div>
     </div>
 
-    @if (TempData["SupportSuccess"] != null)
-    {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="fas fa-check-circle me-2"></i>@TempData["SupportSuccess"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    <div class="row g-4 justify-content-center">
+        <!-- Sidebar Navigation (Desktop) -->
+        <div class="col-lg-3 d-none d-lg-block">
+            <div class="card border-0 shadow-sm rounded-4 p-3 sticky-top" style="top: 90px;">
+                <h6 class="fw-bold text-uppercase text-muted fs-7 px-3 mb-3 tracking-wider">On this page</h6>
+                <nav class="nav flex-column nav-pills gap-1">
+                    <a class="nav-link text-secondary fw-medium rounded-3 py-2 px-3 active-custom" href="#introduction">1. Introduction</a>
+                    <a class="nav-link text-secondary fw-medium rounded-3 py-2 px-3" href="#datacollection">2. Data We Collect</a>
+                    <a class="nav-link text-secondary fw-medium rounded-3 py-2 px-3" href="#security">3. Security Architecture</a>
+                    <a class="nav-link text-secondary fw-medium rounded-3 py-2 px-3" href="#cookies">4. Cookies & Sessions</a>
+                    <a class="nav-link text-secondary fw-medium rounded-3 py-2 px-3" href="#contact">5. Contact Support</a>
+                </nav>
+            </div>
         </div>
+
+        <!-- Main Content Column -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 p-4 p-md-5 bg-white">
+
+                <!-- Section 1 -->
+                <section id="introduction" class="mb-5 scroll-offset">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="icon-box bg-primary-subtle text-primary rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="fas fa-info-circle fa-lg"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark m-0 fs-4">1. Introduction</h3>
+                    </div>
+                    <p class="text-secondary leading-relaxed">
+                        Welcome to <strong>Votezy</strong>. We recognize that data privacy and election integrity are paramount. This Privacy Policy details how we collect, utilize, and safeguard your information when you access our web application, register accounts, participate in ballots, or utilize tenant administration workflows.
+                    </p>
+                </section>
+
+                <hr class="my-4 opacity-10" />
+
+                <!-- Section 2 -->
+                <section id="datacollection" class="mb-5 scroll-offset">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="icon-box bg-warning-subtle text-warning rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="fas fa-database fa-lg"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark m-0 fs-4">2. Data We Collect</h3>
+                    </div>
+                    <p class="text-secondary mb-3">To ensure a seamless voting experience and maintain audit accountability, we process specific categories of data:</p>
+
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100 border border-light">
+                                <h6 class="fw-bold text-dark mb-1"><i class="fas fa-user-tag text-primary me-2"></i>Identity & Profile</h6>
+                                <p class="text-muted small m-0">Full name, username, assigned role badges (Voter, Candidate, Official, Auditor), and contact details.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100 border border-light">
+                                <h6 class="fw-bold text-dark mb-1"><i class="fas fa-vote-yea text-success me-2"></i>Ballot Data</h6>
+                                <p class="text-muted small m-0">Encrypted vote selections and participation timestamps locked under strict audit standards.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100 border border-light">
+                                <h6 class="fw-bold text-dark mb-1"><i class="fas fa-laptop-code text-info me-2"></i>Technical Logs</h6>
+                                <p class="text-muted small m-0">IP addresses, browser versions, and device metadata utilized for security tracking and fraud prevention.</p>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-3 bg-light rounded-3 h-100 border border-light">
+                                <h6 class="fw-bold text-dark mb-1"><i class="fas fa-sign-in-alt text-warning me-2"></i>External Auth</h6>
+                                <p class="text-muted small m-0">Secure handshake identifiers when authenticating via trusted providers like Google or Apple.</p>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <hr class="my-4 opacity-10" />
+
+                <!-- Section 3 -->
+                <section id="security" class="mb-5 scroll-offset">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="icon-box bg-success-subtle text-success rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="fas fa-shield-alt fa-lg"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark m-0 fs-4">3. Security Architecture</h3>
+                    </div>
+                    <p class="text-secondary leading-relaxed mb-3">
+                        Votezy implements multi-layered security controls, including encrypted relational storage via PostgreSQL, strict ASP.NET Core Identity role separation, and secure cloud infrastructure proxies.
+                    </p>
+                    <div class="alert alert-info border-0 rounded-3 p-3 d-flex align-items-center gap-3 bg-info-subtle text-info-emphasis">
+                        <i class="fas fa-lock fa-2x"></i>
+                        <div class="small">
+                            <strong>End-to-End Transport:</strong> All incoming traffic is forced through secure SSL termination with strict cookie secure policies (`SameAsRequest`), preventing packet interception.
+                        </div>
+                    </div>
+                </section>
+
+                <hr class="my-4 opacity-10" />
+
+                <!-- Section 4 -->
+                <section id="cookies" class="mb-5 scroll-offset">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="icon-box bg-danger-subtle text-danger rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="fas fa-cookie-bite fa-lg"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark m-0 fs-4">4. Cookies & Session Management</h3>
+                    </div>
+                    <p class="text-secondary leading-relaxed">
+                        We use essential cookies to maintain your login session (`OnlineVotingApplicationAuth`) and manage temporary OAuth handshake verification (`OnlineVotingApplicationExternalCookie`). These cookies are marked as `HttpOnly` and configured with safe `SameSite=Lax` policies to protect against cross-site request forgery.
+                    </p>
+                </section>
+
+                <hr class="my-4 opacity-10" />
+
+                <!-- Section 5 -->
+                <section id="contact" class="scroll-offset">
+                    <div class="d-flex align-items-center gap-3 mb-3">
+                        <div class="icon-box bg-secondary-subtle text-secondary rounded-3 d-flex align-items-center justify-content-center" style="width: 42px; height: 42px;">
+                            <i class="fas fa-envelope fa-lg"></i>
+                        </div>
+                        <h3 class="fw-bold text-dark m-0 fs-4">5. Contact & Support Inquiries</h3>
+                    </div>
+                    <p class="text-secondary leading-relaxed mb-4">
+                        If you have questions about your personal data rights, ballot verification, or tenant administration protocols, reach out to our system support desk.
+                    </p>
+                    <a asp-controller="Home" asp-action="Index" fragment="support-form-section" class="btn btn-primary px-4 py-2.5 rounded-pill fw-semibold shadow-sm">
+                        <i class="fas fa-paper-plane me-2"></i>Open Support Inquiry Form
+                    </a>
+                </section>
+
+                <!-- Bottom Back Link -->
+                <div class="mt-5 pt-4 border-top text-end">
+                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-dark rounded-pill px-4 fw-semibold">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Home
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .scroll-offset {
+        scroll-margin-top: 100px;
     }
 
-    <form asp-controller="Home" asp-action="SubmitSupport" method="post">
-        <div class="row g-3">
-            <div class="col-md-6">
-                <label class="form-label fw-semibold text-secondary small">Your Name</label>
-                <input type="text" name="Name" class="form-control rounded-3" placeholder="Enter your full name" required />
-            </div>
-            <div class="col-md-6">
-                <label class="form-label fw-semibold text-secondary small">Email Address</label>
-                <input type="email" name="Email" class="form-control rounded-3" placeholder="name@example.com" required />
-            </div>
-            <div class="col-12">
-                <label class="form-label fw-semibold text-secondary small">Subject / Inquiry Type</label>
-                <select name="Subject" class="form-select rounded-3" required>
-                    <option value="" selected disabled>Select an option...</option>
-                    <option value="Voter Registration Issue">Voter Registration Issue</option>
-                    <option value="Ballot / Stub Verification">Ballot / Stub Verification</option>
-                    <option value="Candidate Portal Support">Candidate Portal Support</option>
-                    <option value="Tenant / System Administration">Tenant / System Administration</option>
-                    <option value="General Inquiry">General Inquiry</option>
-                </select>
-            </div>
-            <div class="col-12">
-                <label class="form-label fw-semibold text-secondary small">Message</label>
-                <textarea name="Message" rows="4" class="form-control rounded-3" placeholder="Describe your issue or question in detail..." required></textarea>
-            </div>
-            <div class="col-12 text-end mt-4">
-                <button type="submit" class="btn btn-primary px-4 py-2 fw-semibold rounded-3 shadow-sm">
-                    <i class="fas fa-paper-plane me-2"></i>Send Message
-                </button>
-            </div>
-        </div>
-    </form>
-</div>
+    .nav-pills .nav-link:hover {
+        background-color: rgba(0, 0, 0, 0.03);
+        color: var(--bs-primary) !important;
+    }
+
+    .nav-pills .nav-link.active-custom,
+    .nav-pills .nav-link.active {
+        background-color: var(--bs-primary) !important;
+        color: white !important;
+    }
+</style>

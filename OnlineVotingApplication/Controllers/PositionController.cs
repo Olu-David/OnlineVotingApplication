@@ -51,22 +51,34 @@ namespace OnlineVotingApplication.Controllers
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
+            // 1. Fetch all available elections for the dropdown list
+            var electionQuery = _context.ElectionEvents
+                .AsNoTracking()
+                .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
+                .OrderByDescending(e => e.CreatedAt);
+
+            var electionsList = await electionQuery
+                .Select(e => new SelectListItem
+                {
+                    Value = e.Id.ToString(),
+                    Text = e.Title // Assuming your election property is named Title or Name
+                })
+                .ToListAsync(cancellationToken);
+
+            ViewBag.ElectionEvents = new SelectList(electionsList, "Value", "Text", electionId);
+            ViewBag.IsSuperAdmin = isSuperAdmin;
+
+            // 2. Handle missing electionId by defaulting to the most recent one
             if (string.IsNullOrEmpty(electionId))
             {
-                var firstElectionId = await _context.ElectionEvents
-                    .AsNoTracking()
-                    .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
-                    .OrderByDescending(e => e.CreatedAt)
-                    .Select(e => (Guid?)e.Id)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (firstElectionId == null || firstElectionId == Guid.Empty)
+                var firstElection = electionsList.FirstOrDefault();
+                if (firstElection == null)
                 {
                     TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
-                    return RedirectToAction("CreatePosition", "Position");
+                    return RedirectToAction("CreatePosition", "Position"); // Or redirect to Election creation if preferred
                 }
 
-                electionId = firstElectionId.Value.ToString();
+                electionId = firstElection.Value;
             }
 
             ViewBag.ElectionId = electionId;

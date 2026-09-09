@@ -30,7 +30,7 @@
                 </div>
             }
 
-            <!-- Step 1: Filter Form (Election & Position Selection) -->
+            <!-- Step 1: Filter Form -->
             <div class="card shadow-sm border-0 mb-4">
                 <div class="card-body">
                     <form method="get" asp-action="ManualEntry" class="row g-3 align-items-end">
@@ -79,7 +79,7 @@
                 </div>
             </div>
 
-            <!-- Step 2: Candidate Vote Adjustment Form -->
+            <!-- Step 2: Candidate Adjustment Form -->
             @if (Model.CandidateVotes != null && Model.CandidateVotes.Any())
             {
                 <form asp-action="ManualEntry" method="post">

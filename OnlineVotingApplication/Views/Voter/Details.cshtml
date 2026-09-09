@@ -4,6 +4,9 @@
     ViewData["Title"] = Model.Title;
     var now = DateTime.UtcNow;
     bool isOpen = Model.StartDate <= now && Model.EndDate >= now;
+    // Pass a flag from the controller to hide the "Apply" button if the user has already applied.
+    // In the controller, set ViewBag.HasApplied = true/false
+    bool hasApplied = ViewBag.HasApplied ?? false;
 }
 
 @section Styles {
@@ -18,13 +21,16 @@
             <div class="election-hero-bg" style="background-image: url('@Model.ImageUrl');"></div>
         }
 
-        <!-- 🌟 Top-Right Apply as Candidate Button inside the Hero Header -->
-        <div class="position-absolute top-0 end-0 p-3" style="z-index: 3;">
-            <a asp-controller="Candidate" asp-action="ApplyAsCandidate" asp-route-electionEventId="@Model.Id"
-               class="btn btn-sm btn-light fw-semibold shadow-sm rounded-pill px-3 py-2 text-dark">
-                <i class="fas fa-user-plus text-primary me-1"></i> Apply as Candidate
-            </a>
-        </div>
+        <!-- 🌟 Top-Right Apply as Candidate Button (conditional) -->
+        @if (!hasApplied && isOpen)  
+        {
+            <div class="position-absolute top-0 end-0 p-3" style="z-index: 3;">
+                <a asp-controller="Candidate" asp-action="ApplyAsCandidate" asp-route-electionEventId="@Model.Id"
+                   class="btn btn-sm btn-light fw-semibold shadow-sm rounded-pill px-3 py-2 text-dark">
+                    <i class="fas fa-user-plus text-primary me-1"></i> Apply as Candidate
+                </a>
+            </div>
+        }
 
         <div class="election-hero-overlay">
             <span class="election-hero-badge @(isOpen ? "" : "bg-secondary text-white")">
@@ -68,7 +74,6 @@
 
                             <div class="col-sm-6 col-lg-4">
                                 <div class="candidate-card">
-
                                     @if (!string.IsNullOrEmpty(candidate.CandidateImg))
                                     {
                                         <img src="@candidate.CandidateImg" alt="@candidate.Name" class="candidate-photo" />
@@ -77,9 +82,7 @@
                                     {
                                         <div class="candidate-photo-fallback">@initial</div>
                                     }
-
                                     <div class="candidate-name">@candidate.Name</div>
-
                                     @if (!string.IsNullOrEmpty(candidate.Manifesto))
                                     {
                                         <p class="candidate-manifesto">@candidate.Manifesto</p>
@@ -88,7 +91,6 @@
                                     {
                                         <p class="candidate-manifesto text-muted fst-italic">No manifesto provided.</p>
                                     }
-
                                     @if (isOpen)
                                     {
                                         <button type="button" class="btn candidate-vote-btn"
@@ -127,7 +129,7 @@
     </a>
 </div>
 
-@* ── Shared confirmation modal, populated by JS from the clicked candidate's data-* attributes ── *@
+<!-- ── Shared confirmation modal ── -->
 <div class="modal fade" id="confirmVoteModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content" style="border-radius: 14px; overflow: hidden; border: 0;">

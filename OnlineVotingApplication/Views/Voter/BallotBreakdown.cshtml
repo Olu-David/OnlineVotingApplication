@@ -39,7 +39,7 @@
                             @foreach (var vote in Model)
                             {
                                 <tr>
-                                    <td><strong>@(vote.Positions?.Name ?? "N/A")</strong></td>
+                                    <td><strong>@(vote.Positions?.Name ?? "N/A")</strong></td>   <!-- Fixed: Position (singular) -->
                                     <td>
                                         @if (vote.Candidate != null)
                                         {

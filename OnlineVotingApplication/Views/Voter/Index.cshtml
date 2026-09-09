@@ -84,15 +84,12 @@
                                 </div>
                             </div>
 
-                            <!-- Action Buttons Grid -->
+                            <!-- Single Action Button: View Ballot & Vote -->
                             <div class="mt-auto d-grid gap-2">
                                 <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-primary fw-semibold py-2 rounded-3 shadow-sm">
                                     <i class="fas fa-vote-yea me-2"></i>View Ballot & Vote
                                 </a>
-                                <!-- Quick link to apply as a candidate for this specific election -->
-                                <a asp-controller="Candidate" asp-action="ApplyAsCandidate" asp-route-electionEventId="@election.Id" class="btn btn-outline-secondary fw-semibold py-2 rounded-3">
-                                    <i class="fas fa-user-plus me-2 text-warning"></i>Apply as Candidate
-                                </a>
+                                <!-- Removed duplicate "Apply as Candidate" button – kept only in Details view -->
                             </div>
                         </div>
                     </div>

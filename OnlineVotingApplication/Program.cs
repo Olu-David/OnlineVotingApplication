@@ -66,12 +66,11 @@ namespace OnlineVotingApplication
                 options.Cookie.HttpOnly = true;
                 options.Cookie.IsEssential = true;
             });
-
             builder.Services.AddRateLimiter(options =>
             {
                 options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
-                // Global sliding window limiter (Protects all general routes by IP)
+                // 1. Global sliding window limiter (Protects all general routes by IP)
                 options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
                 {
                     var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -85,7 +84,7 @@ namespace OnlineVotingApplication
                         });
                 });
 
-                // Strict policy for critical/sensitive actions (Voting, Registration, Auth endpoints)
+                // 2. Strict policy for critical/sensitive actions (Auth, Registration, etc.)
                 options.AddPolicy("StrictPolicy", httpContext =>
                 {
                     var identifier = httpContext.User.Identity?.IsAuthenticated == true
@@ -102,7 +101,7 @@ namespace OnlineVotingApplication
                         });
                 });
 
-                // ADDED: Standard policy to satisfy controllers currently looking for it
+                // 3. Standard policy for normal actions or endpoints
                 options.AddPolicy("StandardPolicy", httpContext =>
                 {
                     var clientIp = httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -115,6 +114,24 @@ namespace OnlineVotingApplication
                         });
                 });
 
+                // 4. Strict Voting Policy (Matches your [EnableRateLimiting("StrictVotingPolicy")] attributes)
+                options.AddPolicy("StrictVotingPolicy", httpContext =>
+                {
+                    var identifier = httpContext.User.Identity?.IsAuthenticated == true
+                        ? httpContext.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                          ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                        : httpContext.Connection.RemoteIpAddress?.ToString() ?? "anonymous";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(identifier, _ =>
+                        new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 5,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0
+                        });
+                });
+
+                // 5. Custom JSON response when a rate limit is hit
                 options.OnRejected = async (context, token) =>
                 {
                     context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;

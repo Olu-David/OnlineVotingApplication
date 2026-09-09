@@ -38,7 +38,8 @@
                             To maintain election transparency and prevent bias, you must cast your vote in this election event before you can unlock and view the live monitoring charts.
                         </p>
                         <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
-                            <a asp-controller="Ballot" asp-action="CastVote" asp-route-electionEventId="@electionEventId"
+                            <!-- FIXED: Redirect to Voter/Details instead of Ballot controller -->
+                            <a asp-controller="Voter" asp-action="Details" asp-route-id="@electionEventId"
                                class="btn text-dark fw-bold px-4 py-2 rounded-pill shadow-sm"
                                style="background-color: var(--votex-amber);">
                                 <i class="fas fa-vote-yea me-2"></i>Cast Your Vote Now
@@ -113,7 +114,6 @@
     {
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <script>
-            // Using Json.Serialize() satisfies the IDE compiler completely without syntax errors
             const candidateNames = @Json.Serialize(results.Select(c => c.CandidateName));
             const voteCounts = @Json.Serialize(results.Select(c => c.VoteCount));
 

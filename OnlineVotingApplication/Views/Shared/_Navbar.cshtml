@@ -1,4 +1,4 @@
-@{
+﻿@{
     Layout = null;
 }
 @using Microsoft.AspNetCore.Identity
@@ -10,14 +10,14 @@
     bool isAuth = User.Identity?.IsAuthenticated ?? false;
     bool isBlocked = ViewData["IsBlocked"] as bool? ?? false;
 
-    // Dynamic Role checks from claims/User principal
+    // Role checks
     bool isSuperAdmin = User.IsInRole("SuperAdmin");
     bool isOfficial = User.IsInRole("Official");
     bool isVoter = User.IsInRole("Voter");
     bool isCandidate = User.IsInRole("Candidate");
     bool isAuditor = User.IsInRole("Auditor");
 
-    // Determine dashboard redirection based on primary role
+    // Determine dashboard controller based on primary role
     string dashCtrl = "Home";
     if (isSuperAdmin) dashCtrl = "SuperAdminDashboard";
     else if (isOfficial) dashCtrl = "Tenant";
@@ -55,7 +55,7 @@
             <span class="fs-4 tracking-wide text-white">Vote<span class="text-warning">zy</span></span>
         </a>
 
-        <!-- Mobile Toggle Button -->
+        <!-- Mobile Toggle -->
         <button class="navbar-toggler border-0 shadow-none px-2 py-1" type="button"
                 data-bs-toggle="collapse" data-bs-target="#mainNavMenu"
                 aria-controls="mainNavMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -65,7 +65,7 @@
         <div class="collapse navbar-collapse" id="mainNavMenu">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
-                <!-- Home Link: Only shown to guests/unauthenticated users -->
+                <!-- Home link (visible to guests or blocked users) -->
                 @if (!isAuth || isBlocked)
                 {
                     <li class="nav-item">
@@ -78,6 +78,7 @@
 
                 @if (isAuth && !isBlocked)
                 {
+                    <!-- Dashboard – for all authenticated users (except Candidate, who has its own) -->
                     @if (!isCandidate)
                     {
                         <li class="nav-item">
@@ -88,6 +89,7 @@
                         </li>
                     }
 
+                    <!-- Voter‑specific links (visible to Voter role) -->
                     @if (isVoter)
                     {
                         <li class="nav-item">
@@ -96,12 +98,19 @@
                                 <i class="fas fa-history me-1 text-success opacity-75"></i> My Ballots
                             </a>
                         </li>
+                        <li class="nav-item">
+                            <a asp-controller="Voter" asp-action="LiveResults"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
+                                <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                            </a>
+                        </li>
                     }
 
+                    <!-- Candidate dropdown (visible to Candidate role) -->
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" || (ctrl == "Voter" && (action == "BallotBreakdown" || action == "LiveResults")) ? "active" : "")"
+                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" || (ctrl == "Voter" && (action == "MyHistory" || action == "LiveResults")) ? "active" : "")"
                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user-tie me-1 text-warning"></i> Campaign
                             </a>
@@ -112,8 +121,8 @@
                                     </a>
                                 </li>
                                 <li>
-                                    <a asp-controller="Voter" asp-action="BallotBreakdown" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "BallotBreakdown" ? "active bg-light text-dark fw-bold" : "")">
-                                        <i class="fas fa-vote-yea me-2 text-warning"></i> Ballot Breakdown
+                                    <a asp-controller="Voter" asp-action="MyHistory" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "MyHistory" ? "active bg-light text-dark fw-bold" : "")">
+                                        <i class="fas fa-vote-yea me-2 text-warning"></i> My Ballots
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider my-1 opacity-25" /></li>
@@ -126,6 +135,7 @@
                         </li>
                     }
 
+                    <!-- Auditor links -->
                     @if (isAuditor)
                     {
                         <li class="nav-item">
@@ -136,7 +146,8 @@
                         </li>
                     }
 
-                    @if (!isCandidate)
+                    <!-- If the user is NOT a candidate, show the Live Results link (already shown for Voter, but we keep for Official/Auditor etc.) -->
+                    @if (!isCandidate && !isVoter && !isAuditor)
                     {
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="LiveResults"
@@ -147,15 +158,16 @@
                     }
                 }
 
+                <!-- Privacy link (always visible) -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Privacy"
                        class="nav-link px-2.5 py-1 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
-                        Privacy
+                        <i class="fas fa-lock me-1"></i> Privacy
                     </a>
                 </li>
             </ul>
 
-            <!-- Right side: User Profile & Authentication actions -->
+            <!-- Right side: User Profile & Authentication -->
             <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
@@ -269,31 +281,27 @@
         animation: fadeInDropdown 0.2s ease-in-out;
     }
 
+    /* Small screen fix – dropdown not cut off */
     @@media (max-width: 991.98px) {
-        .dropdown-menu-mobile-fix
-
-    {
-        position: absolute !important;
-        right: 0 !important;
-        left: auto !important;
-        transform: none !important;
-        float: none !important;
-    }
-
+        .dropdown-menu-mobile-fix {
+            position: absolute !important;
+            right: 0 !important;
+            left: auto !important;
+            transform: none !important;
+            float: none !important;
+            max-width: 90vw !important;
+        }
     }
 
     @@keyframes fadeInDropdown {
-        from
+        from {
+            opacity: 0;
+            transform: translateY(8px);
+        }
 
-    {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 </style>

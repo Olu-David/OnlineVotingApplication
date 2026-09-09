@@ -105,7 +105,7 @@ namespace OnlineVotingApplication.Controllers
         #region ApplyAsCandidate (1)
 
 
-        [Authorize(Roles = ("voter"))]
+        [Authorize(Roles = ("Voter"))]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
             var election = await _context.ElectionEvents.IgnoreQueryFilters()
@@ -135,7 +135,7 @@ namespace OnlineVotingApplication.Controllers
 
         #region ApplyAsCandidate(2)
 
-        [HttpPost("apply")]
+        [HttpPost]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
         {

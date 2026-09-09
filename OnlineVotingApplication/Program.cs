@@ -42,11 +42,15 @@ namespace OnlineVotingApplication
             builder.Services.AddCustomIdentityAndSecurity();
 
             builder.Services.AddAuthentication()
-                .AddGoogle(googleOptions =>
-                {
-                    googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
-                    googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-                });
+    .AddGoogle(googleOptions =>
+    {
+        googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+        googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+        
+        // Ensure correlation cookie survives mobile-to-desktop view switches
+        googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+        googleOptions.CorrelationCookie.SameSite = SameSiteMode.Lax;
+    });
 
             // 5. Session Setup
             builder.Services.AddSession(options =>

@@ -40,16 +40,16 @@ namespace OnlineVotingApplication
 
             // 4. Identity, Security & Google Auth Middleware
             builder.Services.AddAuthentication()
-    .AddGoogle(googleOptions =>
+         .AddGoogle(googleOptions =>
     {
-        googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
-        googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
-        
-        googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.Always;
+          googleOptions.ClientId = builder.Configuration["Authentication:Google:ClientId"]!;
+          googleOptions.ClientSecret = builder.Configuration["Authentication:Google:ClientSecret"]!;
+
+             // Let ASP.NET Core automatically match the request scheme from Render's proxy headers
+         googleOptions.CorrelationCookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
         googleOptions.CorrelationCookie.SameSite = SameSiteMode.Lax;
         googleOptions.CorrelationCookie.HttpOnly = true;
 
-        // Add this event to loosen restrictions on the correlation cookie during redirects
         googleOptions.Events.OnRemoteFailure = context =>
         {
             context.Response.Redirect("/Home/Index?error=OAuthFailed");
@@ -57,7 +57,6 @@ namespace OnlineVotingApplication
             return Task.CompletedTask;
         };
     });
-
             // 5. Session Setup
             builder.Services.AddSession(options =>
             {

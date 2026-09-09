@@ -76,29 +76,27 @@ public static class IdentityAndSecurityExtensions
         .AddDefaultTokenProviders();
 
         // 3. Application Security Cookie Policies
-     
-services.ConfigureApplicationCookie(options =>
-{
-    options.LoginPath = "/Home/Index";
-    options.LogoutPath = "/Home/Logout";
-    options.AccessDeniedPath = "/Home/AccessDenied";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // <-- Change this line
-    options.Cookie.SameSite = SameSiteMode.Lax; 
-    options.Cookie.Name = "OnlineVotingApplicationAuth";
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
-    options.SlidingExpiration = true;
-});
+        services.ConfigureApplicationCookie(options =>
+        {
+            options.LoginPath = "/Home/Index";
+            options.LogoutPath = "/Home/Logout";
+            options.AccessDeniedPath = "/Home/AccessDenied";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // <-- Changed
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.Cookie.Name = "OnlineVotingApplicationAuth";
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
+            options.SlidingExpiration = true;
+        });
 
-  // 4. Application Security Cookie Policies
-services.ConfigureExternalCookie(options =>
-{
-    options.Cookie.Name = "OnlineVotingApplicationExternalCookie";
-    options.Cookie.HttpOnly = true;
-    options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Lax; // CRITICAL for Google/Apple return traffic
-    options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
-});
+        services.ConfigureExternalCookie(options =>
+        {
+            options.Cookie.Name = "OnlineVotingApplicationExternalCookie";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest; // <-- Changed
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.ExpireTimeSpan = TimeSpan.FromMinutes(5);
+        });
 
         return services;
     }

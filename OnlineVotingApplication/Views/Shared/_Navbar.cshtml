@@ -168,14 +168,14 @@
             </ul>
 
             <!-- Right side: User Profile & Authentication -->
-            <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10">
+            <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10 ms-auto">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
                     <span class="badge @roleBadgeClass px-2.5 py-1.5 rounded-pill fw-semibold shadow-sm text-xs">
                         <i class="fas fa-shield-alt me-1 small"></i> @roleBadge
                     </span>
 
-                    <div class="dropdown">
+                    <div class="dropdown position-relative">
                         <button class="btn user-menu-btn d-flex align-items-center gap-2 dropdown-toggle border-0 rounded-pill px-2 py-1"
                                 type="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:30px; height:30px; font-size: 0.8rem;">
@@ -183,7 +183,8 @@
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
-                        <ul class="dropdown-menu dropdown-menu-mobile-fix dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown" style="min-width: 220px;">
+                        <!-- Dropdown menu – now uses class .user-dropdown-menu -->
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown user-dropdown-menu">
                             <li>
                                 <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
                                     <div class="fw-bold small text-dark text-truncate">@userName</div>
@@ -281,15 +282,34 @@
         animation: fadeInDropdown 0.2s ease-in-out;
     }
 
-    /* Small screen fix – dropdown not cut off */
-    @@media (max-width: 991.98px) {
-        .dropdown-menu-mobile-fix {
-            position: absolute !important;
-            right: 0 !important;
-            left: auto !important;
-            transform: none !important;
-            float: none !important;
-            max-width: 90vw !important;
+    /* ─── FIX: User dropdown always visible, aligned to right ─── */
+    /* Make sure the parent container doesn't clip the dropdown */
+    .navbar,
+    .navbar .container,
+    .navbar-collapse {
+        overflow: visible !important;
+    }
+
+        /* Push the right‑side block to the far right */
+        .navbar .ms-auto {
+            margin-left: auto !important;
+        }
+
+    /* Style the dropdown menu */
+    .user-dropdown-menu {
+        position: absolute !important;
+        right: 0 !important;
+        left: auto !important;
+        max-width: calc(100vw - 2rem) !important;
+        min-width: 220px;
+        transform: none !important; /* prevent Bootstrap’s transform from pushing it */
+    }
+
+    /* Extra mobile fix: allow more breathing room */
+    @@media (max-width: 576px) {
+        .user-dropdown-menu {
+            max-width: calc(100vw - 1rem) !important;
+            min-width: 180px !important;
         }
     }
 

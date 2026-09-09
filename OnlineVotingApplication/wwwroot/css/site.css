@@ -704,3 +704,41 @@
 .election-slider-container::-webkit-scrollbar-track {
     background: rgba(0,0,0,0.03);
 }
+/* ─── Push the right-side container to the extreme right ─── */
+.navbar .ms-auto {
+    margin-left: auto !important;
+}
+
+/* ─── Fix dropdown positioning and prevent cut-off ─── */
+.dropdown-menu-mobile-fix {
+    right: 0 !important;
+    left: auto !important;
+    max-width: calc(100vw - 2rem) !important;
+    transform: none !important;
+}
+
+/* On very small screens, allow more flexibility */
+@media (max-width: 576px) {
+    .dropdown-menu-mobile-fix {
+        max-width: calc(100vw - 1rem) !important;
+        min-width: 180px !important;
+    }
+}
+
+/* Ensure parent containers don't clip the dropdown */
+.navbar,
+.navbar .container,
+.navbar .container-fluid,
+.navbar-collapse {
+    overflow: visible !important;
+}
+
+/* Optional: make the toggle button background more subtle */
+.user-menu-btn {
+    background-color: rgba(255, 255, 255, 0.05);
+    transition: background-color 0.2s ease;
+}
+
+    .user-menu-btn:hover {
+        background-color: rgba(255, 255, 255, 0.12);
+    }

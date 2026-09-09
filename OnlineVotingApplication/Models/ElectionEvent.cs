@@ -8,7 +8,7 @@ namespace OnlineVotingApplication.Models
     public class ElectionEvent
     {
         public Guid Id { get; set; }
-        public string? Title { get; set; }
+        public string Title { get; set; } = string.Empty;
         public string? Description { get; set; }
         public int ElectionYear { get; set; }
         public DateTime StartDate { get; set; }

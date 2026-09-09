@@ -43,48 +43,35 @@ namespace OnlineVotingApplication.Controllers
         // Index / List Positions
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Index(string? electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> CreatePosition(string? electionId)
         {
-            pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Max(1, pageSize);
-
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            // 1. Fetch all available elections for the dropdown list
-            var electionQuery = _context.ElectionEvents
+            // Fetch the raw items
+            var electionEntities = await _context.ElectionEvents
                 .AsNoTracking()
                 .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
-                .OrderByDescending(e => e.CreatedAt);
+                .OrderByDescending(e => e.CreatedAt)
+                .ToListAsync();
 
-            var electionsList = await electionQuery
-                .Select(e => new SelectListItem
-                {
-                    Value = e.Id.ToString(),
-                    Text = e.Title // Assuming your election property is named Title or Name
-                })
-                .ToListAsync(cancellationToken);
+            // Map to SelectListItem
+            var selectListItems = electionEntities.Select(e => new SelectListItem
+            {
+                Value = e.Id.ToString(),
+                Text = e.Title // Double-check if your database column is 'Title' or 'Name'
+            }).ToList();
 
-            ViewBag.ElectionEvents = new SelectList(electionsList, "Value", "Text", electionId);
+            // Assign as a true SelectList object
+            ViewBag.ElectionEvents = new SelectList(selectListItems, "Value", "Text", electionId);
             ViewBag.IsSuperAdmin = isSuperAdmin;
 
-            // 2. Handle missing electionId by defaulting to the most recent one
-            if (string.IsNullOrEmpty(electionId))
+            var model = new PositionDTO
             {
-                var firstElection = electionsList.FirstOrDefault();
-                if (firstElection == null)
-                {
-                    TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
-                    return RedirectToAction("CreatePosition", "Position"); // Or redirect to Election creation if preferred
-                }
+                ElectionId = string.IsNullOrEmpty(electionId) ? Guid.Empty : Guid.Parse(electionId)
+            };
 
-                electionId = firstElection.Value;
-            }
-
-            ViewBag.ElectionId = electionId;
-            var paginatedPositions = await _positionService.GetAllPositionsAsync(electionId, pageNumber, pageSize);
-
-            return View(paginatedPositions);
+            return View(model);
         }
         #endregion
 

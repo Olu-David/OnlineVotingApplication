@@ -26,6 +26,97 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
+        #region GetElectionsForVoterAsync
+        public async Task<ServiceResponse<PaginatedListViewModel<ElectionDto>>> GetElectionsForVoterAsync(string? searchTerm,string? sortBy,int pageNumber,int pageSize,CancellationToken cancellationToken = default)
+        {
+            try
+            {
+                // Build cache key
+                var cacheKey = $"voter_elec_{searchTerm?.Trim()?.ToLower() ?? "all"}_{sortBy ?? "top"}_p{pageNumber}_s{pageSize}";
+
+                // Try to get from cache
+                var cached = await _cache.GetStringAsync(cacheKey, cancellationToken);
+                if (!string.IsNullOrEmpty(cached))
+                {
+                    var cachedResult = JsonSerializer.Deserialize<PaginatedListViewModel<ElectionDto>>(cached);
+                    if (cachedResult != null)
+                        return new ServiceResponse<PaginatedListViewModel<ElectionDto>> { Success = true, Data = cachedResult };
+                }
+
+                // Build query
+                var query = _context.ElectionEvents.IgnoreQueryFilters()
+                    .Where(e => !e.IsDeleted)
+                    .AsNoTracking();
+
+                // Search filter
+                if (!string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    var term = searchTerm.Trim().ToLower();
+                    query = query.Where(e =>
+                        (e.Title != null && e.Title.ToLower().Contains(term)) ||
+                        (e.Description != null && e.Description.ToLower().Contains(term))
+                    );
+                }
+
+                // Sorting
+                query = sortBy?.ToLower() switch
+                {
+                    "recent" => query.OrderByDescending(e => e.CreatedAt),   
+                    "closing" => query.OrderBy(e => e.EndDate),
+                    _ => query.OrderByDescending(e => e.StartDate)         
+                };
+
+                var totalCount = await query.CountAsync(cancellationToken);
+
+                var items = await query
+                    .Skip((pageNumber - 1) * pageSize)
+                    .Take(pageSize)
+                    .Select(e => new ElectionDto
+                    {
+                        Id = e.Id,
+                        Title = e.Title ?? string.Empty,
+                        Description = e.Description ?? string.Empty,
+                        StartDate = e.StartDate,
+                        EndDate = e.EndDate,
+                        ImageUrl = e.ImageUrl,
+                        TenantId = e.TenantId
+                    })
+                    .ToListAsync(cancellationToken);
+
+                var result = new PaginatedListViewModel<ElectionDto>
+                {
+                    Items = items,
+                    TotalItems = totalCount,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+
+                // Cache for 3 minutes
+                var cacheOptions = new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(3)
+                };
+                await _cache.SetStringAsync(cacheKey, JsonSerializer.Serialize(result), cacheOptions, cancellationToken);
+
+                return new ServiceResponse<PaginatedListViewModel<ElectionDto>>
+                {
+                    Success = true,
+                    Data = result,
+                    Message = "Elections retrieved successfully."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving paginated elections for voters.");
+                return new ServiceResponse<PaginatedListViewModel<ElectionDto>>
+                {
+                    Success = false,
+                    Message = "Failed to retrieve elections."
+                };
+            }
+        }
+#endregion
+
         #region GetResultsAsync
         public async Task<ServiceResponse<List<VoteResultDto>>> GetResultsAsync(Guid electionId, Guid positionId)
         {
@@ -546,5 +637,36 @@ namespace OnlineVotingApplication.Repository.Services
             return new string(code);
         }
         #endregion
+
+        #region GetElectionResultsAsync
+        public async Task<ServiceResponse<List<CandidateVoteDto>>> GetElectionResultsAsync(Guid electionEventId)
+        {
+            try
+            {
+                var results = await _context.Candidate
+                    .Where(c => c.ElectionEventId == electionEventId)
+                    .Select(c => new CandidateVoteDto
+                    {
+                        CandidateName = c.Name ?? "",
+                        PositionName = c.Position != null ? c.Position.Name : "N/A",
+                        VoteCount = _context.Votes.Count(v => v.CandidateId == c.Id && v.ElectionId == electionEventId && v.IsConfirmed && !v.IsPenalized)
+                    })
+                    .AsNoTracking()
+                    .ToListAsync();
+
+                return new ServiceResponse<List<CandidateVoteDto>>
+                {
+                    Success = true,
+                    Data = results,
+                    Message = "Results retrieved successfully."
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error retrieving election results for {ElectionEventId}", electionEventId);
+                return new ServiceResponse<List<CandidateVoteDto>> { Success = false, Message = "Failed to retrieve results." };
+            }
+            #endregion
+        }
     }
 }

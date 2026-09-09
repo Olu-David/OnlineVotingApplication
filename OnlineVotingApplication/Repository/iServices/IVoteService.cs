@@ -17,6 +17,13 @@ namespace OnlineVotingApplication.Repository.iServices
         Task<ServiceResponse<PaginatedListViewModel<VoterDto>>> GetAllVotersAsync(string? searchTerm = null, int pageNumber = 1, int pageSize = 10);
 
         Task<ServiceResponse<PaginatedListViewModel<PenalizedVoterDto>>> GetPenalizedVotersAsync(int pageNumber, int pageSize);
+        Task<ServiceResponse<List<CandidateVoteDto>>> GetElectionResultsAsync(Guid electionEventId);
         Task<ServiceResponse<string>> BulkPenalizeVotersAsync(List<string> voterIds, Guid electionId, string reason, string adminId);
+        Task<ServiceResponse<PaginatedListViewModel<ElectionDto>>> GetElectionsForVoterAsync(
+            string? searchTerm,
+            string? sortBy,
+            int pageNumber,
+            int pageSize,
+            CancellationToken cancellationToken = default);
     }
 }

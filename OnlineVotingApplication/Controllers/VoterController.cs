@@ -10,7 +10,7 @@ using System.Security.Claims;
 
 namespace OnlineVotingApplication.Controllers
 {
-    [Authorize]
+    [Authorize] // base: any authenticated user
     [EnableRateLimiting("StandardPolicy")]
     public class VoterController : Controller
     {
@@ -31,64 +31,61 @@ namespace OnlineVotingApplication.Controllers
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
         }
 
-        // GET: /Voter/Index (Lists election events by tenant)
+        // ─── Helper: tenant check only for admin roles ─────────────────────────────
+        private bool IsTenantAuthorized(Guid? tenantId)
+        {
+            if (User.IsInRole("SuperAdmin") || User.IsInRole("Official") || User.IsInRole("Tenant"))
+            {
+                var activeTenant = _tenantProvider.GetCurrentTenantId();
+                return tenantId == activeTenant;
+            }
+            // Voters, Candidates, Auditors bypass tenant checks
+            return true;
+        }
+
+        // ─── VOTER-ONLY ACTIONS (require "Voter" role) ─────────────────────────────
+
+        // GET: /Voter/Index – shows all elections (no tenant filter)
         [HttpGet]
-        public async Task<IActionResult> Index(Guid tenantId, CancellationToken cancellationToken = default)
+        [Authorize(Roles = "Voter")]
+        public async Task<IActionResult> Index(
+     string? searchTerm,
+     string? sortBy,
+     int page = 1,
+     int pageSize = 10,
+     CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Index";
 
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            sortBy ??= "top";
 
-            if (tenantId == Guid.Empty)
+            var response = await _voteService.GetElectionsForVoterAsync(
+                searchTerm,
+                sortBy,
+                page,
+                pageSize,
+                cancellationToken);
+
+            if (!response.Success)
             {
-                tenantId = activeTenantId;
+                TempData["ErrorMessage"] = response.Message;
+                return View(new PaginatedListViewModel<ElectionDto>());
             }
 
-            if (!isSuperAdmin && tenantId != activeTenantId)
-            {
-                TempData["ErrorMessage"] = "Unauthorized tenant access.";
-                return RedirectToAction("Index", "Home");
-            }
+            ViewBag.CurrentSearch = searchTerm;
+            ViewBag.CurrentSort = sortBy;
 
-            var elections = await _context.ElectionEvents
-                .Where(e => e.TenantId == tenantId && !e.IsDeleted)
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            ViewBag.TenantId = tenantId;
-            return View(elections);
+            return View(response.Data);
         }
 
-        // GET: /Voter/PenalizedVoters (Lists all penalized voters across elections)
+        // GET: /Voter/Details/{id}
         [HttpGet]
-        [Authorize(Roles = "SuperAdmin,Official")]
-        public async Task<IActionResult> PenalizedVoters(CancellationToken cancellationToken = default)
-        {
-            ViewData["Ctrl"] = "Voter";
-            ViewData["Action"] = "PenalizedVoters";
-
-            var penalizedList = await _context.Votes
-                .Where(v => v.IsPenalized)
-                .Include(v => v.Voter)
-                .Include(v => v.Election)
-                .Include(v => v.Candidate)
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            return View(penalizedList);
-        }
-
-        // GET: /Voter/Details/5 (Shows election details, positions, and candidates)
-        [HttpGet]
-        public async Task<IActionResult> Details(Guid id, CancellationToken cancellationToken = default) // id = ElectionId
+        [Authorize(Roles = "Voter")]
+        public async Task<IActionResult> Details(Guid id, CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
             ViewData["Action"] = "Details";
-
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-            bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
             var election = await _context.ElectionEvents
                 .Include(e => e.Positions!)!
@@ -98,21 +95,26 @@ namespace OnlineVotingApplication.Controllers
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Election event not found.";
+                TempData["ErrorMessage"] = "Election not found.";
                 return RedirectToAction(nameof(Index));
             }
 
-            if (!isSuperAdmin && election.TenantId != activeTenantId)
+            // Check if user has already applied as candidate (for the "Apply" button)
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            bool hasApplied = false;
+            if (!string.IsNullOrEmpty(userId))
             {
-                TempData["ErrorMessage"] = "Unauthorized access to election details.";
-                return RedirectToAction(nameof(Index), new { tenantId = activeTenantId });
+                hasApplied = await _context.Candidate
+                    .AnyAsync(c => c.ElectionEventId == id && c.UserId == userId, cancellationToken);
             }
+            ViewBag.HasApplied = hasApplied;
 
             return View(election);
         }
 
-        // GET: /Voter/RequestCode?electionId=xxx&candidateId=yyy&positionId=zzz
+        // GET: /Voter/RequestCode
         [HttpGet]
+        [Authorize(Roles = "Voter")]
         [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> RequestCode(Guid electionId, Guid candidateId, Guid positionId, CancellationToken cancellationToken = default)
         {
@@ -134,6 +136,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Details", new { id = electionId });
             }
 
+            // Fetch candidate/position names for the view
             var candidate = await _context.Candidate
                 .Where(c => c.Id == candidateId)
                 .Select(c => new { c.Name })
@@ -152,13 +155,13 @@ namespace OnlineVotingApplication.Controllers
             ViewBag.CandidateName = candidate?.Name ?? "Selected Candidate";
             ViewBag.PositionName = position?.Name ?? "Selected Position";
 
-            TempData["SuccessMessage"] = "A 6-character confirmation code has been sent to your email.";
-
+            TempData["SuccessMessage"] = "A 6‑character confirmation code has been sent to your email.";
             return View();
         }
 
         // POST: /Voter/ConfirmAndVote
         [HttpPost]
+        [Authorize(Roles = "Voter")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ConfirmAndVote(Guid electionId, Guid candidateId, Guid positionId, string enteredCode, CancellationToken cancellationToken = default)
@@ -178,6 +181,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("RequestCode", new { electionId, candidateId, positionId });
             }
 
+            // Audit logging
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -193,7 +197,9 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction("ConfirmationSuccess");
         }
 
+        // GET: /Voter/ConfirmationSuccess
         [HttpGet]
+        [Authorize(Roles = "Voter")]
         public IActionResult ConfirmationSuccess()
         {
             ViewData["Ctrl"] = "Voter";
@@ -203,6 +209,7 @@ namespace OnlineVotingApplication.Controllers
 
         // GET: /Voter/MyHistory
         [HttpGet]
+        [Authorize(Roles = "Voter")]
         public async Task<IActionResult> MyHistory(CancellationToken cancellationToken = default)
         {
             ViewData["Ctrl"] = "Voter";
@@ -226,7 +233,69 @@ namespace OnlineVotingApplication.Controllers
             return View(response.Data);
         }
 
-        // GET: /Voter/BallotBreakdown?electionId=xxx
+        // ─── SHARED / MANAGEMENT ACCESSIBLE ACTIONS ────────────────────────────────
+
+        // GET: /Voter/LiveResults – any authenticated user can view if they've voted or are management
+        [HttpGet]
+        [Authorize]
+        public async Task<IActionResult> LiveResults(Guid electionEventId, CancellationToken cancellationToken = default)
+        {
+            var userEmail = User.Identity?.Name?.Trim().ToLower();
+            if (string.IsNullOrEmpty(userEmail))
+            {
+                TempData["Error"] = "You must be logged in to view live results.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // Check if user has voted in this election
+            bool hasVoted = await _context.Votes
+                .AnyAsync(v => v.ElectionId == electionEventId
+                            && v.Voter != null
+                            && v.Voter.Email!.ToLower() == userEmail,
+                          cancellationToken);
+
+            bool isManagement = User.IsInRole("SuperAdmin") || User.IsInRole("PlatformAdmin") || User.IsInRole("Official");
+            bool canViewResults = hasVoted || isManagement;
+
+            List<CandidateVoteDto> voteData = new();
+            if (canViewResults)
+            {
+                var resultResponse = await _voteService.GetElectionResultsAsync(electionEventId);
+                if (resultResponse.Success)
+                    voteData = resultResponse.Data ?? new List<CandidateVoteDto>();
+                else
+                    TempData["Error"] = "Could not retrieve results.";
+            }
+
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "LiveResults";
+            ViewData["ElectionEventId"] = electionEventId;
+            ViewData["CanViewResults"] = canViewResults;
+            return View(voteData);
+        }
+
+        // ─── ADMIN-ONLY ACTIONS ─────────────────────────────────────────────────────
+
+        // GET: /Voter/PenalizedVoters
+        [HttpGet]
+        [Authorize(Roles = "SuperAdmin,Official")]
+        public async Task<IActionResult> PenalizedVoters(CancellationToken cancellationToken = default)
+        {
+            ViewData["Ctrl"] = "Voter";
+            ViewData["Action"] = "PenalizedVoters";
+
+            var penalizedList = await _context.Votes
+                .Where(v => v.IsPenalized)
+                .Include(v => v.Voter)
+                .Include(v => v.Election)
+                .Include(v => v.Candidate)
+                .AsNoTracking()
+                .ToListAsync(cancellationToken);
+
+            return View(penalizedList);
+        }
+
+        // GET: /Voter/BallotBreakdown
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official,Candidate")]
         public async Task<IActionResult> BallotBreakdown(Guid electionId, CancellationToken cancellationToken = default)
@@ -242,7 +311,6 @@ namespace OnlineVotingApplication.Controllers
             }
 
             var response = await _voteService.GetVoterBallotHistoryAsync(voterId, electionId);
-
             if (!response.Success)
             {
                 TempData["ErrorMessage"] = response.Message;
@@ -252,59 +320,6 @@ namespace OnlineVotingApplication.Controllers
             return View(response.Data);
         }
 
-        [HttpGet]
-        [Authorize]
-        public async Task<IActionResult> LiveResults(Guid electionEventId, CancellationToken cancellationToken = default)
-        {
-            var userEmail = User.Identity?.Name?.Trim().ToLower();
-            if (string.IsNullOrEmpty(userEmail))
-            {
-                TempData["Error"] = "You must be logged in to view live results.";
-                return RedirectToAction("Index", "Home");
-            }
-
-            // 1. Verify if the user has actually voted in this election event
-            bool hasVoted = await _context.Votes
-                .AnyAsync(v => v.ElectionId == electionEventId
-                            && v.Voter != null
-                            && v.Voter.Email!.ToLower() == userEmail,
-                          cancellationToken);
-
-            // 2. Allow elevated management roles to view results anytime
-            bool isManagement = User.IsInRole("SuperAdmin") || User.IsInRole("PlatformAdmin") || User.IsInRole("Official");
-
-            // 3. Instead of redirecting away, flag if they are unauthorized
-            bool canViewResults = hasVoted || isManagement;
-
-            List<CandidateVoteDto> voteData = new();
-
-            if (canViewResults)
-            {
-                // Fetch vote counts only if authorized
-                voteData = await _context.Candidate
-                    .Where(c => c.ElectionEventId == electionEventId)
-                    .GroupJoin(
-                        _context.Votes.Where(v => v.ElectionId == electionEventId),
-                        candidate => candidate.Id,
-                        vote => vote.CandidateId,
-                        (candidate, votes) => new CandidateVoteDto
-                        {
-                            CandidateName = candidate.Name ?? "",
-                            VoteCount = votes.Count(),
-                            PositionName = candidate.Position != null ? candidate.Position.Name : "N/A"
-                        }
-                    )
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken);
-            }
-
-            ViewData["Ctrl"] = "Voter";
-            ViewData["Action"] = "LiveResults";
-            ViewData["ElectionEventId"] = electionEventId;
-            ViewData["CanViewResults"] = canViewResults; // Pass the permission flag to the view
-
-            return View(voteData);
-        }
         // GET: /Voter/ManualEntry
         [HttpGet]
         [Authorize(Roles = "SuperAdmin,Official,Tenant")]
@@ -326,6 +341,16 @@ namespace OnlineVotingApplication.Controllers
 
             if (electionId.HasValue && positionId.HasValue)
             {
+                // Admin only – enforce tenant check
+                var election = await _context.ElectionEvents
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(e => e.Id == electionId.Value, cancellationToken);
+                if (election == null || !IsTenantAuthorized(election.TenantId))
+                {
+                    TempData["ErrorMessage"] = "Unauthorized tenant access.";
+                    return RedirectToAction(nameof(Index));
+                }
+
                 model.ElectionEventId = electionId.Value;
                 model.PositionId = positionId.Value;
 
@@ -361,7 +386,17 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            foreach (var entry in model.CandidateVotes)
+            // Admin only – enforce tenant check
+            var election = await _context.ElectionEvents
+                .AsNoTracking()
+                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId, cancellationToken);
+            if (election == null || !IsTenantAuthorized(election.TenantId))
+            {
+                TempData["ErrorMessage"] = "Unauthorized tenant access.";
+                return RedirectToAction(nameof(Index));
+            }
+
+            foreach (var entry in model.CandidateVotes ?? new List<CandidateVoteInput>())
             {
                 if (entry.ManualVoteCount > 0)
                 {
@@ -380,7 +415,6 @@ namespace OnlineVotingApplication.Controllers
                 else if (entry.ManualVoteCount < 0)
                 {
                     int removeCount = Math.Abs(entry.ManualVoteCount);
-
                     var existingVotes = await _context.Votes
                         .Where(v => v.CandidateId == entry.CandidateId && v.ElectionId == model.ElectionEventId)
                         .OrderByDescending(v => v.CreatedAt)
@@ -388,9 +422,7 @@ namespace OnlineVotingApplication.Controllers
                         .ToListAsync(cancellationToken);
 
                     if (existingVotes.Any())
-                    {
                         _context.Votes.RemoveRange(existingVotes);
-                    }
                 }
             }
 

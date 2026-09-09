@@ -1,22 +1,61 @@
-﻿@model IEnumerable<OnlineVotingApplication.Models.ElectionEvent>
+﻿@using OnlineVotingApplication.DataTransferView;
+@model PaginatedListViewModel<ElectionDto>
 
 @{
     ViewData["Title"] = "Available Elections";
+    var currentSearch = ViewBag.CurrentSearch as string ?? "";
+    var currentSort = ViewBag.CurrentSort as string ?? "top";
 }
 
 <div class="container py-5">
-    <!-- Header Section -->
+    <!-- Header -->
     <div class="row mb-4 align-items-center">
         <div class="col">
             <h2 class="fw-bold text-dark mb-1">
-                <i class="fas fa-poll text-primary me-2"></i>Available Election Events
+                <i class="fas fa-poll text-primary me-2"></i>Available Elections
             </h2>
-            <p class="text-muted mb-0">Select an active election event below to view details, vote, or apply as a candidate.</p>
+            <p class="text-muted mb-0">Browse, search, and vote in elections. Use the filters below to find what you're looking for.</p>
+        </div>
+        <div class="col-auto">
+            <span class="badge bg-light text-dark border px-3 py-2 rounded-pill">
+                <i class="fas fa-list me-1"></i> @Model.TotalItems elections
+            </span>
         </div>
     </div>
 
-    <hr class="mb-4 text-muted opacity-25" />
+    <!-- Search & Filter Bar -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-6 col-lg-7">
+            <form method="get" asp-action="Index" class="d-flex gap-2" id="searchForm">
+                <div class="input-group">
+                    <span class="input-group-text bg-white border-end-0"><i class="fas fa-search text-muted"></i></span>
+                    <input type="text" name="searchTerm" value="@currentSearch" class="form-control border-start-0" placeholder="Search by title or description..." />
+                </div>
+                <button type="submit" class="btn btn-primary px-4 rounded-pill">
+                    <i class="fas fa-search me-1"></i> Search
+                </button>
+            </form>
+        </div>
+        <div class="col-md-4 col-lg-3">
+            <form method="get" asp-action="Index" class="d-flex gap-2" id="sortForm">
+                <input type="hidden" name="searchTerm" value="@currentSearch" />
+                <select name="sortBy" class="form-select rounded-pill" onchange="this.form.submit()">
+                    <option value="top" selected="@(currentSort == "top")">🔥 Top Elections</option>
+                    <option value="recent" selected="@(currentSort == "recent")">📅 Most Recent</option>
+                    <option value="closing" selected="@(currentSort == "closing")">⏳ Closing Soon</option>
+                </select>
+            </form>
+        </div>
+        <div class="col-md-2 col-lg-2 text-end d-flex align-items-center justify-content-end">
+            <span class="text-muted small d-none d-md-inline">
+                <i class="fas fa-arrow-right me-1"></i> Page @Model.PageNumber of @(Math.Ceiling((double)Model.TotalItems / Model.PageSize))
+            </span>
+        </div>
+    </div>
 
+    <hr class="mb-4" />
+
+    <!-- Alerts -->
     @if (TempData["ErrorMessage"] != null)
     {
         <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
@@ -33,84 +72,137 @@
         </div>
     }
 
-    <div class="row g-4">
-        @if (Model != null && Model.Any())
-        {
-            foreach (var election in Model)
+    <!-- Elections Grid -->
+    @if (Model.Items != null && Model.Items.Any())
+    {
+        <div class="row g-4">
+            @foreach (var election in Model.Items)
             {
                 var isLive = DateTime.UtcNow >= election.StartDate && DateTime.UtcNow <= election.EndDate;
 
                 <div class="col-lg-4 col-md-6">
                     <div class="card border-0 shadow-sm h-100 election-card transition-all rounded-4 overflow-hidden">
-
-                        <!-- Top Accent Banner / Status Badge -->
-                        <div class="card-header bg-white border-0 pt-4 pb-0 d-flex justify-content-between align-items-center">
-                            @if (isLive)
+                        <!-- Image or placeholder -->
+                        <div style="height: 140px; overflow: hidden; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); position: relative;">
+                            @if (!string.IsNullOrEmpty(election.ImageUrl))
                             {
-                                <span class="badge bg-success bg-opacity-10 text-success fw-semibold px-3 py-2 rounded-pill">
-                                    <span class="spinner-grow spinner-grow-sm me-1 text-success" role="status" style="width: 8px; height: 8px;"></span> Live Now
-                                </span>
-                            }
-                            else if (DateTime.UtcNow < election.StartDate)
-                            {
-                                <span class="badge bg-warning bg-opacity-10 text-warning fw-semibold px-3 py-2 rounded-pill">
-                                    <i class="fas fa-clock me-1"></i> Upcoming
-                                </span>
+                                <img src="@election.ImageUrl" alt="@election.Title" class="w-100 h-100 object-fit-cover" />
                             }
                             else
                             {
-                                <span class="badge bg-secondary bg-opacity-10 text-secondary fw-semibold px-3 py-2 rounded-pill">
-                                    <i class="fas fa-flag-checkered me-1"></i> Concluded
-                                </span>
+                                <div class="d-flex align-items-center justify-content-center h-100 text-muted">
+                                    <i class="fas fa-image fa-3x opacity-25"></i>
+                                </div>
                             }
-                            <small class="text-muted font-monospace"><i class="fas fa-calendar-alt me-1"></i>VoteX Poll</small>
+                            <!-- Status badge floating on image -->
+                            <div class="position-absolute top-0 end-0 m-2">
+                                @if (isLive)
+                                {
+                                    <span class="badge bg-success bg-opacity-90 text-white fw-semibold px-3 py-2 rounded-pill shadow-sm">
+                                        <span class="spinner-grow spinner-grow-sm me-1" role="status" style="width: 8px; height: 8px;"></span> Live
+                                    </span>
+                                }
+                                else if (DateTime.UtcNow < election.StartDate)
+                                {
+                                    <span class="badge bg-warning bg-opacity-90 text-dark fw-semibold px-3 py-2 rounded-pill shadow-sm">
+                                        <i class="fas fa-clock me-1"></i> Upcoming
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary bg-opacity-90 text-white fw-semibold px-3 py-2 rounded-pill shadow-sm">
+                                        <i class="fas fa-flag-checkered me-1"></i> Concluded
+                                    </span>
+                                }
+                            </div>
                         </div>
 
                         <div class="card-body d-flex flex-column p-4">
-                            <h4 class="card-title fw-bold text-dark mb-2">@election.Title</h4>
-                            <p class="card-text text-muted small flex-grow-1 mb-4" style="line-height: 1.6;">
-                                @(string.IsNullOrEmpty(election.Description) ? "No description provided for this election event." : election.Description)
+                            <h5 class="card-title fw-bold text-dark mb-2">@election.Title</h5>
+                            <p class="card-text text-muted small flex-grow-1 mb-3" style="line-height: 1.6;">
+                                @(string.IsNullOrEmpty(election.Description) ? "No description provided." : election.Description)
                             </p>
 
-                            <!-- Timeline Box -->
-                            <div class="bg-light p-3 rounded-3 mb-4 small text-secondary">
-                                <div class="d-flex align-items-center mb-2">
-                                    <i class="fas fa-hourglass-start text-primary me-2"></i>
-                                    <span><strong>Starts:</strong> @election.StartDate.ToString("g")</span>
+                            <!-- Timeline -->
+                            <div class="bg-light p-3 rounded-3 mb-3 small text-secondary">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="fas fa-calendar-alt text-primary me-2" style="width: 16px;"></i>
+                                    <span><strong>Starts:</strong> @election.StartDate.ToString("MMM d, yyyy · h:mm tt")</span>
                                 </div>
                                 <div class="d-flex align-items-center">
-                                    <i class="fas fa-hourglass-end text-danger me-2"></i>
-                                    <span><strong>Ends:</strong> @election.EndDate.ToString("g")</span>
+                                    <i class="fas fa-calendar-check text-danger me-2" style="width: 16px;"></i>
+                                    <span><strong>Ends:</strong> @election.EndDate.ToString("MMM d, yyyy · h:mm tt")</span>
                                 </div>
                             </div>
 
-                            <!-- Single Action Button: View Ballot & Vote -->
-                            <div class="mt-auto d-grid gap-2">
-                                <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-primary fw-semibold py-2 rounded-3 shadow-sm">
+                            <!-- Action Button -->
+                            <div class="mt-auto">
+                                <a asp-action="Details" asp-route-id="@election.Id" class="btn btn-primary w-100 fw-semibold py-2 rounded-3 shadow-sm">
                                     <i class="fas fa-vote-yea me-2"></i>View Ballot & Vote
                                 </a>
-                                <!-- Removed duplicate "Apply as Candidate" button – kept only in Details view -->
                             </div>
                         </div>
                     </div>
                 </div>
             }
-        }
-        else
-        {
-            <div class="col-12">
-                <div class="card border-0 shadow-sm text-center py-5 rounded-4 bg-white">
-                    <div class="card-body">
-                        <div class="mb-3 text-muted display-4">
-                            <i class="fas fa-folder-open opacity-50"></i>
-                        </div>
-                        <h5 class="fw-bold text-dark">No Active Elections Found</h5>
-                        <p class="text-muted mb-0">There are currently no election events available for this tenant.</p>
-                    </div>
-                </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="mt-5">
+            <nav aria-label="Elections pagination">
+                <ul class="pagination justify-content-center flex-wrap">
+                    @if (Model.PageNumber > 1)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded-3 me-1" asp-action="Index" asp-route-page="@(Model.PageNumber - 1)" asp-route-searchTerm="@currentSearch" asp-route-sortBy="@currentSort">
+                                <i class="fas fa-chevron-left"></i> Previous
+                            </a>
+                        </li>
+                    }
+                    @{
+                        var totalPages = (int)Math.Ceiling((double)Model.TotalItems / Model.PageSize);
+                        var startPage = Math.Max(1, Model.PageNumber - 2);
+                        var endPage = Math.Min(totalPages, Model.PageNumber + 2);
+                    }
+                    @for (int i = startPage; i <= endPage; i++)
+                    {
+                        <li class="page-item @(i == Model.PageNumber ? "active" : "")">
+                            <a class="page-link rounded-3 mx-1" asp-action="Index" asp-route-page="@i" asp-route-searchTerm="@currentSearch" asp-route-sortBy="@currentSort">@i</a>
+                        </li>
+                    }
+                    @if (Model.PageNumber < totalPages)
+                    {
+                        <li class="page-item">
+                            <a class="page-link rounded-3 ms-1" asp-action="Index" asp-route-page="@(Model.PageNumber + 1)" asp-route-searchTerm="@currentSearch" asp-route-sortBy="@currentSort">
+                                Next <i class="fas fa-chevron-right"></i>
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </nav>
+            <div class="text-center text-muted small mt-2">
+                Showing @((Model.PageNumber - 1) * Model.PageSize + 1) – @(Math.Min(Model.PageNumber * Model.PageSize, Model.TotalItems)) of @Model.TotalItems elections
             </div>
-        }
-    </div>
+        </div>
+    }
+    else
+    {
+        <div class="card border-0 shadow-sm text-center py-5 rounded-4 bg-white">
+            <div class="card-body">
+                <div class="mb-3 text-muted display-4">
+                    <i class="fas fa-folder-open opacity-50"></i>
+                </div>
+                <h5 class="fw-bold text-dark">No Elections Found</h5>
+                <p class="text-muted mb-0">Try adjusting your search or check back later.</p>
+                @if (!string.IsNullOrEmpty(currentSearch))
+                {
+                    <a asp-action="Index" class="btn btn-outline-primary mt-3 rounded-pill">
+                        <i class="fas fa-times me-1"></i> Clear Search
+                    </a>
+                }
+            </div>
+        </div>
+    }
 </div>
 
 @section Styles {
@@ -120,8 +212,83 @@
         }
 
             .election-card:hover {
-                transform: translateY(-5px);
-                box-shadow: 0 1rem 3rem rgba(0,0,0,.08) !important;
+                transform: translateY(-6px);
+                box-shadow: 0 1.5rem 3rem rgba(0,0,0,.10) !important;
+            }
+
+        .object-fit-cover {
+            object-fit: cover;
+        }
+
+        .pagination .page-link {
+            border: none;
+            background: transparent;
+            color: #1a2e5a;
+            font-weight: 500;
+            padding: 0.5rem 0.9rem;
+            transition: all 0.2s;
+        }
+
+            .pagination .page-link:hover {
+                background: rgba(26, 46, 90, 0.06);
+            }
+
+        .pagination .active .page-link {
+            background: #1a2e5a;
+            color: #fff;
+            box-shadow: 0 4px 10px rgba(26, 46, 90, 0.25);
+        }
+
+        .pagination .page-item:not(.active) .page-link {
+            color: #1a2e5a;
+        }
+
+        .pagination .page-link:focus {
+            box-shadow: none;
+        }
+
+        /* Search input group styling */
+        .input-group-text {
+            border-radius: 50rem 0 0 50rem;
+            padding-right: 0;
+        }
+
+        .input-group input {
+            border-radius: 0 50rem 50rem 0;
+            padding-left: 0.5rem;
+        }
+
+            .input-group input:focus {
+                border-color: #ced4da;
+                box-shadow: none;
+            }
+
+        .btn-primary {
+            background: #1a2e5a;
+            border-color: #1a2e5a;
+        }
+
+            .btn-primary:hover {
+                background: #0f1a38;
+                border-color: #0f1a38;
+            }
+
+        /* Form select styling */
+        .form-select {
+            border-radius: 50rem;
+            background-color: #fff;
+        }
+
+            .form-select:focus {
+                border-color: #1a2e5a;
+                box-shadow: 0 0 0 0.2rem rgba(26, 46, 90, 0.1);
             }
     </style>
+}
+
+@section Scripts {
+    <script>
+        // Auto-submit on sort change (already works via onchange)
+        // Optional: add a small debounce on search to auto-submit after typing? But we keep explicit Search button.
+    </script>
 }

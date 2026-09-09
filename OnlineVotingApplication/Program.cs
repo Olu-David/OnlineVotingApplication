@@ -143,7 +143,8 @@ namespace OnlineVotingApplication
                     }, token);
                 };
             });
-
+            // ─── ADD THIS ONE LINE ANYWHERE BEFORE BUILDING YOUR APP ───
+            AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
             // ==========================================
             // BUILD THE APPLICATION
             // ==========================================

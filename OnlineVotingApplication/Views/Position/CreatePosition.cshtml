@@ -14,7 +14,7 @@
                     <h4 class="mb-0"><i class="fas fa-plus-circle me-2"></i>Create New Position</h4>
                 </div>
                 <div class="card-body p-4">
-                    <form asp-action="Create" method="post">
+                    <form asp-action="Create" method="post" id="createPositionForm">
                         @Html.AntiForgeryToken()
 
                         <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
@@ -41,7 +41,7 @@
                             <a asp-action="Index" asp-route-electionId="@Model?.ElectionId" class="btn btn-outline-secondary">
                                 <i class="fas fa-arrow-left me-1"></i> Back to List
                             </a>
-                            <button type="submit" class="btn btn-success px-4">
+                            <button type="submit" id="submitBtn" class="btn btn-success px-4">
                                 <i class="fas fa-save me-1"></i> Save Position
                             </button>
                         </div>
@@ -56,14 +56,9 @@
     @{
         await Html.RenderPartialAsync("_ValidationScriptsPartial");
     }
-}
-
-@section Scripts {
-    <!-- Enable Client-Side Form Validation -->
-    <partial name="_ValidationScriptsPartial" />
 
     <script>
-        // Optional UI enhancement: Disable submit button on click to prevent multi-submit bugs
+        // Disable submit button on click to prevent multi-submit bugs when form is valid
         document.getElementById('createPositionForm').addEventListener('submit', function (e) {
             if ($(this).valid()) {
                 const btn = document.getElementById('submitBtn');
@@ -72,9 +67,4 @@
             }
         });
     </script>
-}
-@section Scripts {
-    @{
-        await Html.RenderPartialAsync("_ValidationScriptsPartial");
-    }
 }

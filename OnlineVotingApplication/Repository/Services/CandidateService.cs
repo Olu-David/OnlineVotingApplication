@@ -63,7 +63,7 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #region GetPaginatedPendingApplicationsAsync
         public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetPaginatedPendingApplicationsAsync(
-      int pageNumber = 1, int pageSize = 10)
+           int pageNumber = 1, int pageSize = 10)
         {
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -72,13 +72,11 @@ namespace OnlineVotingApplication.Repository.Services
             int skip = (pageNumber - 1) * pageSize;
 
             // ─── ROBUST ROLE CHECK ──────────────────────────────────────────
-            // Use the injected HttpContextAccessor safely, and treat SuperAdmin
-            // and PlatformAdmin as "global" viewers who see across tenants.
             var httpUser = _httpContext.HttpContext?.User;
             bool isGlobalViewer = httpUser?.IsInRole("SuperAdmin") == true
                                || httpUser?.IsInRole("PlatformAdmin") == true;
 
-            // ─── NON-ADMIN WITH NO TENANT → RETURN EMPTY (correct) ─────────
+            // ─── NON-ADMIN WITH NO TENANT → RETURN EMPTY ────────────────────
             if (!isGlobalViewer && tenantId == Guid.Empty)
             {
                 return new PaginatedListViewModel<PendingApplicationViewModel>
@@ -90,84 +88,46 @@ namespace OnlineVotingApplication.Repository.Services
                 };
             }
 
-            // ─── CACHE KEY (distinguishes global vs tenant) ─────────────────
-            string scope = isGlobalViewer ? "GLOBAL" : $"T{tenantId}";
-            string cacheKeyItems = $"ref_{scope}_Pending_Apps_P{pageNumber}_S{pageSize}";
-            string cacheKeyCount = $"ref_{scope}_Pending_Apps_Count";
-
             // ─── BASE QUERY ─────────────────────────────────────────────────
+            // Filtering strictly for unused applications where IsUsed is false
             var baseQuery = _appDbContext.candidateInvitations
                 .AsNoTracking()
+                .IgnoreQueryFilters()
                 .Where(a => !a.IsUsed);
 
-            // Only tenant users get filtered
+            // Only tenant users get filtered by their specific TenantId
             if (!isGlobalViewer)
             {
                 baseQuery = baseQuery.Where(a => a.TenantId == tenantId);
             }
 
-            // ─── COUNT (cache-aware) ────────────────────────────────────────
-            int totalCount;
-            string? cachedCountStr = await _Cache.GetStringAsync(cacheKeyCount);
+            // ─── TOTAL COUNT ────────────────────────────────────────────────
+            int totalCount = await baseQuery.CountAsync();
 
-            if (cachedCountStr == null)
+            // ─── FETCH ITEMS DIRECTLY (Bypassing stale cache to guarantee visibility) ───
+            var rawApplications = await baseQuery
+                .Include(a => a.ElectionEvent)
+                .Include(a => a.Position)
+                .OrderByDescending(a => a.CreatedAt)
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var appList = rawApplications.Select(a => new PendingApplicationViewModel
             {
-                totalCount = await baseQuery.CountAsync();
-                await _Cache.SetStringAsync(
-                    cacheKeyCount,
-                    totalCount.ToString(),
-                    new DistributedCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-                    });
-            }
-            else
-            {
-                totalCount = int.TryParse(cachedCountStr, out var parsed) ? parsed : 0;
-            }
-
-            // ─── ITEMS (cache-aware) ────────────────────────────────────────
-            List<PendingApplicationViewModel>? appList = null;
-            string? cachedListJson = await _Cache.GetStringAsync(cacheKeyItems);
-
-            if (cachedListJson != null)
-            {
-                appList = JsonSerializer.Deserialize<List<PendingApplicationViewModel>>(cachedListJson);
-            }
-            else
-            {
-                var rawApplications = await baseQuery
-                    .Include(a => a.ElectionEvent)
-                    .Include(a => a.Position)
-                    .OrderByDescending(a => a.CreatedAt)
-                    .Skip(skip)
-                    .Take(pageSize)
-                    .ToListAsync();
-
-                appList = rawApplications.Select(a => new PendingApplicationViewModel
-                {
-                    ApplicationId = a.Id,
-                    ElectionEventId = a.ElectionEventId,
-                    PositionId = a.PositionId,
-                    CandidateEmail = a.CandidateEmail,
-                    CandidateName = a.CandidateName,
-                    ElectionTitle = a.ElectionEvent != null ? a.ElectionEvent.Title : "N/A",
-                    PositionName = a.Position != null ? a.Position.Name : "General Position",
-                    CreatedAt = a.CreatedAt
-                }).ToList();
-
-                await _Cache.SetStringAsync(
-                    cacheKeyItems,
-                    JsonSerializer.Serialize(appList),
-                    new DistributedCacheEntryOptions
-                    {
-                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-                    });
-            }
+                ApplicationId = a.Id,
+                ElectionEventId = a.ElectionEventId,
+                PositionId = a.PositionId,
+                CandidateEmail = a.CandidateEmail,
+                CandidateName = a.CandidateName,
+                ElectionTitle = a.ElectionEvent != null ? a.ElectionEvent.Title : "N/A",
+                PositionName = a.Position != null ? a.Position.Name : "General Position",
+                CreatedAt = a.CreatedAt
+            }).ToList();
 
             return new PaginatedListViewModel<PendingApplicationViewModel>
             {
-                Items = appList ?? new List<PendingApplicationViewModel>(),
+                Items = appList,
                 TotalItems = totalCount,
                 PageNumber = pageNumber,
                 PageSize = pageSize

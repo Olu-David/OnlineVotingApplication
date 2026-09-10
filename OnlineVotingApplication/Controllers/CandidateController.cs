@@ -245,26 +245,40 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("PendingCandidateApplications");
             }
 
-            // 1. First, call the service to fetch the existing invitation and send the email
-            var result = await _candidateService.SendCandidateInviteAsync(model);
+            // 1. Generate the token first (or fetch it so we can build the URL)
+            // For this example, let's assume we quickly grab the token from the DB or generate it, 
+            // OR we can generate the Url.Action using a temporary token lookup.
+            var inviteItem = await _context.candidateInvitations
+                .AsNoTracking()
+                .FirstOrDefaultAsync(m => m.CandidateEmail == model.CandidateEmail && !m.IsUsed);
 
-            if (!result.Success || string.IsNullOrEmpty(result.Data))
+            if (inviteItem == null)
             {
-                TempData["ErrorMessage"] = result.Message;
+                TempData["ErrorMessage"] = "User has not applied yet.";
                 return RedirectToAction("PendingCandidateApplications");
             }
 
-            // 2. Generate the secure link in the controller using the token returned in result.Data
-            string secureLink = Url.Action(
+            // 2. NOW generate model.SecureLink BEFORE calling the email service
+            model.Token = inviteItem.Token;
+            model.SecureLink = Url.Action(
                 action: "CreateCandidate",
                 controller: "Candidate",
-                values: new { token = result.Data },
+                values: new { token = model.Token },
                 protocol: Request.Scheme
             ) ?? string.Empty;
 
-            if (string.IsNullOrEmpty(secureLink))
+            if (string.IsNullOrEmpty(model.SecureLink))
             {
                 TempData["ErrorMessage"] = "Could not generate secure invitation link.";
+                return RedirectToAction("PendingCandidateApplications");
+            }
+
+            // 3. FINALLY, pass the fully populated model (with SecureLink) into your service to send the email!
+            var result = await _candidateService.SendCandidateInviteAsync(model);
+
+            if (!result.Success)
+            {
+                TempData["ErrorMessage"] = result.Message;
                 return RedirectToAction("PendingCandidateApplications");
             }
 

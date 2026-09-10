@@ -176,13 +176,16 @@ namespace OnlineVotingApplication.Repository.Services
 
             bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
             bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
+
             if (!isAdmin && isPlatformAdmin && tenantId == Guid.Empty)
             {
                 response.Success = false;
                 response.Message = "Only Authorized User can invite Candidate";
                 return response;
             }
-            var inviteItem = await _appDbContext.candidateInvitations.FirstOrDefaultAsync(m => m.CandidateEmail == model.CandidateEmail &&m.ElectionEventId==model.ElectionEventId && !m.IsUsed);
+
+            var inviteItem = await _appDbContext.candidateInvitations
+                .FirstOrDefaultAsync(m => m.CandidateEmail == model.CandidateEmail && !m.IsUsed);
 
             if (inviteItem == null)
             {
@@ -191,21 +194,17 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // Notice how it uses model.SecureLink right here!
             string subject = "Your Secure Candidate Registration Invitation";
             string message = $"Hello {inviteItem.CandidateName}, You have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({inviteItem.CandidateEmail}) and can only be used once.";
 
             await _emailService.EmailSendAsync(inviteItem.CandidateEmail, subject, message);
 
-            // Fixed: ServiceResponse<string> expects a string for .Data, so we pass the Token
             response.Data = inviteItem.Token;
-
             response.Message = "Invitation Link Has been Sent to Candidate";
-
-            // Fixed: Set to true so the controller knows the email send succeeded
             response.Success = true;
             return response;
         }
-
         #endregion
 
 

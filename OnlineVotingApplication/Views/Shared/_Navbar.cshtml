@@ -17,13 +17,15 @@
     bool isCandidate = User.IsInRole("Candidate");
     bool isAuditor = User.IsInRole("Auditor");
 
-    // Determine dashboard controller based on primary role
+    // Determine dashboard controller AND action (SuperAdmin/Official use "Dashboard")
     string dashCtrl = "Home";
-    if (isSuperAdmin) dashCtrl = "SuperAdminDashboard";
-    else if (isOfficial) dashCtrl = "Tenant";
-    else if (isCandidate) dashCtrl = "Candidate";
-    else if (isAuditor) dashCtrl = "Auditor";
-    else if (isVoter) dashCtrl = "Voter";
+    string dashAction = "Index";
+
+    if (isSuperAdmin) { dashCtrl = "SuperAdminDashboard"; dashAction = "Dashboard"; }
+    else if (isOfficial) { dashCtrl = "Tenant"; dashAction = "Dashboard"; }
+    else if (isCandidate) { dashCtrl = "Candidate"; dashAction = "Index"; }
+    else if (isAuditor) { dashCtrl = "Auditor"; dashAction = "Index"; }
+    else if (isVoter) { dashCtrl = "Voter"; dashAction = "Index"; }
 
     string ctrl = ViewContext.RouteData.Values["controller"]?.ToString() ?? "";
     string action = ViewContext.RouteData.Values["action"]?.ToString() ?? "";
@@ -48,7 +50,9 @@
     <div class="container py-1">
 
         <!-- Brand Logo -->
-        <a asp-controller="@(isAuth && !isBlocked ? dashCtrl : "Home")" asp-action="Index" class="navbar-brand fw-bold d-flex align-items-center gap-2">
+        <a asp-controller="@(isAuth && !isBlocked ? dashCtrl : "Home")"
+           asp-action="@(isAuth && !isBlocked ? dashAction : "Index")"
+           class="navbar-brand fw-bold d-flex align-items-center gap-2">
             <div class="brand-logo-badge shadow-sm">
                 <i class="fas fa-vote-yea text-dark"></i>
             </div>
@@ -65,7 +69,7 @@
         <div class="collapse navbar-collapse" id="mainNavMenu">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
-                <!-- Home link (visible to guests or blocked users) -->
+                <!-- Home (guests or blocked) -->
                 @if (!isAuth || isBlocked)
                 {
                     <li class="nav-item">
@@ -78,18 +82,18 @@
 
                 @if (isAuth && !isBlocked)
                 {
-                    <!-- Dashboard – for all authenticated users (except Candidate, who has its own) -->
+                    <!-- Dashboard (all except Candidate) -->
                     @if (!isCandidate)
                     {
                         <li class="nav-item">
-                            <a asp-controller="@dashCtrl" asp-action="Index"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == "Index" ? "active shadow-xs" : "")">
+                            <a asp-controller="@dashCtrl" asp-action="@dashAction"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == dashAction ? "active shadow-xs" : "")">
                                 <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
                             </a>
                         </li>
                     }
 
-                    <!-- Voter‑specific links (visible to Voter role) -->
+                    <!-- Voter links -->
                     @if (isVoter)
                     {
                         <li class="nav-item">
@@ -106,7 +110,7 @@
                         </li>
                     }
 
-                    <!-- Candidate dropdown (visible to Candidate role) -->
+                    <!-- Candidate dropdown -->
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
@@ -135,18 +139,18 @@
                         </li>
                     }
 
-                    <!-- Auditor links -->
+                    <!-- Auditor -->
                     @if (isAuditor)
                     {
                         <li class="nav-item">
-                            <a asp-controller="Auditor" asp-action="Logs"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Auditor" && action == "Logs" ? "active shadow-xs" : "")">
+                            <a asp-controller="AuditLog" asp-action="Index"
+                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "AuditLog" && action == "Index" ? "active shadow-xs" : "")">
                                 <i class="fas fa-file-alt me-1 text-danger opacity-75"></i> Audit Logs
                             </a>
                         </li>
                     }
 
-                    <!-- If the user is NOT a candidate, show the Live Results link (already shown for Voter, but we keep for Official/Auditor etc.) -->
+                    <!-- Live Results for non-voter/candidate/auditor -->
                     @if (!isCandidate && !isVoter && !isAuditor)
                     {
                         <li class="nav-item">
@@ -158,7 +162,7 @@
                     }
                 }
 
-                <!-- Privacy link (always visible) -->
+                <!-- Privacy -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Privacy"
                        class="nav-link px-2.5 py-1 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
@@ -175,15 +179,16 @@
                         <i class="fas fa-shield-alt me-1 small"></i> @roleBadge
                     </span>
 
-                    <div class="dropdown position-relative">
+                    <div class="dropdown position-static">
                         <button class="btn user-menu-btn d-flex align-items-center gap-2 dropdown-toggle border-0 rounded-pill px-2 py-1"
-                                type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
                             <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:30px; height:30px; font-size: 0.8rem;">
                                 @nameInitial
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
-                        <!-- Dropdown menu – now uses class .user-dropdown-menu -->
+
+                        <!-- 🎯 Floating dropdown pinned to the far RIGHT of the viewport -->
                         <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown user-dropdown-menu">
                             <li>
                                 <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
@@ -191,15 +196,19 @@
                                     <small class="text-muted text-uppercase tracking-wider" style="font-size: 0.65rem;">Role: @roleBadge</small>
                                 </div>
                             </li>
-                            <li><a asp-controller="@dashCtrl" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-tachometer-alt me-2 text-primary"></i> Dashboard</a></li>
+                            <li>
+                                <a asp-controller="@dashCtrl" asp-action="@dashAction" class="dropdown-item rounded-2 py-2">
+                                    <i class="fas fa-tachometer-alt me-2 text-primary"></i> Dashboard
+                                </a>
+                            </li>
 
-                            @if (isVoter)
-                            {
-                                <li><a asp-controller="Voter" asp-action="Profile" class="dropdown-item rounded-2 py-2"><i class="fas fa-user-circle me-2 text-info"></i> Voter Profile</a></li>
-                            }
                             @if (isCandidate)
                             {
-                                <li><a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2"><i class="fas fa-user-tie me-2 text-warning"></i> Candidate Portal</a></li>
+                                <li>
+                                    <a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2">
+                                        <i class="fas fa-user-tie me-2 text-warning"></i> Candidate Portal
+                                    </a>
+                                </li>
                             }
 
                             <li><hr class="dropdown-divider my-1 opacity-25" /></li>
@@ -282,34 +291,48 @@
         animation: fadeInDropdown 0.2s ease-in-out;
     }
 
-    /* ─── FIX: User dropdown always visible, aligned to right ─── */
-    /* Make sure the parent container doesn't clip the dropdown */
+    /* ═══════════════════════════════════════════════════════════
+       🎯 FLOATING DROPDOWN – pinned to the FAR RIGHT of viewport
+       ═══════════════════════════════════════════════════════════ */
+
+    /* Ensure parent containers never clip the dropdown */
     .navbar,
     .navbar .container,
     .navbar-collapse {
         overflow: visible !important;
     }
 
-        /* Push the right‑side block to the far right */
-        .navbar .ms-auto {
-            margin-left: auto !important;
-        }
-
-    /* Style the dropdown menu */
+    /* Position the dropdown relative to the viewport (position-static on wrapper) */
     .user-dropdown-menu {
-        position: absolute !important;
-        right: 0 !important;
+        position: fixed !important;
+        top: 62px;                    /* just below the sticky navbar */
+        right: 1rem !important;       /* flush to the right edge with a small gap */
         left: auto !important;
-        max-width: calc(100vw - 2rem) !important;
-        min-width: 220px;
-        transform: none !important; /* prevent Bootstrap’s transform from pushing it */
+        margin: 0 !important;
+        transform: none !important;   /* cancel Bootstrap's Popper transform */
+        min-width: 240px;
+        max-width: calc(100vw - 1rem) !important;
+        z-index: 2000;                /* float above everything */
+        animation: fadeInDropdown 0.2s ease-in-out;
     }
 
-    /* Extra mobile fix: allow more breathing room */
+    /* On smaller screens keep it comfortably within the viewport */
     @@media (max-width: 576px) {
         .user-dropdown-menu {
+            top: 56px;
+            right: 0.5rem !important;
+            min-width: 200px;
             max-width: calc(100vw - 1rem) !important;
-            min-width: 180px !important;
+        }
+    }
+
+    /* When the mobile navbar is expanded, push the menu a bit lower */
+    @@media (max-width: 991.98px) {
+        .navbar-collapse.show + * .user-dropdown-menu,
+        .navbar-collapse.collapsing + * .user-dropdown-menu {
+            top: auto;
+            position: absolute !important;
+            right: 0 !important;
         }
     }
 
@@ -318,7 +341,6 @@
             opacity: 0;
             transform: translateY(8px);
         }
-
         to {
             opacity: 1;
             transform: translateY(0);

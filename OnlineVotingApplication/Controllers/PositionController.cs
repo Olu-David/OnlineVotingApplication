@@ -45,7 +45,7 @@ namespace OnlineVotingApplication.Controllers
         // Index / List Positions
         // ─────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> Index(string? electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
+        public async Task<IActionResult> Index(Guid electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
         {
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
@@ -53,23 +53,6 @@ namespace OnlineVotingApplication.Controllers
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
 
-            if (string.IsNullOrEmpty(electionId))
-            {
-                var firstElection = await _context.ElectionEvents
-                    .AsNoTracking()
-                    .Where(e => isSuperAdmin || e.TenantId == activeTenantId)
-                    .OrderByDescending(e => e.CreatedAt)
-                    .Select(e => e.Id)
-                    .FirstOrDefaultAsync(cancellationToken);
-
-                if (firstElection == Guid.Empty)
-                {
-                    TempData["ErrorMessage"] = "No active election events found. Please create an election first.";
-                    return RedirectToAction("Dashboard", "Tenant");
-                }
-
-                electionId = firstElection.ToString();
-            }
 
             ViewBag.ElectionId = electionId;
             var paginatedPositions = await _positionService.GetAllPositionsAsync(electionId, pageNumber, pageSize);

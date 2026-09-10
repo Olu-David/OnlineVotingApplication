@@ -34,12 +34,26 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region GetAllPositionsAsync
-        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(string electionId, int pageNumber = 1, int pageSize = 10)
-        {
-            pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Max(1, pageSize);
 
-            if (!Guid.TryParse(electionId, out Guid electionGuid))
+        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(Guid electionId,int pageNumber = 1, int pageSize = 10,CancellationToken cancellationToken = default)
+        {
+            // ─── STEP 1: Make sure page numbers are valid ───────────────────
+            // If someone passes page 0 or a negative number, treat it as page 1.
+            // Same for page size – never allow 0 or negative.
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1) pageSize = 10;
+
+            // ─── STEP 2: Who is asking? ─────────────────────────────────────
+            // Get the current tenant ID (Guid.Empty means "no tenant").
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            // Check if the current user is a SuperAdmin.
+            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+
+            // ─── STEP 3: Quick exit for users with no tenant context ────────
+            // If the user is NOT a SuperAdmin AND has no tenant, they shouldn't
+            // see any positions. Return an empty result right away (fast, no DB hit).
+            if (!isSuperAdmin && activeTenantId == Guid.Empty)
             {
                 return new PaginatedListViewModel<PositionDTO>
                 {
@@ -50,52 +64,68 @@ namespace OnlineVotingApplication.Repository.Services
                 };
             }
 
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+            // ─── STEP 4: Build the base query ───────────────────────────────
+            // We want positions that:
+            //   • Belong to the given election
+            //   • Are NOT soft-deleted
+            var query = _context.Position
+                .AsNoTracking()   // faster because we won't modify these records
+                .Where(p => p.ElectionEventId == electionId && !p.IsDeleted);
 
-            // Use standard query filters unless bypassing them is an explicit requirement
-            var baseQuery = _context.Position
-                .AsNoTracking()
-                .Include(p => p.ElectionEvent)
-                .Where(p => p.ElectionEventId == electionGuid && !p.IsDeleted);
-
+            // ─── STEP 5: Add tenant filter for non-SuperAdmins ──────────────
+            // A regular tenant user should only see positions whose election
+            // belongs to their tenant. SuperAdmins skip this check.
             if (!isSuperAdmin)
             {
-                baseQuery = baseQuery.Where(p => p.ElectionEvent != null && p.ElectionEvent.TenantId == activeTenantId);
+                query = query.Where(p => p.ElectionEvent!.TenantId == activeTenantId);
             }
 
-            // 1. Get total count strictly for this election & tenant scope
-            int totalItems = await baseQuery.CountAsync();
+            // ─── STEP 6: Try to get data from cache first ───────────────────
+            // Cache is like a quick-access storage. If we've fetched this exact
+            // page before, use it instead of hitting the database again.
+            string scope = isSuperAdmin ? "super" : $"tenant_{activeTenantId}";
+            string cacheKey = $"positions_{electionId}_{scope}_page{pageNumber}_size{pageSize}";
 
-            string cacheKey = $"ref:Positions_Election_{electionGuid}_Tenant_{activeTenantId}_Page_{pageNumber}_Size_{pageSize}";
-
-            if (!_cache.TryGetValue(cacheKey, out List<PositionDTO>? positions) || positions == null)
+            if (_cache.TryGetValue(cacheKey, out PaginatedListViewModel<PositionDTO>? cachedResult)
+                && cachedResult != null)
             {
-                // 2. Fetch only the requested page slice ordered consistently
-                positions = await baseQuery
-                    .OrderBy(m => m.Name) // Added stable ordering to prevent pagination shifting bugs
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .Select(m => new PositionDTO
-                    {
-                        Id = m.Id,
-                        Name = m.Name,
-                        ElectionId = m.ElectionEventId??Guid.Empty
-                    })
-                    .ToListAsync();
-
-                _cache.Set(cacheKey, positions, TimeSpan.FromMinutes(30));
+                return cachedResult;   // cache hit – return immediately
             }
 
-            // 3. Return the unified model
-            return new PaginatedListViewModel<PositionDTO>
+            // ─── STEP 7: If not cached, ask the database ────────────────────
+            // First, how many positions are there total? (needed for pagination)
+            int totalItems = await query.CountAsync(cancellationToken);
+
+            // Then get only the page we need (skip and take).
+            var positions = await query
+                .OrderBy(p => p.Name)                            // always order for stable paging
+                .Skip((pageNumber - 1) * pageSize)               // skip previous pages
+                .Take(pageSize)                                  // take current page
+                .Select(p => new PositionDTO
+                {
+                    Id = p.Id,
+                    Name = p.Name,
+                    ElectionId = p.ElectionEventId ?? Guid.Empty
+                })
+                .ToListAsync(cancellationToken);
+
+            // ─── STEP 8: Wrap everything in one result object ───────────────
+            var result = new PaginatedListViewModel<PositionDTO>
             {
                 Items = positions,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 TotalItems = totalItems
             };
+
+            // ─── STEP 9: Save to cache for next time ────────────────────────
+            // Keep it for 30 minutes. After that, it'll be fetched fresh.
+            _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
+
+            // ─── STEP 10: Return the result ─────────────────────────────────
+            return result;
         }
+
         #endregion
 
         #region GetPositionByIdAsync

@@ -59,6 +59,11 @@
                         </div>
 
                         <div class="mb-4">
+                            <label asp-for="ElectionEventId" class="form-label fw-semibold"></label>
+                            <input asp-for="ElectionEventId" class="form-control form-control-lg" value="@ViewBag.ElectionTitle" readonly />
+                            <span asp-validation-for="SelectedPositionId" class="text-danger small"></span>
+                        </div>
+                        <div class="mb-4">
                             <label asp-for="SelectedPositionId" class="form-label fw-semibold"></label>
                             <select asp-for="SelectedPositionId" asp-items="Model.PositionOptions" class="form-select form-select-lg">
                                 <option value="">-- Choose Position --</option>

@@ -111,9 +111,10 @@ namespace OnlineVotingApplication.Controllers
             if (!string.IsNullOrEmpty(userId))
             {
                 hasApplied = await _context.Candidate
-                    .AnyAsync(c => c.ElectionEventId == id && c.UserId == userId, cancellationToken);
+                    .AnyAsync(c => c.ElectionEventId == id && c.UserId == userId , cancellationToken);
             }
             ViewBag.HasApplied = hasApplied;
+            ViewBag.ElectionId = election.Id;
 
             return View(election);
         }

@@ -7,6 +7,7 @@
     // Pass a flag from the controller to hide the "Apply" button if the user has already applied.
     // In the controller, set ViewBag.HasApplied = true/false
     bool hasApplied = ViewBag.HasApplied ?? false;
+    var electionid = ViewBag.ElectionId ?? null;
 }
 
 @section Styles {
@@ -26,7 +27,7 @@
         {
             <div class="position-absolute top-0 end-0 p-3" style="z-index: 3;">
                 <a asp-controller="Candidate" asp-action="ApplyAsCandidate"
-                   asp-route-electionEventId="@Model.Id"
+                   asp-route-electionEventId="@ViewBag.ElectionId"
                    asp-route-tenantId="@Model.TenantId"
                    class="btn btn-sm btn-light fw-semibold shadow-sm rounded-pill px-3 py-2 text-dark">
                     <i class="fas fa-user-plus text-primary me-1"></i> Apply as Candidate

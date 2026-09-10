@@ -27,5 +27,6 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid? SelectedPositionId { get; set; }
 
         public IEnumerable<SelectListItem> PositionOptions { get; set; } = new List<SelectListItem>();
+        public string? Title { get;  set; }
     }
 }

@@ -103,10 +103,9 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region ApplyAsCandidate (1)
+        #region ApplyAsCandidate (GET & POST)
 
         [HttpGet]
-     
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
             var election = await _context.ElectionEvents.IgnoreQueryFilters()
@@ -122,6 +121,9 @@ namespace OnlineVotingApplication.Controllers
                 .Where(p => p.ElectionEventId == electionEventId)
                 .ToListAsync();
 
+            // Pass the title to the view for display purposes
+            ViewBag.ElectionTitle = election.Title;
+
             var model = new CandidateApplicationViewModel
             {
                 ElectionEventId = election.Id,
@@ -131,27 +133,40 @@ namespace OnlineVotingApplication.Controllers
 
             return View(model);
         }
-        #endregion
-
-
-        #region ApplyAsCandidate(2)
 
         [HttpPost]
+        [Authorize]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
         {
-            var Voter= await _userManager.GetUserAsync(User);
-            if(Voter == null)
+            var voter = await _userManager.GetUserAsync(User);
+            if (voter == null)
             {
                 TempData["Error"] = "You must be logged in to apply as a candidate.";
                 return RedirectToAction("Login", "Account");
             }
-            bool isVoter= await _userManager.IsInRoleAsync(Voter, "Voter");
-            if(!isVoter)
+
+            bool isVoter = await _userManager.IsInRoleAsync(voter, "Voter");
+            if (!isVoter)
             {
                 TempData["Error"] = "Only registered voters can apply as candidates.";
                 return RedirectToAction("Index", "Home");
             }
+
+            // Verify the election event exists using proper async await
+            var electionEvent = await _context.ElectionEvents
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(m => m.Id == model.ElectionEventId);
+
+            if (electionEvent == null)
+            {
+                TempData["Error"] = "User cant fill form without an ElectionEvent";
+                return RedirectToAction("Index", "Voter");
+            }
+
+            // Keep the title available if model state fails and we re-render
+            ViewBag.ElectionTitle = electionEvent.Title;
+
             if (!ModelState.IsValid)
             {
                 var positions = await _context.Position.IgnoreQueryFilters()
@@ -189,8 +204,8 @@ namespace OnlineVotingApplication.Controllers
             TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
             return RedirectToAction("Index", "Home");
         }
-        #endregion
 
+        #endregion
 
         #region SendCandidateInvite
         // ─────────────────────────────────────────────

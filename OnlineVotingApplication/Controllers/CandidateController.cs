@@ -106,31 +106,56 @@ namespace OnlineVotingApplication.Controllers
         #endregion
 
         #region ApplyAsCandidate (GET & POST)
-        [Authorize(Roles ="Voter")]
+        [Authorize(Roles = "Voter")]
         [HttpGet]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
-            var election = await _context.ElectionEvents.IgnoreQueryFilters()
-                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
+            // 1. Enforce tenant security context
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
+            bool isAdmin = User.IsInRole("SuperAdmin");
+
+            // 2. Fetch the election event securely, ensuring it matches the active tenant (unless SuperAdmin)
+            var electionQuery = _context.ElectionEvents.Where(e => e.Id == electionEventId && !e.IsDeleted);
+
+            if (!isAdmin && tenantId != Guid.Empty)
+            {
+                electionQuery = electionQuery.Where(e => e.TenantId == tenantId);
+            }
+
+            var election = await electionQuery.FirstOrDefaultAsync();
 
             if (election == null)
             {
-                TempData["Error"] = "Election event not found.";
+                TempData["ErrorMessage"] = "Election event not found or access denied.";
                 return RedirectToAction("Index", "Home");
             }
 
-            var positions = await _context.Position.IgnoreQueryFilters()
+            // 3. Get currently logged-in user details
+            var userId = _userManager.GetUserId(User);
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                TempData["ErrorMessage"] = "You must be logged in to apply as a candidate.";
+                return RedirectToAction("Login", "AuthService");
+            }
+
+            // 4. Fetch available positions for this specific election event
+            var positions = await _context.Position
                 .Where(p => p.ElectionEventId == electionEventId)
                 .ToListAsync();
 
-            // Pass the title to the view for display purposes
+            // Pass the election title to the view for display purposes
             ViewBag.ElectionTitle = election.Title;
 
+            // 5. Construct the view model using the voter's verified account profile data
             var model = new CandidateApplicationViewModel
             {
                 ElectionEventId = election.Id,
                 TenantId = election.TenantId,
-                PositionOptions = new SelectList(positions, "Id", "Name")
+                PositionOptions = new SelectList(positions, "Id", "Name"),
+                FullName = user.FullName,
+                CandidateEmail = user.Email ?? string.Empty
             };
 
             return View(model);
@@ -196,7 +221,7 @@ namespace OnlineVotingApplication.Controllers
                 TenantId = model.TenantId,
                 ElectionEventId = model.ElectionEventId,
                 PositionId = model.SelectedPositionId,
-                CandidateName = $"{model.FirstName.Trim()} {model.LastName.Trim()}",
+                CandidateName = model.FullName ?? string.Empty,
                 CandidateEmail = model.Email.Trim().ToLower(),
                 IsUsed = false,
                 Token = token,

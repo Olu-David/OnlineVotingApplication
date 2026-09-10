@@ -1,10 +1,7 @@
-﻿@using System.Security.Claims
-@model OnlineVotingApplication.DataTransferView.CandidateApplicationViewModel
+﻿@model OnlineVotingApplication.DataTransferView.CandidateApplicationViewModel
 
 @{
     ViewData["Title"] = "Apply as a Candidate";
-    bool isAuthenticated = User.Identity?.IsAuthenticated ?? false;
-    string email = User.FindFirstValue(ClaimTypes.Email) ?? "";
 }
 
 <div class="container py-5">
@@ -32,39 +29,26 @@
                         <input type="hidden" asp-for="TenantId" />
 
                         <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="FirstName" class="form-label fw-semibold"></label>
-                                <input asp-for="FirstName" class="form-control form-control-lg" placeholder="Enter first name" />
-                                <span asp-validation-for="FirstName" class="text-danger small"></span>
-                            </div>
-
-                            <div class="col-md-6 mb-3">
-                                <label asp-for="LastName" class="form-label fw-semibold"></label>
-                                <input asp-for="LastName" class="form-control form-control-lg" placeholder="Enter last name" />
-                                <span asp-validation-for="LastName" class="text-danger small"></span>
+                            <div class="col-md-12 mb-3">
+                                <label asp-for="FullName" class="form-label fw-semibold"></label>
+                                <input asp-for="FullName" class="form-control form-control-lg" readonly />
+                                <span asp-validation-for="FullName" class="text-danger small"></span>
                             </div>
                         </div>
 
                         <div class="mb-3">
-                            <label asp-for="Email" class="form-label fw-semibold"></label>
-                            @if (isAuthenticated)
-                            {
-                                <input asp-for="Email" class="form-control form-control-lg" value="@email" readonly />
-                            }
-                            else
-                            {
-                                <input asp-for="Email" class="form-control form-control-lg" placeholder="name@example.com" />
-                            }
-                            <span asp-validation-for="Email" class="text-danger small"></span>
+                            <label asp-for="CandidateEmail" class="form-label fw-semibold">Email Address</label>
+                            <input asp-for="CandidateEmail" class="form-control form-control-lg" readonly />
+                            <span asp-validation-for="CandidateEmail" class="text-danger small"></span>
                         </div>
 
                         <div class="mb-4">
-                            <label class="form-label fw-semibold">ElectionEvent</label>
-                            <input asp-for="ElectionEventId" class="form-control form-control-lg" value="@ViewBag.ElectionTitle" readonly />
-                            <span asp-validation-for="SelectedPositionId" class="text-danger small"></span>
+                            <label class="form-label fw-semibold">Election Event</label>
+                            <input type="text" class="form-control form-control-lg" value="@ViewBag.ElectionTitle" readonly />
                         </div>
+
                         <div class="mb-4">
-                            <label asp-for="SelectedPositionId" class="form-label fw-semibold"></label>
+                            <label asp-for="SelectedPositionId" class="form-label fw-semibold">Select Position</label>
                             <select asp-for="SelectedPositionId" asp-items="Model.PositionOptions" class="form-select form-select-lg">
                                 <option value="">-- Choose Position --</option>
                             </select>

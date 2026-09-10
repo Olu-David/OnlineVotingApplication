@@ -10,23 +10,15 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid? ElectionEventId { get; set; }
         public Guid? TenantId { get; set; }
 
-        [Required]
-        [Display(Name = "First Name")]
-        public string FirstName { get; set; } = string.Empty;
-
-        [Required]
-        [Display(Name = "Last Name")]
-        public string LastName { get; set; } = string.Empty;
-
-        [Required, EmailAddress]
         [Display(Name = "Email Address")]
         public string Email { get; set; } = string.Empty;
 
-        [Required]
-        [Display(Name = "Select Position")]
+        [Required(ErrorMessage = "Please select a position.")]
         public Guid? SelectedPositionId { get; set; }
 
         public IEnumerable<SelectListItem> PositionOptions { get; set; } = new List<SelectListItem>();
         public string? Title { get;  set; }
+        public string? FullName { get;  set; }
+        public string? CandidateEmail { get;  set; }
     }
 }

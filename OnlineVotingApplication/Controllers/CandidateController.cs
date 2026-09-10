@@ -104,7 +104,7 @@ namespace OnlineVotingApplication.Controllers
         #endregion
 
         #region ApplyAsCandidate (GET & POST)
-
+        [Authorize(Roles ="Voter")]
         [HttpGet]
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
@@ -135,7 +135,7 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
-        [Authorize]
+        [Authorize(Roles ="Voter")]
         [ValidateAntiForgeryToken]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
         {
@@ -156,7 +156,7 @@ namespace OnlineVotingApplication.Controllers
             // Verify the election event exists using proper async await
             var electionEvent = await _context.ElectionEvents
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(m => m.Id == model.ElectionEventId);
+                .FirstOrDefaultAsync(m => m.Id == model.ElectionEventId&&m.IsDeleted==false);
 
             if (electionEvent == null)
             {

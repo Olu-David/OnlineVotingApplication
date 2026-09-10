@@ -251,7 +251,7 @@ namespace OnlineVotingApplication.Controllers
             );
 
             TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
-            return RedirectToAction("MyHistory", "Voter");
+            return RedirectToAction("Details", "Voter", new {electionEvent.Id});
         }  
         #endregion
 

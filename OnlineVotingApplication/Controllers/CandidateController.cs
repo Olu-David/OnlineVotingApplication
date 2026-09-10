@@ -117,9 +117,10 @@ namespace OnlineVotingApplication.Controllers
             // 2. Fetch the election event securely, ensuring it matches the active tenant (unless SuperAdmin)
             var electionQuery = _context.ElectionEvents.Where(e => e.Id == electionEventId && !e.IsDeleted);
 
-            if (!isAdmin && tenantId != Guid.Empty)
+            if (isAdmin && tenantId != Guid.Empty)
             {
-                electionQuery = electionQuery.Where(e => e.TenantId == tenantId);
+                TempData["ErrorMessage"] = "Only Voters have access to this page";
+                return RedirectToAction("Home", "Index");
             }
 
             var election = await electionQuery.FirstOrDefaultAsync();
@@ -162,42 +163,36 @@ namespace OnlineVotingApplication.Controllers
         }
 
         [HttpPost]
-        [Authorize(Roles ="Voter")]
+        [Authorize(Roles = "Voter")]
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
         public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
         {
+            // ─── 1. Identify the voter ──────────────────────────────────────
             var voter = await _userManager.GetUserAsync(User);
             if (voter == null)
             {
                 TempData["Error"] = "You must be logged in to apply as a candidate.";
-                return RedirectToAction("Login", "Account");
-            }
-       
-
-            bool isVoter = await _userManager.IsInRoleAsync(voter, "Voter");
-            if (!isVoter)
-            {
-                TempData["Error"] = "Only registered voters can apply as candidates.";
-                return RedirectToAction("Index", "Home");
+                return RedirectToAction("Login", "AuthService");
             }
 
-            // Verify the election event exists using proper async await
+            // ─── 2. Verify the election exists ──────────────────────────────
             var electionEvent = await _context.ElectionEvents
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(m => m.Id == model.ElectionEventId&&m.IsDeleted==false);
+                .FirstOrDefaultAsync(m => m.Id == model.ElectionEventId && !m.IsDeleted);
 
             if (electionEvent == null)
             {
-                TempData["Error"] = "User cant fill form without an ElectionEvent";
+                TempData["Error"] = "You cannot fill out this form without a valid election event.";
                 return RedirectToAction("Index", "Voter");
             }
 
-            // Keep the title available if model state fails and we re-render
-            ViewBag.ElectionTitle = electionEvent.Title;
-
+            // ─── 3. Rehydrate dropdown if validation fails ──────────────────
             if (!ModelState.IsValid)
             {
-                var positions = await _context.Position.IgnoreQueryFilters()
+                ViewBag.ElectionTitle = electionEvent.Title;
+                var positions = await _context.Position
+                    .IgnoreQueryFilters()
                     .Where(p => p.ElectionEventId == model.ElectionEventId)
                     .ToListAsync();
 
@@ -205,24 +200,30 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            bool alreadyApplied = await _context.candidateInvitations
-                .AnyAsync(a => a.ElectionEventId == model.ElectionEventId && a.CandidateEmail.ToLower() == model.Email.Trim().ToLower());
+            // ─── 4. Duplicate check (pending invitation only) ───────────────
+            var cleanEmail = model.Email.Trim().ToLower();
 
-            if (alreadyApplied)
+            bool alreadyInvited = await _context.candidateInvitations
+                .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
+                            && a.CandidateEmail.ToLower() == cleanEmail);
+
+            if (alreadyInvited)
             {
                 TempData["Error"] = "You have already submitted an application for this election event.";
                 return RedirectToAction(nameof(ApplyAsCandidate), new { electionEventId = model.ElectionEventId });
             }
 
+            // ─── 5. Create the invitation ───────────────────────────────────
             var token = GenerateCode();
+
             var application = new CandidateInvitation
             {
                 Id = Guid.NewGuid(),
-                TenantId = model.TenantId,
+                TenantId = electionEvent.TenantId,     // ← from the DB, not the form
                 ElectionEventId = model.ElectionEventId,
                 PositionId = model.SelectedPositionId,
-                CandidateName = model.FullName ?? string.Empty,
-                CandidateEmail = model.Email.Trim().ToLower(),
+                CandidateName = model.FullName ?? voter.FullName ?? string.Empty,
+                CandidateEmail = cleanEmail,
                 IsUsed = false,
                 Token = token,
                 CreatedAt = DateTime.UtcNow
@@ -231,8 +232,20 @@ namespace OnlineVotingApplication.Controllers
             _context.candidateInvitations.Add(application);
             await _context.SaveChangesAsync();
 
+            // ─── 6. Audit log ───────────────────────────────────────────────
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid? tenantId = electionEvent.TenantId;
+
+            await _auditLogService.LogActivityAsync(
+                userId: voter.Id,
+                action: "Candidate Application Submitted",
+                details: $"Voter applied as candidate for election ID: {model.ElectionEventId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
+
             TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
-            return RedirectToAction("Details", "Voter");
+            return RedirectToAction("MyHistory", "Voter");
         }
 
         #endregion

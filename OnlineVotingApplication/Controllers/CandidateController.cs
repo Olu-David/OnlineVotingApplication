@@ -106,74 +106,80 @@ namespace OnlineVotingApplication.Controllers
         #endregion
 
         #region ApplyAsCandidate (GET & POST)
-        [Authorize(Roles = "Voter")]
+        // ─────────────────────────────────────────────
+        // GET: Apply as Candidate
+        // ─────────────────────────────────────────────
         [HttpGet]
+        [Authorize]              // ← overrides class-level roles; only requires login
         public async Task<IActionResult> ApplyAsCandidate(Guid electionEventId)
         {
-            // 1. Enforce tenant security context
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
-            bool isAdmin = User.IsInRole("SuperAdmin");
-
-            // 2. Fetch the election event securely, ensuring it matches the active tenant (unless SuperAdmin)
-            var electionQuery = _context.ElectionEvents.Where(e => e.Id == electionEventId && !e.IsDeleted);
-
-            if (isAdmin && tenantId != Guid.Empty)
-            {
-                TempData["ErrorMessage"] = "Only Voters have access to this page";
-                return RedirectToAction("Home", "Index");
-            }
-
-            var election = await electionQuery.FirstOrDefaultAsync();
-
-            if (election == null)
-            {
-                TempData["ErrorMessage"] = "Election event not found or access denied.";
-                return RedirectToAction("Index", "Home");
-            }
-
-            // 3. Get currently logged-in user details
-            var userId = _userManager.GetUserId(User);
-            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (user == null)
-            {
-                TempData["ErrorMessage"] = "You must be logged in to apply as a candidate.";
-                return RedirectToAction("Login", "AuthService");
-            }
-
-            // 4. Fetch available positions for this specific election event
-            var positions = await _context.Position
-                .Where(p => p.ElectionEventId == electionEventId)
-                .ToListAsync();
-
-            // Pass the election title to the view for display purposes
-            ViewBag.ElectionTitle = election.Title;
-
-            // 5. Construct the view model using the voter's verified account profile data
-            var model = new CandidateApplicationViewModel
-            {
-                ElectionEventId = election.Id,
-                TenantId = election.TenantId,
-                PositionOptions = new SelectList(positions, "Id", "Name"),
-                FullName = user.FullName,
-                CandidateEmail = user.Email ?? string.Empty
-            };
-
-            return View(model);
-        }
-
-        [HttpPost]
-        [Authorize(Roles = "Voter")]
-        [ValidateAntiForgeryToken]
-        [EnableRateLimiting("StrictPolicy")]
-        public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
-        {
-            // ─── 1. Identify the voter ──────────────────────────────────────
+            // 1. Manual role check – only Voters may access
             var voter = await _userManager.GetUserAsync(User);
             if (voter == null)
             {
                 TempData["Error"] = "You must be logged in to apply as a candidate.";
                 return RedirectToAction("Login", "AuthService");
+            }
+
+            if (!await _userManager.IsInRoleAsync(voter, "Voter"))
+            {
+                TempData["Error"] = "Only registered voters can apply as candidates.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // 2. Fetch the election (ignore query filters so tenant-less elections work)
+            var election = await _context.ElectionEvents
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(e => e.Id == electionEventId && !e.IsDeleted);
+
+            if (election == null)
+            {
+                TempData["ErrorMessage"] = "Election event not found.";
+                return RedirectToAction("Index", "Home");
+            }
+
+            // 3. Fetch available positions for this election
+            var positions = await _context.Position
+                .IgnoreQueryFilters()
+                .Where(p => p.ElectionEventId == electionEventId)
+                .ToListAsync();
+
+            ViewBag.ElectionTitle = election.Title;
+
+            // 4. Build the view model
+            var model = new CandidateApplicationViewModel
+            {
+                ElectionEventId = election.Id,
+                TenantId = election.TenantId,
+                PositionOptions = new SelectList(positions, "Id", "Name"),
+                FullName = voter.FullName,
+                CandidateEmail = voter.Email ?? string.Empty
+            };
+
+            return View(model);
+        }
+
+        // ─────────────────────────────────────────────
+        // POST: Apply as Candidate
+        // ─────────────────────────────────────────────
+        [HttpPost]
+        [Authorize]              // ← overrides class-level roles; only requires login
+        [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StrictPolicy")]
+        public async Task<IActionResult> ApplyAsCandidate(CandidateApplicationViewModel model)
+        {
+            // ─── 1. Manual role check – only Voters may apply ───────────────
+            var voter = await _userManager.GetUserAsync(User);
+            if (voter == null)
+            {
+                TempData["Error"] = "You must be logged in to apply as a candidate.";
+                return RedirectToAction("Login", "AuthService");
+            }
+
+            if (!await _userManager.IsInRoleAsync(voter, "Voter"))
+            {
+                TempData["Error"] = "Only registered voters can apply as candidates.";
+                return RedirectToAction("Index", "Home");
             }
 
             // ─── 2. Verify the election exists ──────────────────────────────
@@ -246,8 +252,7 @@ namespace OnlineVotingApplication.Controllers
 
             TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
             return RedirectToAction("MyHistory", "Voter");
-        }
-
+        }  
         #endregion
 
         #region GenerateCode

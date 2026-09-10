@@ -14,7 +14,7 @@ using System.Security.Claims;
 namespace OnlineVotingApplication.Controllers
 {
     // Updated controller-level access for administrative tiers
-    [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
+  
     public class CandidateController : Controller
     {
         private readonly AppDbContext _context;

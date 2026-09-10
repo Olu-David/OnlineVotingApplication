@@ -162,6 +162,47 @@ namespace OnlineVotingApplication.Controllers
         #endregion
         #endregion
 
+        #region PopulateElectionsViewBagAsync
+        private async Task PopulateElectionsViewBagAsync(Guid? selectedElectionId = null, CancellationToken cancellationToken = default)
+        {
+            bool isSuperAdmin = User.IsInRole("SuperAdmin");
+            ViewBag.IsSuperAdmin = isSuperAdmin;
+
+            List<ElectionEvent> elections;
+
+            if (isSuperAdmin)
+            {
+                // SuperAdmin gets to see ALL active, non-deleted election events across the system
+                elections = await _context.ElectionEvents
+                    .AsNoTracking()
+                    .Where(e => !e.IsDeleted)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync(cancellationToken);
+            }
+            else
+            {
+                // Regular tenant users only see elections belonging to their active tenant
+                Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+                if (activeTenantId == Guid.Empty)
+                {
+                    elections = new List<ElectionEvent>();
+                }
+                else
+                {
+                    elections = await _context.ElectionEvents
+                        .AsNoTracking()
+                        .Where(e => e.TenantId == activeTenantId && !e.IsDeleted)
+                        .OrderByDescending(e => e.CreatedAt)
+                        .ToListAsync(cancellationToken);
+                }
+            }
+
+            // Bind to ViewBag.ElectionEvents so the dropdown populates correctly in the view
+            ViewBag.ElectionEvents = new SelectList(elections, "Id", "Title", selectedElectionId);
+        }
+        
+        #endregion
         #region Edit
         // ─────────────────────────────────────────────
         // Edit Position
@@ -384,30 +425,5 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region PopulateElectionsViewBagAsync
-        // ─────────────────────────────────────────────
-        // Helper Methods
-        // ─────────────────────────────────────────────
-        private async Task PopulateElectionsViewBagAsync(Guid? selectedElectionId, CancellationToken cancellationToken = default)
-        {
-            bool isSuperAdmin = User.IsInRole("SuperAdmin");
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-
-            var query = _context.ElectionEvents.AsNoTracking().Where(e => !e.IsDeleted);
-
-            if (!isSuperAdmin)
-            {
-                query = query.Where(e => e.TenantId == activeTenantId);
-            }
-
-            var electionList = await query
-                .OrderBy(e => e.Title)
-                .Select(e => new { e.Id, e.Title })
-                .ToListAsync(cancellationToken);
-
-            ViewBag.IsSuperAdmin = isSuperAdmin;
-            ViewBag.ElectionEvents = new SelectList(electionList, "Id", "Title", selectedElectionId);
-        }
-        #endregion
     }
 }

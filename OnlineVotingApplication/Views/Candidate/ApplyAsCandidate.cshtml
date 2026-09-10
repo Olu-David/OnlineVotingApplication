@@ -1,7 +1,10 @@
-﻿@model CandidateApplicationViewModel
+﻿@using System.Security.Claims
+@model OnlineVotingApplication.DataTransferView.CandidateApplicationViewModel
 
 @{
     ViewData["Title"] = "Apply as a Candidate";
+    bool isAuthenticated = User.Identity?.IsAuthenticated ?? false;
+    string email = User.FindFirstValue(ClaimTypes.Email) ?? "";
 }
 
 <div class="container py-5">
@@ -44,7 +47,14 @@
 
                         <div class="mb-3">
                             <label asp-for="Email" class="form-label fw-semibold"></label>
-                            <input asp-for="Email" class="form-control form-control-lg" placeholder="name@example.com" />
+                            @if (isAuthenticated)
+                            {
+                                <input asp-for="Email" class="form-control form-control-lg" value="@email" readonly />
+                            }
+                            else
+                            {
+                                <input asp-for="Email" class="form-control form-control-lg" placeholder="name@example.com" />
+                            }
                             <span asp-validation-for="Email" class="text-danger small"></span>
                         </div>
 

@@ -62,7 +62,8 @@ namespace OnlineVotingApplication.Repository.Services
             _emailService = emailService;
         }
         #region GetPaginatedPendingApplicationsAsync
-        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetPaginatedPendingApplicationsAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetPaginatedPendingApplicationsAsync(
+      int pageNumber = 1, int pageSize = 10)
         {
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
@@ -70,54 +71,62 @@ namespace OnlineVotingApplication.Repository.Services
             pageSize = Math.Max(1, pageSize);
             int skip = (pageNumber - 1) * pageSize;
 
-            string cacheKeyItems = $"ref_T{tenantId}_Pending_Apps_P{pageNumber}_S{pageSize}";
-            string cacheKeyCount = $"ref_T{tenantId}_Pending_Apps_Count";
+            // ─── ROBUST ROLE CHECK ──────────────────────────────────────────
+            // Use the injected HttpContextAccessor safely, and treat SuperAdmin
+            // and PlatformAdmin as "global" viewers who see across tenants.
+            var httpUser = _httpContext.HttpContext?.User;
+            bool isGlobalViewer = httpUser?.IsInRole("SuperAdmin") == true
+                               || httpUser?.IsInRole("PlatformAdmin") == true;
 
-            bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+            // ─── NON-ADMIN WITH NO TENANT → RETURN EMPTY (correct) ─────────
+            if (!isGlobalViewer && tenantId == Guid.Empty)
+            {
+                return new PaginatedListViewModel<PendingApplicationViewModel>
+                {
+                    Items = new List<PendingApplicationViewModel>(),
+                    TotalItems = 0,
+                    PageNumber = pageNumber,
+                    PageSize = pageSize
+                };
+            }
 
-            // 1. Build the base query correctly based on roles (Declared outside the if-statement so it has proper scope)
+            // ─── CACHE KEY (distinguishes global vs tenant) ─────────────────
+            string scope = isGlobalViewer ? "GLOBAL" : $"T{tenantId}";
+            string cacheKeyItems = $"ref_{scope}_Pending_Apps_P{pageNumber}_S{pageSize}";
+            string cacheKeyCount = $"ref_{scope}_Pending_Apps_Count";
+
+            // ─── BASE QUERY ─────────────────────────────────────────────────
             var baseQuery = _appDbContext.candidateInvitations
                 .AsNoTracking()
                 .Where(a => !a.IsUsed);
 
-            if (!isAdmin)
+            // Only tenant users get filtered
+            if (!isGlobalViewer)
             {
-                if (tenantId == Guid.Empty)
-                {
-                    // Handle edge case where non-admin has no active tenant context
-                    return new PaginatedListViewModel<PendingApplicationViewModel>
-                    {
-                        Items = new List<PendingApplicationViewModel>(),
-                        TotalItems = 0,
-                        PageNumber = pageNumber,
-                        PageSize = pageSize
-                    };
-                }
-
-                // Restrict regular users to their specific tenant
                 baseQuery = baseQuery.Where(a => a.TenantId == tenantId);
             }
-            // Note: If isAdmin is true, it skips the filter and queries ALL tenants automatically!
 
-            // 2. Fetch or Cache Total Count
+            // ─── COUNT (cache-aware) ────────────────────────────────────────
             int totalCount;
             string? cachedCountStr = await _Cache.GetStringAsync(cacheKeyCount);
 
             if (cachedCountStr == null)
             {
                 totalCount = await baseQuery.CountAsync();
-                var countOptions = new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-                };
-                await _Cache.SetStringAsync(cacheKeyCount, totalCount.ToString(), countOptions);
+                await _Cache.SetStringAsync(
+                    cacheKeyCount,
+                    totalCount.ToString(),
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                    });
             }
             else
             {
-                totalCount = int.Parse(cachedCountStr);
+                totalCount = int.TryParse(cachedCountStr, out var parsed) ? parsed : 0;
             }
 
-            // 3. Fetch or Cache Paginated List
+            // ─── ITEMS (cache-aware) ────────────────────────────────────────
             List<PendingApplicationViewModel>? appList = null;
             string? cachedListJson = await _Cache.GetStringAsync(cacheKeyItems);
 
@@ -135,11 +144,9 @@ namespace OnlineVotingApplication.Repository.Services
                     .Take(pageSize)
                     .ToListAsync();
 
-                // Map safely in-memory to your view model
                 appList = rawApplications.Select(a => new PendingApplicationViewModel
                 {
                     ApplicationId = a.Id,
-
                     ElectionEventId = a.ElectionEventId,
                     PositionId = a.PositionId,
                     CandidateEmail = a.CandidateEmail,
@@ -149,15 +156,15 @@ namespace OnlineVotingApplication.Repository.Services
                     CreatedAt = a.CreatedAt
                 }).ToList();
 
-                string jsonToCache = JsonSerializer.Serialize(appList);
-                var itemsOptions = new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
-                };
-                await _Cache.SetStringAsync(cacheKeyItems, jsonToCache, itemsOptions);
+                await _Cache.SetStringAsync(
+                    cacheKeyItems,
+                    JsonSerializer.Serialize(appList),
+                    new DistributedCacheEntryOptions
+                    {
+                        AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5)
+                    });
             }
 
-            // 4. Return your custom PaginatedListViewModel
             return new PaginatedListViewModel<PendingApplicationViewModel>
             {
                 Items = appList ?? new List<PendingApplicationViewModel>(),

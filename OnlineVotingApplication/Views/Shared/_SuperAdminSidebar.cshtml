@@ -69,7 +69,7 @@
         <li class="nav-item">
             <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "PendingCandidateApplications" ? "active" : "")">
-                <i class="fas fa-clipboard-list me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Applications</span>
+                <i class="fas fa-clipboard-list me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Candidate Applications</span>
             </a>
         </li>
 
@@ -152,12 +152,7 @@
                             <i class="fas fa-users me-2" style="width: 14px;"></i><span>All Candidates</span>
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
-                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "PendingCandidateApplications" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-clipboard-list me-2 text-warning" style="width: 14px;"></i><span>Pending Applications</span>
-                        </a>
-                    </li>
+               
                     <li class="nav-item">
                         <a asp-controller="SuperAdminDashboard" asp-action="CreateCandidateSuperAdmin"
                            class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
@@ -351,7 +346,7 @@
         </li>
 
         <li class="nav-item">
-            <a asp-controller="Voter" asp-action="PenalizedVoters"
+            <a asp-controller="Voter" asp-action="PenalizeVoter"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Voter" && currentAction == "PenalizedVoters" ? "active" : "")">
                 <i class="fas fa-user-slash me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Penalized Voters</span>
             </a>

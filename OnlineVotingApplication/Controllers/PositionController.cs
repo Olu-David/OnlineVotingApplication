@@ -21,6 +21,7 @@ namespace OnlineVotingApplication.Controllers
         private readonly iPositionService _positionService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly IAuditLogService _auditLogService;
+        private readonly ILogger<PositionController> _logger;   
 
         #region PositionController
         public PositionController(
@@ -28,13 +29,14 @@ namespace OnlineVotingApplication.Controllers
             ITenantProvider tenantProvider,
             iPositionService positionService,
             UserManager<ApplicationUser> userManager,
-            IAuditLogService auditLogService)
+            IAuditLogService auditLogService, ILogger<PositionController>logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _positionService = positionService ?? throw new ArgumentNullException(nameof(positionService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _logger = logger;
         }
         #endregion
 
@@ -166,41 +168,66 @@ namespace OnlineVotingApplication.Controllers
         private async Task PopulateElectionsViewBagAsync(Guid? selectedElectionId = null, CancellationToken cancellationToken = default)
         {
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
-            ViewBag.IsSuperAdmin = isSuperAdmin;
+            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            _logger.LogInformation(
+                "[PopulateElections] User: {User}, IsSuperAdmin: {IsSuperAdmin}, ActiveTenant: {Tenant}",
+                User.Identity?.Name, isSuperAdmin, activeTenantId);
 
             List<ElectionEvent> elections;
 
             if (isSuperAdmin)
             {
-                // SuperAdmin gets to see ALL active, non-deleted election events across the system
+                // SuperAdmin sees ALL elections (ignore tenant filters entirely)
                 elections = await _context.ElectionEvents
+                    .IgnoreQueryFilters()
                     .AsNoTracking()
                     .Where(e => !e.IsDeleted)
                     .OrderByDescending(e => e.CreatedAt)
                     .ToListAsync(cancellationToken);
+
+                _logger.LogInformation("[PopulateElections] SuperAdmin query returned {Count} elections.", elections.Count);
+            }
+            else if (activeTenantId != Guid.Empty)
+            {
+                elections = await _context.ElectionEvents
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(e => !e.IsDeleted && e.TenantId == activeTenantId)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync(cancellationToken);
+
+                _logger.LogInformation("[PopulateElections] Tenant query (tenant {Tenant}) returned {Count} elections.",
+                    activeTenantId, elections.Count);
             }
             else
             {
-                // Regular tenant users only see elections belonging to their active tenant
-                Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+                // Non-superadmin with no tenant → show all elections (graceful fallback)
+                elections = await _context.ElectionEvents
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(e => !e.IsDeleted)
+                    .OrderByDescending(e => e.CreatedAt)
+                    .ToListAsync(cancellationToken);
 
-                if (activeTenantId == Guid.Empty)
-                {
-                    elections = new List<ElectionEvent>();
-                }
-                else
-                {
-                    elections = await _context.ElectionEvents
-                        .AsNoTracking()
-                        .Where(e => e.TenantId == activeTenantId && !e.IsDeleted)
-                        .OrderByDescending(e => e.CreatedAt)
-                        .ToListAsync(cancellationToken);
-                }
+                _logger.LogInformation("[PopulateElections] Fallback (no tenant) query returned {Count} elections.", elections.Count);
             }
 
-            // Bind to ViewBag.ElectionEvents so the dropdown populates correctly in the view
+            // If STILL empty after all that, log the total raw count for debugging
+            if (elections.Count == 0)
+            {
+                var totalRaw = await _context.ElectionEvents.IgnoreQueryFilters().AsNoTracking().CountAsync(cancellationToken);
+                var totalNotDeleted = await _context.ElectionEvents.IgnoreQueryFilters().AsNoTracking()
+                    .CountAsync(e => !e.IsDeleted, cancellationToken);
+                _logger.LogWarning(
+                    "[PopulateElections] Empty result. Raw total in DB: {RawTotal}, NotDeleted total: {NotDeleted}.",
+                    totalRaw, totalNotDeleted);
+            }
+
+            ViewBag.IsSuperAdmin = isSuperAdmin;
             ViewBag.ElectionEvents = new SelectList(elections, "Id", "Title", selectedElectionId);
         }
+        
         
         #endregion
         #region Edit

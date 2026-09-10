@@ -67,9 +67,13 @@
         </li>
 
         <li class="nav-item">
-            <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
-               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "PendingCandidateApplications" ? "active" : "")">
-                <i class="fas fa-clipboard-list me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Candidate Applications</span>
+            <a asp-controller="Candidate" asp-action="GetUnsentCandidateApplicationsAsync"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "GetUnsentCandidateApplicationsAsync" ? "active" : "")">
+                <i class="fas fa-user-clock me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Candidate Applications</span>
+            </a>
+            <a asp-controller="Candidate" asp-action="GetSentCandidateInvitationsAsync"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "GetSentCandidateInvitationsAsync" ? "active" : "")">
+                <i class="fas fa-paper-plane me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Sent Candidate Invitations</span>
             </a>
         </li>
 

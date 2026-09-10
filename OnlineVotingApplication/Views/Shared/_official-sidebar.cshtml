@@ -89,9 +89,15 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
-                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "PendingCandidateApplications" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-clipboard-list me-2 text-warning" style="width: 14px;"></i><span>Pending Apps</span>
+                        <a asp-controller="Candidate" asp-action="GetUnsentCandidateApplicationsAsync"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetUnsentCandidateApplicationsAsync" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-user-clock me-2 text-warning" style="width: 14px;"></i><span>Pending Apps</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="GetSentCandidateInvitationsAsync"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "GetSentCandidateInvitationsAsync" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-paper-plane me-2 text-info" style="width: 14px;"></i><span>Sent Invites</span>
                         </a>
                     </li>
                     <li><hr class="dropdown-divider my-1 opacity-25" /></li>

@@ -1,0 +1,83 @@
+﻿@model OnlineVotingApplication.DataTransferView.PaginatedListViewModel<OnlineVotingApplication.DataTransferView.PendingApplicationViewModel>
+
+@{
+    ViewData["Title"] = "Sent Candidate Invitations";
+}
+
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold text-primary">Sent Candidate Invitations</h2>
+            <p class="text-muted mb-0">Candidates who have been emailed their secure link but have not yet completed registration.</p>
+        </div>
+        <div>
+            <a asp-action="PendingUnsentApplications" class="btn btn-outline-primary">View Unsent Applications</a>
+        </div>
+    </div>
+
+    @if (TempData["SuccessMessage"] != null)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            @TempData["SuccessMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+    @if (TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @TempData["ErrorMessage"]
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 rounded-4">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Candidate Name</th>
+                            <th>Email</th>
+                            <th>Election Event</th>
+                            <th>Position</th>
+                            <th>Applied Date</th>
+                            <th class="text-end pe-4">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (Model.Items != null && Model.Items.Any())
+                        {
+                            @foreach (var item in Model.Items)
+                            {
+                                <tr>
+                                    <td class="ps-4 fw-semibold">@item.CandidateName</td>
+                                    <td>@item.CandidateEmail</td>
+                                    <td>@item.ElectionTitle</td>
+                                    <td><span class="badge bg-light text-dark border">@item.PositionName</span></td>
+                                    <td>@item.CreatedAt.ToString("MMM dd, yyyy HH:mm")</td>
+                                    <td class="text-end pe-4">
+                                        <!-- Re-uses your SendCandidateInvite action endpoint to trigger a resend -->
+                                        <form asp-action="SendCandidateInvite" method="post" class="d-inline">
+                                            @Html.AntiForgeryToken()
+                                            <input type="hidden" name="CandidateEmail" value="@item.CandidateEmail" />
+                                            <input type="hidden" name="ElectionEventId" value="@item.ElectionEventId" />
+                                            <button type="submit" class="btn btn-outline-secondary btn-sm rounded-3">
+                                                <i class="bi bi-arrow-clockwise me-1"></i> Resend Invite
+                                            </button>
+                                        </form>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center py-4 text-muted">No sent candidate invitations found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>

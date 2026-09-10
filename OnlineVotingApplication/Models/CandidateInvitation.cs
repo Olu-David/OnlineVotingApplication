@@ -19,4 +19,5 @@ public class CandidateInvitation
     public virtual Positions? Position { get; set; } // 🌟 Add this if you want to link the position
     [ForeignKey(nameof(TenantId))] 
     public virtual Tenant? Tenant { get; internal set; }
+    public bool IsSent { get; internal set; }
 }

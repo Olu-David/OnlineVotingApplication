@@ -34,10 +34,10 @@
         </div>
     </div>
 
-    <!-- Navigation - Compact List -->
+    <!-- Navigation -->
     <ul class="nav flex-column flex-grow-1 overflow-y-auto px-1" style="gap: 1px;">
 
-        <!-- OVERVIEW -->
+        <!-- ═══ OVERVIEW ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-1 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Overview</li>
 
         <li class="nav-item">
@@ -50,11 +50,11 @@
         <li class="nav-item">
             <a asp-controller="Voter" asp-action="LiveResults"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Voter" && currentAction == "LiveResults" ? "active" : "")">
-                <i class="fas fa-chart-line me-2 text-info" style="width: 16px;"></i><span style="font-size: 0.85rem;">Live Analytics</span>
+                <span class="spinner-grow spinner-grow-sm me-2 text-info" role="status" style="width: 6px; height: 6px;"></span><span style="font-size: 0.85rem;">Live Analytics</span>
             </a>
         </li>
 
-        <!-- PLATFORM GOVERNANCE -->
+        <!-- ═══ PLATFORM GOVERNANCE ═══ -->
         @if (isPlatformAdmin)
         {
             <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0 text-danger" style="font-size: 0.6rem; letter-spacing: 0.06em;">
@@ -68,7 +68,7 @@
             </li>
         }
 
-        <!-- TENANT MANAGEMENT -->
+        <!-- ═══ MULTI-TENANCY ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Multi-Tenancy</li>
 
         <li class="nav-item">
@@ -96,9 +96,10 @@
             </div>
         </li>
 
-        <!-- ELECTIONS -->
-        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Elections</li>
+        <!-- ═══ ELECTION OPERATIONS ═══ -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Election Operations</li>
 
+        <!-- Elections -->
         <li class="nav-item">
             <a href="#electionMenu"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "ElectionEvent" ? "" : "collapsed")"
@@ -121,8 +122,8 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="AllSoftDelete"
-                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "AllSoftDelete" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                        <a asp-controller="ElectionEvent" asp-action="SoftDeleted"
+                           class="nav-link text-white-50 @(currentCtrl == "ElectionEvent" && currentAction == "SoftDeleted" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
                             <i class="fas fa-trash-restore me-2 text-danger" style="width: 14px;"></i><span>Deleted</span>
                         </a>
                     </li>
@@ -130,17 +131,15 @@
             </div>
         </li>
 
-        <!-- CANDIDATES -->
-        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Candidates</li>
-
+        <!-- Candidates -->
         <li class="nav-item">
             <a href="#CandidateMenu"
-               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Candidate" ? "" : "collapsed")"
-               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "Candidate" ? "true" : "false")">
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Candidate" || currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "" : "collapsed")"
+               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "Candidate" || currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "true" : "false")">
                 <span><i class="fas fa-user-tie me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Candidates</span></span>
                 <i class="fas fa-chevron-down small ms-auto" style="font-size: 0.6rem;"></i>
             </a>
-            <div class="collapse @(currentCtrl == "Candidate" ? "show" : "")" id="CandidateMenu">
+            <div class="collapse @(currentCtrl == "Candidate" || currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "show" : "")" id="CandidateMenu">
                 <ul class="nav flex-column ms-3 mt-0" style="gap: 1px;">
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="AllCandidate"
@@ -154,13 +153,24 @@
                             <i class="fas fa-clipboard-list me-2 text-warning" style="width: 14px;"></i><span>Pending Apps</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a asp-controller="SuperAdminDashboard" asp-action="CreateCandidateSuperAdmin"
+                           class="nav-link text-white-50 @(currentCtrl == "SuperAdminDashboard" && currentAction == "CreateCandidateSuperAdmin" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-user-plus me-2 text-success" style="width: 14px;"></i><span>Create Candidate</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1 opacity-25" /></li>
+                    <li class="nav-item">
+                        <a asp-controller="Candidate" asp-action="GetAllSoftdelete"
+                           class="nav-link text-white-50 @(currentCtrl == "Candidate" && currentAction == "GetAllSoftdelete" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-trash-restore me-2 text-danger" style="width: 14px;"></i><span>Deleted</span>
+                        </a>
+                    </li>
                 </ul>
             </div>
         </li>
 
-        <!-- POSITIONS -->
-        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Positions</li>
-
+        <!-- Positions -->
         <li class="nav-item">
             <a href="#PositionMenu"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Position" ? "" : "collapsed")"
@@ -179,35 +189,58 @@
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="CreatePosition"
                            class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "CreatePosition" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create</span>
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create Position</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1 opacity-25" /></li>
+                    <li class="nav-item">
+                        <a asp-controller="Position" asp-action="AllSoftDelete"
+                           class="nav-link text-white-50 @(currentCtrl == "Position" && currentAction == "AllSoftDelete" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-trash-restore me-2 text-danger" style="width: 14px;"></i><span>Deleted</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
-        <!-- GEOGRAPHY -->
-        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Geography</li>
+        <!-- Form Builder -->
+        <li class="nav-item mt-1">
+            <a asp-controller="SuperAdminDashboard" asp-action="BuildGlobalForm"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "BuildGlobalForm" ? "active" : "")">
+                <i class="fas fa-wpforms me-2 text-info" style="width: 16px;"></i><span style="font-size: 0.85rem;">Build Global Form</span>
+            </a>
+        </li>
 
+        <!-- ═══ GEOGRAPHY ═══ -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Geographic Data</li>
+
+        <!-- States -->
         <li class="nav-item">
             <a href="#Statedropdown"
-               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "State" || currentCtrl == "StateService" ? "" : "collapsed")"
-               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "State" || currentCtrl == "StateService" ? "true" : "false")">
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "StateService" ? "" : "collapsed")"
+               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "StateService" ? "true" : "false")">
                 <span><i class="fas fa-map me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">States</span></span>
                 <i class="fas fa-chevron-down small ms-auto" style="font-size: 0.6rem;"></i>
             </a>
-            <div class="collapse @(currentCtrl == "State" || currentCtrl == "StateService" ? "show" : "")" id="Statedropdown">
+            <div class="collapse @(currentCtrl == "StateService" ? "show" : "")" id="Statedropdown">
                 <ul class="nav flex-column ms-3 mt-0" style="gap: 1px;">
                     <li class="nav-item">
-                        <a asp-controller="State" asp-action="AllState"
-                           class="nav-link text-white-50 @(currentCtrl == "State" && currentAction == "AllState" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                        <a asp-controller="StateService" asp-action="AllState"
+                           class="nav-link text-white-50 @(currentCtrl == "StateService" && currentAction == "AllState" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
                             <i class="fas fa-list me-2" style="width: 14px;"></i><span>All States</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="StateService" asp-action="CreateState"
+                           class="nav-link text-white-50 @(currentCtrl == "StateService" && currentAction == "CreateState" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create State</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
+        <!-- LGAs -->
         <li class="nav-item">
             <a href="#Lgadropdown"
                class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Lga" ? "" : "collapsed")"
@@ -223,12 +256,51 @@
                             <i class="fas fa-list me-2" style="width: 14px;"></i><span>All LGAs</span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a asp-controller="Lga" asp-action="CreateLga"
+                           class="nav-link text-white-50 @(currentCtrl == "Lga" && currentAction == "CreateLga" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create LGA</span>
+                        </a>
+                    </li>
                 </ul>
             </div>
         </li>
 
-        <!-- ADMIN & AUDIT -->
-        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Admin & Audit</li>
+        <!-- Parties -->
+        <li class="nav-item">
+            <a href="#PartyDropdown"
+               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Party" ? "" : "collapsed")"
+               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "Party" ? "true" : "false")">
+                <span><i class="fas fa-flag me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Political Parties</span></span>
+                <i class="fas fa-chevron-down small ms-auto" style="font-size: 0.6rem;"></i>
+            </a>
+            <div class="collapse @(currentCtrl == "Party" ? "show" : "")" id="PartyDropdown">
+                <ul class="nav flex-column ms-3 mt-0" style="gap: 1px;">
+                    <li class="nav-item">
+                        <a asp-controller="Party" asp-action="AllParty"
+                           class="nav-link text-white-50 @(currentCtrl == "Party" && currentAction == "AllParty" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-list me-2" style="width: 14px;"></i><span>All Parties</span>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a asp-controller="Party" asp-action="CreateParty"
+                           class="nav-link text-white-50 @(currentCtrl == "Party" && currentAction == "CreateParty" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create Party</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1 opacity-25" /></li>
+                    <li class="nav-item">
+                        <a asp-controller="Party" asp-action="AllSoftDeleted"
+                           class="nav-link text-white-50 @(currentCtrl == "Party" && currentAction == "AllSoftDeleted" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-trash-restore me-2 text-danger" style="width: 14px;"></i><span>Deleted</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+
+        <!-- ═══ ADMINISTRATION & AUDIT ═══ -->
+        <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Administration & Audit</li>
 
         <li class="nav-item">
             <a asp-controller="Voter" asp-action="ManualEntry"
@@ -238,34 +310,36 @@
         </li>
 
         <li class="nav-item">
-            <a href="#VoterSystemMenu"
-               class="nav-link text-white d-flex align-items-center justify-content-between @(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "" : "collapsed")"
-               data-bs-toggle="collapse" aria-expanded="@(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "true" : "false")">
-                <span><i class="fas fa-user-shield me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Security</span></span>
-                <i class="fas fa-chevron-down small ms-auto" style="font-size: 0.6rem;"></i>
+            <a asp-controller="SuperAdminDashboard" asp-action="AllSystemUsers"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllSystemUsers" ? "active" : "")">
+                <i class="fas fa-users me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">All System Users</span>
             </a>
-            <div class="collapse @(currentCtrl == "Voter" || currentCtrl == "AuditLog" ? "show" : "")" id="VoterSystemMenu">
-                <ul class="nav flex-column ms-3 mt-0" style="gap: 1px;">
-                    <li class="nav-item">
-                        <a asp-controller="Voter" asp-action="PenalizedVoters"
-                           class="nav-link text-white-50 @(currentCtrl == "Voter" && currentAction == "PenalizedVoters" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-user-slash me-2 text-danger" style="width: 14px;"></i><span>Penalized</span>
-                        </a>
-                    </li>
-                    <li class="nav-item">
-                        <a asp-controller="AuditLog" asp-action="Index"
-                           class="nav-link text-white-50 @(currentCtrl == "AuditLog" && currentAction == "Index" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-clipboard-list me-2 text-warning" style="width: 14px;"></i><span>Audit Logs</span>
-                        </a>
-                    </li>
-                </ul>
-            </div>
         </li>
 
-        <!-- SUPPORT -->
+        <li class="nav-item">
+            <a asp-controller="SuperAdminDashboard" asp-action="PenalizedUsers"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "PenalizedUsers" ? "active" : "")">
+                <i class="fas fa-user-lock me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Penalized Users</span>
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a asp-controller="Voter" asp-action="PenalizedVoters"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Voter" && currentAction == "PenalizedVoters" ? "active" : "")">
+                <i class="fas fa-user-slash me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Penalized Voters</span>
+            </a>
+        </li>
+
+        <li class="nav-item">
+            <a asp-controller="AuditLog" asp-action="Index"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "AuditLog" && currentAction == "Index" ? "active" : "")">
+                <i class="fas fa-clipboard-list me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">System Audit Logs</span>
+            </a>
+        </li>
+
         <li class="nav-item mt-1">
-            <a asp-controller="Home" asp-action="GetPaginatedTicketsAsync"
-               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Home" && currentAction == "GetPaginatedTicketsAsync" ? "active" : "")">
+            <a asp-controller="Home" asp-action="SupportTickets"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "Home" && currentAction == "SupportTickets" ? "active" : "")">
                 <i class="fas fa-headset me-2 text-info" style="width: 16px;"></i><span style="font-size: 0.85rem;">Support Tickets</span>
             </a>
         </li>
@@ -287,15 +361,15 @@
 </nav>
 
 <style>
-    /* ─── Mobile scroll fix for SuperAdmin sidebar ─── */
+    /* ─── Mobile scroll fix ─── */
     @@media (max-width: 991.98px) {
         .admin-sidebar {
             overflow-y: auto !important;
             -webkit-overflow-scrolling: touch;
-            height: 100vh; /* fallback */
-            height: 100dvh; /* modern browsers – respects dynamic viewport */
+            height: 100vh;
+            height: 100dvh;
         }
-            /* Let the sidebar itself handle scrolling; disable inner nav scroll to avoid double scroll */
+
             .admin-sidebar ul.nav {
                 overflow-y: visible !important;
             }

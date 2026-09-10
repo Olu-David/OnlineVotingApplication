@@ -29,6 +29,7 @@
     <!-- Navigation -->
     <ul class="nav flex-column flex-grow-1 overflow-y-auto px-1" style="gap: 1px;">
 
+        <!-- ═══ OVERVIEW ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-1 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Overview</li>
 
         <li class="nav-item">
@@ -45,22 +46,31 @@
             </a>
         </li>
 
+        <li class="nav-item">
+            <a asp-controller="Tenant" asp-action="ElectionAnalytics"
+               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "ElectionAnalytics" ? "active" : "")">
+                <i class="fas fa-chart-pie me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Election Analytics</span>
+            </a>
+        </li>
+
+        <!-- ═══ ELECTION MANAGEMENT ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Election Management</li>
 
         <li class="nav-item">
             <a asp-controller="Voter" asp-action="LiveResults"
-               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
-                <i class="fas fa-chart-line me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Analytics</span>
+               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "LiveResults" ? "active" : "")">
+                <span class="spinner-grow spinner-grow-sm me-2 text-danger" role="status" style="width: 6px; height: 6px;"></span><span style="font-size: 0.85rem;">Live Results</span>
             </a>
         </li>
 
         <li class="nav-item">
-            <a asp-controller="Vote" asp-action="ManualEntry"
-               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Vote" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active" : "")">
+            <a asp-controller="Voter" asp-action="ManualEntry"
+               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "ManualEntry" ? "active" : "")">
                 <i class="fas fa-file-pen me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Manual Entry</span>
             </a>
         </li>
 
+        <!-- ═══ CANDIDATES ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Candidates</li>
 
         <li class="nav-item">
@@ -70,7 +80,7 @@
                 <span><i class="fas fa-user-tie me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Candidates</span></span>
                 <i class="fas fa-chevron-down small ms-auto" style="font-size: 0.6rem;"></i>
             </a>
-            <div class="collapse @(ViewData["Ctrl"]?.ToString() == "Candidate" ? "show" : "")" id="candidatesDropdown">
+            <div class="collapse @(ViewData["Ctrl"]?.ToString() == "Candidate" || ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "CreateCandidateOfficial" ? "show" : "")" id="candidatesDropdown">
                 <ul class="nav flex-column ms-3 mt-0" style="gap: 1px;">
                     <li class="nav-item">
                         <a asp-controller="Candidate" asp-action="AllCandidate"
@@ -79,15 +89,23 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="Candidate" asp-action="PendingApplications"
-                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "PendingApplications" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                        <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Candidate" && ViewData["Action"]?.ToString() == "PendingCandidateApplications" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
                             <i class="fas fa-clipboard-list me-2 text-warning" style="width: 14px;"></i><span>Pending Apps</span>
+                        </a>
+                    </li>
+                    <li><hr class="dropdown-divider my-1 opacity-25" /></li>
+                    <li class="nav-item">
+                        <a asp-controller="Tenant" asp-action="CreateCandidateOfficial"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Tenant" && ViewData["Action"]?.ToString() == "CreateCandidateOfficial" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-user-plus me-2 text-success" style="width: 14px;"></i><span>Create Candidate</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
+        <!-- ═══ ELECTIONS ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Elections</li>
 
         <li class="nav-item">
@@ -102,18 +120,18 @@
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Index"
                            class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Index" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-list me-2" style="width: 14px;"></i><span>All</span>
+                            <i class="fas fa-list me-2" style="width: 14px;"></i><span>All Elections</span>
                         </a>
                     </li>
                     <li class="nav-item">
                         <a asp-controller="ElectionEvent" asp-action="Create"
                            class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "Create" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create</span>
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create Election</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="ElectionEvent" asp-action="AllSoftDelete"
-                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "AllSoftDelete" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                        <a asp-controller="ElectionEvent" asp-action="SoftDeleted"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "ElectionEvent" && ViewData["Action"]?.ToString() == "SoftDeleted" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
                             <i class="fas fa-trash-restore me-2 text-danger" style="width: 14px;"></i><span>Deleted</span>
                         </a>
                     </li>
@@ -121,6 +139,7 @@
             </div>
         </li>
 
+        <!-- ═══ POSITIONS ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Positions</li>
 
         <li class="nav-item">
@@ -135,32 +154,26 @@
                     <li class="nav-item">
                         <a asp-controller="Position" asp-action="Index"
                            class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Index" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-list me-2" style="width: 14px;"></i><span>All</span>
+                            <i class="fas fa-list me-2" style="width: 14px;"></i><span>All Positions</span>
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a asp-controller="Position" asp-action="Create"
-                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "Create" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
-                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create</span>
+                        <a asp-controller="Position" asp-action="CreatePosition"
+                           class="nav-link text-white-50 @(ViewData["Ctrl"]?.ToString() == "Position" && ViewData["Action"]?.ToString() == "CreatePosition" ? "active text-white fw-bold" : "")" style="font-size: 0.8rem;">
+                            <i class="fas fa-plus-circle me-2" style="width: 14px;"></i><span>Create Position</span>
                         </a>
                     </li>
                 </ul>
             </div>
         </li>
 
+        <!-- ═══ SECURITY & OVERSIGHT ═══ -->
         <li class="sidebar-section-label text-muted small text-uppercase fw-bold px-2 mt-2 mb-0" style="font-size: 0.6rem; letter-spacing: 0.06em;">Security & Oversight</li>
 
         <li class="nav-item">
-            <a asp-controller="SuperAdminDashboard" asp-action="AllSystemUsers"
-               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" && ViewData["Action"]?.ToString() == "AllSystemUsers" ? "active" : "")">
-                <i class="fas fa-users me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">System Users</span>
-            </a>
-        </li>
-
-        <li class="nav-item">
-            <a asp-controller="SuperAdminDashboard" asp-action="PenalizedUsers"
-               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "SuperAdminDashboard" && ViewData["Action"]?.ToString() == "PenalizedUsers" ? "active" : "")">
-                <i class="fas fa-user-lock me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Penalized</span>
+            <a asp-controller="Voter" asp-action="PenalizedVoters"
+               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Voter" && ViewData["Action"]?.ToString() == "PenalizedVoters" ? "active" : "")">
+                <i class="fas fa-user-slash me-2 text-danger" style="width: 16px;"></i><span style="font-size: 0.85rem;">Penalized Voters</span>
             </a>
         </li>
 
@@ -172,9 +185,9 @@
         </li>
 
         <li class="nav-item">
-            <a asp-controller="Support" asp-action="Index"
-               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Support" && ViewData["Action"]?.ToString() == "Index" ? "active" : "")">
-                <i class="fas fa-headset me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Support</span>
+            <a asp-controller="Home" asp-action="SupportTickets"
+               class="nav-link text-white d-flex align-items-center @(ViewData["Ctrl"]?.ToString() == "Home" && ViewData["Action"]?.ToString() == "SupportTickets" ? "active" : "")">
+                <i class="fas fa-headset me-2" style="width: 16px;"></i><span style="font-size: 0.85rem;">Support Tickets</span>
             </a>
         </li>
 

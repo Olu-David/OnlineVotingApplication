@@ -73,11 +73,33 @@ namespace OnlineVotingApplication.Repository.Services
             string cacheKeyItems = $"ref_T{tenantId}_Pending_Apps_P{pageNumber}_S{pageSize}";
             string cacheKeyCount = $"ref_T{tenantId}_Pending_Apps_Count";
 
+            bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+
+            // 1. Build the base query correctly based on roles (Declared outside the if-statement so it has proper scope)
             var baseQuery = _appDbContext.candidateInvitations
                 .AsNoTracking()
-                .Where(a => a.TenantId == tenantId && !a.IsUsed);
+                .Where(a => !a.IsUsed);
 
-            // 1. Fetch or Cache Total Count
+            if (!isAdmin)
+            {
+                if (tenantId == Guid.Empty)
+                {
+                    // Handle edge case where non-admin has no active tenant context
+                    return new PaginatedListViewModel<PendingApplicationViewModel>
+                    {
+                        Items = new List<PendingApplicationViewModel>(),
+                        TotalItems = 0,
+                        PageNumber = pageNumber,
+                        PageSize = pageSize
+                    };
+                }
+
+                // Restrict regular users to their specific tenant
+                baseQuery = baseQuery.Where(a => a.TenantId == tenantId);
+            }
+            // Note: If isAdmin is true, it skips the filter and queries ALL tenants automatically!
+
+            // 2. Fetch or Cache Total Count
             int totalCount;
             string? cachedCountStr = await _Cache.GetStringAsync(cacheKeyCount);
 
@@ -95,7 +117,7 @@ namespace OnlineVotingApplication.Repository.Services
                 totalCount = int.Parse(cachedCountStr);
             }
 
-            // 2. Fetch or Cache Paginated List
+            // 3. Fetch or Cache Paginated List
             List<PendingApplicationViewModel>? appList = null;
             string? cachedListJson = await _Cache.GetStringAsync(cacheKeyItems);
 
@@ -117,6 +139,7 @@ namespace OnlineVotingApplication.Repository.Services
                 appList = rawApplications.Select(a => new PendingApplicationViewModel
                 {
                     ApplicationId = a.Id,
+
                     ElectionEventId = a.ElectionEventId,
                     PositionId = a.PositionId,
                     CandidateEmail = a.CandidateEmail,
@@ -134,7 +157,7 @@ namespace OnlineVotingApplication.Repository.Services
                 await _Cache.SetStringAsync(cacheKeyItems, jsonToCache, itemsOptions);
             }
 
-            // 3. Return your custom PaginatedListViewModel
+            // 4. Return your custom PaginatedListViewModel
             return new PaginatedListViewModel<PendingApplicationViewModel>
             {
                 Items = appList ?? new List<PendingApplicationViewModel>(),
@@ -151,72 +174,39 @@ namespace OnlineVotingApplication.Repository.Services
             var response = new ServiceResponse<string>();
             var tenantId = _tenantProvider.GetCurrentTenantId();
 
-            if (string.IsNullOrWhiteSpace(model?.CandidateEmail))
+            bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+            bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
+            if (!isAdmin && isPlatformAdmin && tenantId == Guid.Empty)
             {
                 response.Success = false;
-                response.Message = "Candidate email is required.";
+                response.Message = "Only Authorized User can invite Candidate";
                 return response;
             }
+            var inviteItem = await _appDbContext.candidateInvitations.FirstOrDefaultAsync(m => m.CandidateEmail == model.CandidateEmail &&m.ElectionEventId==model.ElectionEventId && !m.IsUsed);
 
-            var cleanEmail = model.CandidateEmail.Trim().ToLower();
-
-            var election = await _appDbContext.ElectionEvents
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId && e.TenantId == tenantId && !e.IsDeleted);
-
-            if (election == null)
+            if (inviteItem == null)
             {
                 response.Success = false;
-                response.Message = "The targeted election event could not be found, does not belong to your organization, or has been disabled.";
+                response.Message = "User has not applied yet";
                 return response;
             }
 
-            bool exists = await _appDbContext.candidateInvitations
-                .AnyAsync(i => i.TenantId == tenantId && i.ElectionEventId == model.ElectionEventId && i.CandidateEmail == cleanEmail && !i.IsUsed);
+            string subject = "Your Secure Candidate Registration Invitation";
+            string message = $"Hello {inviteItem.CandidateName}, You have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({inviteItem.CandidateEmail}) and can only be used once.";
 
-            if (exists)
-            {
-                response.Success = false;
-                response.Message = $"An active invite has already been sent to {cleanEmail}.";
-                return response;
-            }
+            await _emailService.EmailSendAsync(inviteItem.CandidateEmail, subject, message);
 
-            var invitation = new CandidateInvitation
-            {
-                TenantId = tenantId,
-                ElectionEventId = model.ElectionEventId,
-                CandidateEmail = cleanEmail
-            };
+            // Fixed: ServiceResponse<string> expects a string for .Data, so we pass the Token
+            response.Data = inviteItem.Token;
 
-            await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
-            try
-            {
-                _appDbContext.candidateInvitations.Add(invitation);
-                await _appDbContext.SaveChangesAsync();
+            response.Message = "Invitation Link Has been Sent to Candidate";
 
-                string subject = "Your Secure Candidate Registration Invitation";
-                string message = $"Hello,\n\nYou have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({cleanEmail}) and can only be used once.";
-
-                await _emailService.EmailSendAsync(cleanEmail, subject, message);
-
-                await transaction.CommitAsync();
-
-                response.Success = true;
-                response.Message = $"Secure invitation link successfully generated and emailed to {cleanEmail}.";
-                response.Data = invitation.Token;
-                return response;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-                response.Success = false;
-                response.Message = $"Failed to send invite: {ex.Message}";
-                return response;
-            }
+            // Fixed: Set to true so the controller knows the email send succeeded
+            response.Success = true;
+            return response;
         }
 
-        #endregion CreateCandidateAsync
+        #endregion
 
 
 

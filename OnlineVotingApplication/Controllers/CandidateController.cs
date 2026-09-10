@@ -8,8 +8,10 @@ using OnlineVotingApplication.Areas.Identity.Data;
 using OnlineVotingApplication.DataTransferView;
 using OnlineVotingApplication.Models;
 using OnlineVotingApplication.Repository.iServices;
+using Perfolizer.Mathematics.Randomization;
 using System.Net.WebSockets;
 using System.Security.Claims;
+using System.Security.Cryptography;
 
 namespace OnlineVotingApplication.Controllers
 {
@@ -145,6 +147,7 @@ namespace OnlineVotingApplication.Controllers
                 TempData["Error"] = "You must be logged in to apply as a candidate.";
                 return RedirectToAction("Login", "Account");
             }
+       
 
             bool isVoter = await _userManager.IsInRoleAsync(voter, "Voter");
             if (!isVoter)
@@ -186,6 +189,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(ApplyAsCandidate), new { electionEventId = model.ElectionEventId });
             }
 
+            var token = GenerateCode();
             var application = new CandidateInvitation
             {
                 Id = Guid.NewGuid(),
@@ -195,6 +199,7 @@ namespace OnlineVotingApplication.Controllers
                 CandidateName = $"{model.FirstName.Trim()} {model.LastName.Trim()}",
                 CandidateEmail = model.Email.Trim().ToLower(),
                 IsUsed = false,
+                Token = token,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -202,15 +207,32 @@ namespace OnlineVotingApplication.Controllers
             await _context.SaveChangesAsync();
 
             TempData["Success"] = "Your candidate application has been submitted successfully! Please wait for admin review.";
-            return RedirectToAction("Index", "Home");
+            return RedirectToAction("Details", "Voter");
         }
 
         #endregion
 
+        #region GenerateCode
+        private string GenerateCode()
+        {
+            string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+            int length = 8; // length of your random string
+
+            char[] result = new char[length];
+            byte[] data = new byte[length];
+            RandomNumberGenerator.Fill(data); // Fills array with secure random bytes
+
+            for (int i = 0; i < length; i++)
+            {
+                result[i] = chars[data[i] % chars.Length];
+            }
+
+            string randomString = new string(result);
+            return randomString; 
+        }
+        #endregion
+
         #region SendCandidateInvite
-        // ─────────────────────────────────────────────
-        // STEP B: ADMIN GENERATES AND SENDS THE INVITE
-        // ─────────────────────────────────────────────
         [HttpPost]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         [ValidateAntiForgeryToken]
@@ -220,53 +242,50 @@ namespace OnlineVotingApplication.Controllers
             if (string.IsNullOrWhiteSpace(model.CandidateEmail))
             {
                 TempData["ErrorMessage"] = "Candidate email is required.";
-                return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
+                return RedirectToAction("PendingCandidateApplications");
             }
 
-            var cleanEmail = model.CandidateEmail.Trim().ToLower();
+            // 1. First, call the service to fetch the existing invitation and send the email
+            var result = await _candidateService.SendCandidateInviteAsync(model);
 
-            var uniqueToken = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+            if (!result.Success || string.IsNullOrEmpty(result.Data))
+            {
+                TempData["ErrorMessage"] = result.Message;
+                return RedirectToAction("PendingCandidateApplications");
+            }
 
-            string? secureLink = Url.Action(
+            // 2. Generate the secure link in the controller using the token returned in result.Data
+            string secureLink = Url.Action(
                 action: "CreateCandidate",
                 controller: "Candidate",
-                values: new { token = uniqueToken },
+                values: new { token = result.Data },
                 protocol: Request.Scheme
-            );
+            ) ?? string.Empty;
 
             if (string.IsNullOrEmpty(secureLink))
             {
                 TempData["ErrorMessage"] = "Could not generate secure invitation link.";
-                return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
+                return RedirectToAction("PendingCandidateApplications");
             }
 
-            var result = await _candidateService.SendCandidateInviteAsync(model);
+            // --- AUDIT LOGGING ---
+            string userId = _userManager.GetUserId(User)!;
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            if (!result.Success)
-            {
-                TempData["ErrorMessage"] = result.Message;
-            }
-            else
-            {
-                // --- AUDIT LOGGING ---
-                string userId = _userManager.GetUserId(User)!;
-                var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-                Guid tenantId = _tenantProvider.GetCurrentTenantId();
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Invite Sent",
+                details: $"Sent invitation to '{model.CandidateEmail.Trim().ToLower()}'",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
-                await _auditLogService.LogActivityAsync(
-                    userId: userId,
-                    action: "Candidate Invite Sent",
-                    details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
-                    ipAddress: ipAddress,
-                    tenantId: tenantId != Guid.Empty ? tenantId : null
-                );
-
-                TempData["SuccessMessage"] = result.Message;
-            }
-
-            return RedirectToAction("ElectionDetails", "Election", new { id = model.ElectionEventId });
+            TempData["SuccessMessage"] = result.Message;
+            return RedirectToAction(nameof(PendingCandidateApplications));
         }
         #endregion
+
         #region PendingCandidateApplications
         [HttpGet("pending-applications")]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]

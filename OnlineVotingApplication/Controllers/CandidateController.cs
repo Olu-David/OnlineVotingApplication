@@ -339,14 +339,14 @@ namespace OnlineVotingApplication.Controllers
             );
 
             TempData["SuccessMessage"] = result.Message;
-            return RedirectToAction(nameof(GetSentCandidateInvitationsAsync));
+            return RedirectToAction(nameof(GetSentCandidateInvitations));
         }
         #endregion
 
         #region PendingCandidateApplications
         [HttpGet("UnsetCandidate-applications")]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
-        public async Task<IActionResult> GetUnsentCandidateApplicationsAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<IActionResult> GetUnsentCandidateApplications(int pageNumber = 1, int pageSize = 10)
         {
             var paginatedResult = await _candidateService.GetUnsentCandidateApplicationsAsync(pageNumber, pageSize);
 
@@ -354,7 +354,7 @@ namespace OnlineVotingApplication.Controllers
         }
         [HttpGet("SentCandidate-applications")]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
-        public async Task<IActionResult> GetSentCandidateInvitationsAsync(int pageNumber = 1, int pageSize = 10)
+        public async Task<IActionResult> GetSentCandidateInvitations(int pageNumber = 1, int pageSize = 10)
         {
             var paginatedResult = await _candidateService.GetSentCandidateInvitationsAsync(pageNumber, pageSize);
 

@@ -294,40 +294,27 @@ namespace OnlineVotingApplication.Controllers
         {
             if (model.Id == Guid.Empty)
             {
-                TempData["ErrorMessage"] = "Invalid invitation reference.";
+                TempData["ErrorMessage"] = "Invalid invitation reference ID.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            bool isAdmin = User.IsInRole("SuperAdmin");
-            bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
-
-            // 🎯 Directly query by unique primary key ID
-            var query = _context.candidateInvitations
-                .IgnoreQueryFilters()
-                .Where(m => m.Id == model.Id && !m.IsSent && !m.IsUsed);
-
-            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            // 🎯 Generate secure link cleanly using Url.Action
+            // This points to: /Candidate/CreateCandidate?token=XYZ&electionEventId=ABC
+            var inviteRecord = await _context.candidateInvitations.FindAsync(model.Id);
+            if (inviteRecord == null)
             {
-                query = query.Where(m => m.TenantId == tenantId);
-            }
-
-            var inviteItem = await query.FirstOrDefaultAsync();
-
-            if (inviteItem == null)
-            {
-                TempData["ErrorMessage"] = "No pending application found, or the invite has already been used/sent.";
+                TempData["ErrorMessage"] = "Invitation record not found.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // Populate model data for service layer
-            model.CandidateEmail = inviteItem.CandidateEmail;
-            model.ElectionEventId = inviteItem.ElectionEventId;
-            model.Token = inviteItem.Token;
+            model.SecureLink = Url.Action(
+                action: "CreateCandidate",
+                controller: "Candidate",
+                values: new { token = inviteRecord.Token, electionEventId = inviteRecord.ElectionEventId },
+                protocol: Request.Scheme
+            );
 
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}&electionEventId={model.ElectionEventId}";
-
+            // Call service to send email and mark as sent
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -335,23 +322,6 @@ namespace OnlineVotingApplication.Controllers
                 TempData["ErrorMessage"] = result.Message;
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
-
-            inviteItem.IsSent = true;
-            inviteItem.SentAt = DateTime.UtcNow;
-
-            _context.candidateInvitations.Update(inviteItem);
-            await _context.SaveChangesAsync();
-
-            string userId = _userManager.GetUserId(User)!;
-            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-
-            await _auditLogService.LogActivityAsync(
-                userId: userId,
-                action: "Candidate Invite Sent",
-                details: $"Sent invitation to '{inviteItem.CandidateEmail}' for election ID: {inviteItem.ElectionEventId}",
-                ipAddress: ipAddress,
-                tenantId: tenantId != Guid.Empty ? tenantId : null
-            );
 
             TempData["SuccessMessage"] = result.Message ?? "Invitation sent successfully.";
             return RedirectToAction(nameof(GetSentCandidateInvitations));

@@ -77,23 +77,15 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            if (model == null || model.Id == Guid.Empty)
+            if (model == null || model.Id == Guid.Empty || string.IsNullOrWhiteSpace(model.SecureLink))
             {
                 response.Success = false;
-                response.Message = "Invalid invitation reference ID.";
-                return response;
-            }
-
-            if (string.IsNullOrWhiteSpace(model.SecureLink))
-            {
-                response.Success = false;
-                response.Message = "The secure invitation link is missing.";
+                response.Message = "Invalid invitation request or missing secure link.";
                 return response;
             }
 
             var tenantId = _tenantProvider.GetCurrentTenantId();
 
-            // 🎯 Bulletproof lookup by primary key ID, bypassing global filters
             var query = _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
                 .Where(m => m.Id == model.Id && !m.IsUsed);
@@ -105,14 +97,22 @@ namespace OnlineVotingApplication.Repository.Services
 
             var inviteItem = await query.FirstOrDefaultAsync();
 
+         
+
             if (inviteItem == null)
             {
                 response.Success = false;
                 response.Message = "No active pending application found for this candidate.";
                 return response;
             }
+            if (string.IsNullOrWhiteSpace(inviteItem.CandidateEmail))
+            {
+                response.Success = false;
+                response.Message = "Candidate Email is not present.";
+                return response;
+            }
 
-            try
+                try
             {
                 string subject = "Your Secure Candidate Registration Invitation";
                 string message =
@@ -139,7 +139,6 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             return response;
-        
         }
         #endregion
 

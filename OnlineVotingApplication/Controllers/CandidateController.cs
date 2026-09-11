@@ -298,60 +298,41 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // ✅ Normalize properly
-            var cleanEmail = model.CandidateEmail.Trim().ToLowerInvariant();
-
+            var cleanEmail = model.CandidateEmail.Trim().ToLower();
             bool isAdmin = User.IsInRole("SuperAdmin");
             bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            // ✅ STEP 1: Base query (Removed the broken CandidateName match)
+            // ✅ ROBUST QUERY: Fixes case sensitivity, ignores filters, and removes name mismatch
             var query = _context.candidateInvitations
-                .Where(m =>
-                    m.CandidateEmail == cleanEmail &&
-                    m.ElectionEventId == model.ElectionEventId &&
-                    m.IsSent == false
-                );
+                .IgnoreQueryFilters()
+                .Where(m => m.CandidateEmail != null
+                         && m.CandidateEmail.ToLower() == cleanEmail
+                         && m.ElectionEventId == model.ElectionEventId
+                         && !m.IsSent
+                         && !m.IsUsed);
 
-            // ✅ STEP 2: Tenant filtering
+            // Apply tenant restriction only if the user is NOT a global admin
             if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
             {
                 query = query.Where(m => m.TenantId == tenantId);
             }
 
-            // ✅ STEP 3: Deterministic ordering
             var inviteItem = await query
                 .OrderByDescending(m => m.CreatedAt)
-                .ThenByDescending(m => m.Id)
                 .FirstOrDefaultAsync();
 
             if (inviteItem == null)
             {
-                _logger.LogWarning(
-                    "❌ No invitation found for Email: {Email}, Event: {EventId}, Tenant: {TenantId}",
-                    cleanEmail, model.ElectionEventId, tenantId
-                );
-
-                TempData["ErrorMessage"] = "No invitation found for this candidate in this election.";
+                TempData["ErrorMessage"] = "No pending application found, or the invite has already been used/sent.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // ❌ Block ONLY reused token (but allow resend)
-            if (inviteItem.IsUsed)
-            {
-                TempData["ErrorMessage"] = "This invitation has already been used.";
-                return RedirectToAction(nameof(GetUnsentCandidateApplications));
-            }
-
-            // ✅ STEP 4: Build secure link
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            var secureLink =
-                $"{baseUrl}/Candidate/CreateCandidate?token={inviteItem.Token}&electionEventId={model.ElectionEventId}";
-
+            // Build the secure link
             model.Token = inviteItem.Token;
-            model.SecureLink = secureLink;
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}&electionEventId={model.ElectionEventId}";
 
-            // ✅ STEP 5: Send email
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -360,14 +341,6 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // ✅ STEP 6: Mark as sent
-            inviteItem.IsSent = true;
-            inviteItem.SentAt = DateTime.UtcNow;
-
-            _context.candidateInvitations.Update(inviteItem);
-            await _context.SaveChangesAsync();
-
-            // ✅ STEP 7: Audit log
             string userId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 

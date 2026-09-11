@@ -355,8 +355,8 @@ namespace OnlineVotingApplication.Controllers
 
         #region CreateCandidate
         // ─────────────────────────────────────────────
-     
-// GET: Candidate Registration Form
+
+        // GET: Candidate Registration Form
         // ─────────────────────────────────────────────
         [HttpGet]
         [Authorize(Roles = "Voter, Candidate")]
@@ -364,38 +364,42 @@ namespace OnlineVotingApplication.Controllers
         {
             _logger.LogInformation("CreateCandidate GET called for ElectionEventId={ElectionEventId}", electionEventId);
 
-            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
-
             if (string.IsNullOrWhiteSpace(token))
             {
                 TempData["ErrorMessage"] = "A secure invitation link is required to access candidate registration.";
-                return RedirectToAction("AllElections", "Election");
+                return RedirectToAction("Index", "Voter");
             }
 
+            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
+
+            // 🛠️ FIX: Added .IgnoreQueryFilters() and flexible tenant scoping
             var invitation = await _context.candidateInvitations
+                .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(i => i.Token == token
                                        && i.ElectionEventId == electionEventId
-                                       && i.TenantId == currentTenantId
+                                       && (currentTenantId == Guid.Empty || i.TenantId == currentTenantId)
                                        && !i.IsUsed);
 
             if (invitation == null)
             {
-                TempData["ErrorMessage"] = "This registration link is invalid, expired, or does not belong to this tenant organization.";
-                return RedirectToAction("AllElections", "Election");
+                _logger.LogWarning("⚠️ CreateCandidate GET: Invalid token '{Token}' or ElectionId {ElectionEventId} for Tenant {TenantId}",
+                    token, electionEventId, currentTenantId);
+
+                TempData["ErrorMessage"] = "This registration link is invalid, expired, or has already been used.";
+                return RedirectToAction("Index", "Voter");
             }
 
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == electionEventId
-                                       && e.TenantId == currentTenantId
                                        && !e.IsDeleted);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "The specified election event could not be found for this tenant or has been disabled.";
-                return RedirectToAction("AllElections", "Election");
+                TempData["ErrorMessage"] = "The specified election event could not be found or has been disabled.";
+                return RedirectToAction("Index", "Voter");
             }
 
             var user = await _userManager.GetUserAsync(User);

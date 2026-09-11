@@ -284,6 +284,7 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
+       
         #region SendCandidateInvite
         [HttpPost]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
@@ -291,17 +292,18 @@ namespace OnlineVotingApplication.Controllers
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
         {
+            // ─── 1. Validate input ──────────────────────────────────────────
             if (string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
             {
                 TempData["ErrorMessage"] = "Candidate email and election event ID are required.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // 1. Normalize email and find the specific pending invitation
+            // ─── 2. Normalize email and find the pending invitation ─────────
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
 
+           
             var inviteItem = await _context.candidateInvitations
-                .AsNoTracking()
                 .FirstOrDefaultAsync(m => m.CandidateEmail != null
                                        && m.CandidateEmail.ToLower() == cleanEmail
                                        && m.ElectionEventId == model.ElectionEventId
@@ -309,16 +311,16 @@ namespace OnlineVotingApplication.Controllers
 
             if (inviteItem == null)
             {
-                TempData["ErrorMessage"] = "User has not applied yet for this election or the invite has already been used.";
-                return RedirectToAction("PendingCandidateApplications");
+                TempData["ErrorMessage"] = "No pending application found, or the invite has already been used.";
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // 2. Assign the token and reliably build the secure link manually
+            // ─── 3. Build the secure link ───────────────────────────────────
             model.Token = inviteItem.Token;
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
-            model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}";
+            model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}&electionEventId={model.ElectionEventId}";
 
-            // 3. Send the invite via your service
+            // ─── 4. Send the invite via the service ─────────────────────────
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -327,7 +329,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // --- AUDIT LOGGING ---
+            // ─── 5. Audit logging ───────────────────────────────────────────
             string userId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
@@ -340,10 +342,12 @@ namespace OnlineVotingApplication.Controllers
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
-            TempData["SuccessMessage"] = result.Message;
+            // ─── 6. Success → go to Sent list ───────────────────────────────
+            TempData["SuccessMessage"] = result.Message ?? "Invitation sent successfully.";
             return RedirectToAction(nameof(GetSentCandidateInvitations));
         }
         #endregion
+        
 
         #region PendingCandidateApplications
         [HttpGet("UnsetCandidate-applications")]

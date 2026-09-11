@@ -218,7 +218,7 @@ namespace OnlineVotingApplication.Controllers
 
             bool alreadyInvited = await _context.candidateInvitations
                 .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
-                            && a.CandidateEmail.ToLower() == cleanEmail);
+                            && a.CandidateEmail.ToLower() == cleanEmail & a.IsSent);
 
             if (alreadyInvited)
             {
@@ -299,7 +299,7 @@ namespace OnlineVotingApplication.Controllers
 
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
 
-            // ⚠️ No AsNoTracking – keeps entity tracked so service's IsSent=true persists
+            
             var inviteItem = await _context.candidateInvitations
                 .FirstOrDefaultAsync(m => m.CandidateEmail != null
                                        && m.CandidateEmail.ToLower() == cleanEmail

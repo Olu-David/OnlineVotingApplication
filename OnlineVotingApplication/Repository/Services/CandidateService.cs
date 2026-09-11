@@ -144,8 +144,10 @@ namespace OnlineVotingApplication.Repository.Services
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
 
+            // ✅ IgnoreQueryFilters to bypass any tenant/soft-delete filter
             var query = _appDbContext.candidateInvitations
-                .Where(i => !i.IsSent && !i.IsUsed)
+                .IgnoreQueryFilters()
+                .Where(i => !i.IsUsed && !i.IsSent)
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
                 .OrderByDescending(i => i.CreatedAt)
@@ -185,6 +187,7 @@ namespace OnlineVotingApplication.Repository.Services
             pageSize = Math.Max(1, pageSize);
 
             var query = _appDbContext.candidateInvitations
+                .IgnoreQueryFilters()
                 .Where(i => i.IsSent && !i.IsUsed)
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
@@ -216,7 +219,6 @@ namespace OnlineVotingApplication.Repository.Services
             };
         }
         #endregion
-
 
         #region CreateCandidateAsync
         public async Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId, string token)

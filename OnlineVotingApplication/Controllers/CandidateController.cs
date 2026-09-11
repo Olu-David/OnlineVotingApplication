@@ -298,23 +298,29 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // 🎯 Generate secure link cleanly using Url.Action
-            // This points to: /Candidate/CreateCandidate?token=XYZ&electionEventId=ABC
-            var inviteRecord = await _context.candidateInvitations.FindAsync(model.Id);
-            if (inviteRecord == null)
+            // 1️⃣ Quickly grab just the token and election event ID needed for Url.Action
+            // We use IgnoreQueryFilters here too so it never fails to find the record reference
+            var inviteRef = await _context.candidateInvitations
+                .IgnoreQueryFilters()
+                .Where(m => m.Id == model.Id)
+                .Select(m => new { m.Token, m.ElectionEventId })
+                .FirstOrDefaultAsync();
+
+            if (inviteRef == null)
             {
                 TempData["ErrorMessage"] = "Invitation record not found.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
+            // 2️⃣ Generate the secure link using Url.Action
             model.SecureLink = Url.Action(
                 action: "CreateCandidate",
                 controller: "Candidate",
-                values: new { token = inviteRecord.Token, electionEventId = inviteRecord.ElectionEventId },
+                values: new { token = inviteRef.Token, electionEventId = inviteRef.ElectionEventId },
                 protocol: Request.Scheme
             );
 
-            // Call service to send email and mark as sent
+            // 3️⃣ Hand off to your business logic service method which handles the full security, email dispatch, and database update
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -326,7 +332,6 @@ namespace OnlineVotingApplication.Controllers
             TempData["SuccessMessage"] = result.Message ?? "Invitation sent successfully.";
             return RedirectToAction(nameof(GetSentCandidateInvitations));
         }
-
         #endregion
 
 

@@ -292,35 +292,27 @@ namespace OnlineVotingApplication.Controllers
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
         {
-            if (string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
+            if (model.Id == Guid.Empty)
             {
-                TempData["ErrorMessage"] = "Candidate email and election event ID are required.";
+                TempData["ErrorMessage"] = "Invalid invitation reference.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            var cleanEmail = model.CandidateEmail.Trim().ToLower();
             bool isAdmin = User.IsInRole("SuperAdmin");
             bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            // ✅ Robust query matching your list view data safely
+            // 🎯 Directly query by unique primary key ID
             var query = _context.candidateInvitations
                 .IgnoreQueryFilters()
-                .Where(m => m.CandidateEmail != null
-                         && m.CandidateEmail.ToLower() == cleanEmail
-                         && m.ElectionEventId == model.ElectionEventId
-                         && !m.IsSent
-                         && !m.IsUsed);
+                .Where(m => m.Id == model.Id && !m.IsSent && !m.IsUsed);
 
-            // Apply tenant restriction only if the user is NOT a global admin
             if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
             {
                 query = query.Where(m => m.TenantId == tenantId);
             }
 
-            var inviteItem = await query
-                .OrderByDescending(m => m.CreatedAt)
-                .FirstOrDefaultAsync();
+            var inviteItem = await query.FirstOrDefaultAsync();
 
             if (inviteItem == null)
             {
@@ -328,8 +320,11 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // Build the secure link
+            // Populate model data for service layer
+            model.CandidateEmail = inviteItem.CandidateEmail;
+            model.ElectionEventId = inviteItem.ElectionEventId;
             model.Token = inviteItem.Token;
+
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}&electionEventId={model.ElectionEventId}";
 
@@ -341,21 +336,19 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // ✅ Explicitly mark as sent so it transitions to the Sent list view
             inviteItem.IsSent = true;
             inviteItem.SentAt = DateTime.UtcNow;
 
             _context.candidateInvitations.Update(inviteItem);
             await _context.SaveChangesAsync();
 
-            // Audit Logging
             string userId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Candidate Invite Sent",
-                details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
+                details: $"Sent invitation to '{inviteItem.CandidateEmail}' for election ID: {inviteItem.ElectionEventId}",
                 ipAddress: ipAddress,
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );

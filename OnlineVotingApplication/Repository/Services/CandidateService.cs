@@ -77,10 +77,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            if (model == null || string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
+            if (model == null || model.Id == Guid.Empty)
             {
                 response.Success = false;
-                response.Message = "Candidate email and election event ID are required.";
+                response.Message = "Invalid invitation reference ID.";
                 return response;
             }
 
@@ -91,19 +91,24 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            string normalizedEmail = model.CandidateEmail.Trim().ToLower();
+            var tenantId = _tenantProvider.GetCurrentTenantId();
 
-            // ⚠️ No AsNoTracking – we need to update IsSent
-            var inviteItem = await _appDbContext.candidateInvitations
-                .FirstOrDefaultAsync(m => m.CandidateEmail != null
-                                       && m.CandidateEmail.ToLower() == normalizedEmail
-                                       && m.ElectionEventId == model.ElectionEventId
-                                       && !m.IsUsed);
+            // 🎯 Bulletproof lookup by primary key ID, bypassing global filters
+            var query = _appDbContext.candidateInvitations
+                .IgnoreQueryFilters()
+                .Where(m => m.Id == model.Id && !m.IsUsed);
+
+            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            {
+                query = query.Where(m => m.TenantId == tenantId);
+            }
+
+            var inviteItem = await query.FirstOrDefaultAsync();
 
             if (inviteItem == null)
             {
                 response.Success = false;
-                response.Message = "No active pending application found for this candidate in this election.";
+                response.Message = "No active pending application found for this candidate.";
                 return response;
             }
 
@@ -119,7 +124,7 @@ namespace OnlineVotingApplication.Repository.Services
                 await _emailService.EmailSendAsync(inviteItem.CandidateEmail, subject, message);
 
                 inviteItem.IsSent = true;
-                inviteItem.SentAt = DateTime.UtcNow;   // add this column if you don't have it
+                inviteItem.SentAt = DateTime.UtcNow;
                 await _appDbContext.SaveChangesAsync();
 
                 response.Data = inviteItem.Token;
@@ -134,6 +139,7 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             return response;
+        
         }
         #endregion
 
@@ -145,10 +151,20 @@ namespace OnlineVotingApplication.Repository.Services
             pageSize = Math.Max(1, pageSize);
 
             var tenantId = _tenantProvider.GetCurrentTenantId();
+            bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+            bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
 
             var query = _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
-                .Where(i => !i.IsSent && !i.IsUsed && (tenantId == Guid.Empty || i.TenantId == tenantId))
+                .Where(i => !i.IsSent && !i.IsUsed);
+
+            // Apply tenant filter if not a global admin
+            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            {
+                query = query.Where(i => i.TenantId == tenantId || i.TenantId == null || i.TenantId == Guid.Empty);
+            }
+
+            query = query
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
                 .OrderByDescending(i => i.CreatedAt)
@@ -161,6 +177,7 @@ namespace OnlineVotingApplication.Repository.Services
                 .Take(pageSize)
                 .Select(i => new PendingApplicationViewModel
                 {
+                    Id = i.Id, // 🎯 Maps the primary key so the form can pass it back securely
                     CandidateName = i.CandidateName,
                     CandidateEmail = i.CandidateEmail,
                     ElectionEventId = i.ElectionEventId,
@@ -187,10 +204,20 @@ namespace OnlineVotingApplication.Repository.Services
             pageSize = Math.Max(1, pageSize);
 
             var tenantId = _tenantProvider.GetCurrentTenantId();
+            bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
+            bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
 
             var query = _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
-                .Where(i => i.IsSent && !i.IsUsed && (tenantId == Guid.Empty || i.TenantId == tenantId))
+                .Where(i => i.IsSent && !i.IsUsed);
+
+            // Apply tenant filter if not a global admin
+            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            {
+                query = query.Where(i => i.TenantId == tenantId || i.TenantId == null || i.TenantId == Guid.Empty);
+            }
+
+            query = query
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
                 .OrderByDescending(i => i.CreatedAt)
@@ -203,6 +230,7 @@ namespace OnlineVotingApplication.Repository.Services
                 .Take(pageSize)
                 .Select(i => new PendingApplicationViewModel
                 {
+                    Id = i.Id, // 🎯 Maps the primary key here as well for consistency
                     CandidateName = i.CandidateName,
                     CandidateEmail = i.CandidateEmail,
                     ElectionEventId = i.ElectionEventId,

@@ -2,7 +2,7 @@
 {
     public class SendCandidateInvitation
     {
-
+        public Guid Id { get; set; }
         public Guid? ElectionEventId { get; set; }
         public string? CandidateEmail { get; set; }
         public string? CandidateName { get; set; }

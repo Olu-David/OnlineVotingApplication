@@ -287,106 +287,107 @@ namespace OnlineVotingApplication.Controllers
 
         #region SendCandidateInvite
         [HttpPost]
-[Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
-[ValidateAntiForgeryToken]
-[EnableRateLimiting("StandardPolicy")]
-public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
-{
-    if (string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
-    {
-        TempData["ErrorMessage"] = "Candidate email and election event ID are required.";
-        return RedirectToAction(nameof(GetUnsentCandidateApplications));
-    }
+        [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
+        [ValidateAntiForgeryToken]
+        [EnableRateLimiting("StandardPolicy")]
+        public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
+        {
+            if (string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
+            {
+                TempData["ErrorMessage"] = "Candidate email and election event ID are required.";
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
+            }
 
-    // ✅ Normalize properly
-    var cleanEmail = model.CandidateEmail.Trim().ToLowerInvariant();
+            // ✅ Normalize properly
+            var cleanEmail = model.CandidateEmail.Trim().ToLowerInvariant();
 
-    bool isAdmin = User.IsInRole("SuperAdmin");
-    bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
-    Guid tenantId = _tenantProvider.GetCurrentTenantId();
+            bool isAdmin = User.IsInRole("SuperAdmin");
+            bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-    // ✅ STEP 1: Base query (NO IgnoreQueryFilters unless absolutely necessary)
-    var query = _context.candidateInvitations
-        .Where(m =>
-            m.CandidateEmail == cleanEmail &&
-            m.ElectionEventId == model.ElectionEventId
-        );
+            // ✅ STEP 1: Base query (Removed the broken CandidateName match)
+            var query = _context.candidateInvitations
+                .Where(m =>
+                    m.CandidateEmail == cleanEmail &&
+                    m.ElectionEventId == model.ElectionEventId &&
+                    m.IsSent == false
+                );
 
-    // ✅ STEP 2: Tenant filtering
-    if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
-    {
-        query = query.Where(m => m.TenantId == tenantId);
-    }
+            // ✅ STEP 2: Tenant filtering
+            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            {
+                query = query.Where(m => m.TenantId == tenantId);
+            }
 
-    // ✅ STEP 3: Deterministic ordering (fix CreatedAt issues)
-    var inviteItem = await query
-        .OrderByDescending(m => m.CreatedAt)
-        .ThenByDescending(m => m.Id)
-        .FirstOrDefaultAsync();
+            // ✅ STEP 3: Deterministic ordering
+            var inviteItem = await query
+                .OrderByDescending(m => m.CreatedAt)
+                .ThenByDescending(m => m.Id)
+                .FirstOrDefaultAsync();
 
-    if (inviteItem == null)
-    {
-        _logger.LogWarning(
-            "❌ No invitation found for Email: {Email}, Event: {EventId}, Tenant: {TenantId}",
-            cleanEmail, model.ElectionEventId, tenantId
-        );
+            if (inviteItem == null)
+            {
+                _logger.LogWarning(
+                    "❌ No invitation found for Email: {Email}, Event: {EventId}, Tenant: {TenantId}",
+                    cleanEmail, model.ElectionEventId, tenantId
+                );
 
-        TempData["ErrorMessage"] = "No invitation found for this candidate in this election.";
-        return RedirectToAction(nameof(GetUnsentCandidateApplications));
-    }
+                TempData["ErrorMessage"] = "No invitation found for this candidate in this election.";
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
+            }
 
-    // ❌ Block ONLY reused token (but allow resend)
-    if (inviteItem.IsUsed)
-    {
-        TempData["ErrorMessage"] = "This invitation has already been used.";
-        return RedirectToAction(nameof(GetUnsentCandidateApplications));
-    }
+            // ❌ Block ONLY reused token (but allow resend)
+            if (inviteItem.IsUsed)
+            {
+                TempData["ErrorMessage"] = "This invitation has already been used.";
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
+            }
 
-    // ✅ STEP 4: Build secure link
-    var baseUrl = $"{Request.Scheme}://{Request.Host}";
-    var secureLink =
-        $"{baseUrl}/Candidate/CreateCandidate?token={inviteItem.Token}&electionEventId={model.ElectionEventId}";
+            // ✅ STEP 4: Build secure link
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            var secureLink =
+                $"{baseUrl}/Candidate/CreateCandidate?token={inviteItem.Token}&electionEventId={model.ElectionEventId}";
 
-    model.Token = inviteItem.Token;
-    model.SecureLink = secureLink;
+            model.Token = inviteItem.Token;
+            model.SecureLink = secureLink;
 
-    // ✅ STEP 5: Send email
-    var result = await _candidateService.SendCandidateInviteAsync(model);
+            // ✅ STEP 5: Send email
+            var result = await _candidateService.SendCandidateInviteAsync(model);
 
-    if (!result.Success)
-    {
-        TempData["ErrorMessage"] = result.Message;
-        return RedirectToAction(nameof(GetUnsentCandidateApplications));
-    }
+            if (!result.Success)
+            {
+                TempData["ErrorMessage"] = result.Message;
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
+            }
 
-    // ✅ STEP 6: Mark as sent
-    inviteItem.IsSent = true;
-    inviteItem.SentAt = DateTime.UtcNow;
+            // ✅ STEP 6: Mark as sent
+            inviteItem.IsSent = true;
+            inviteItem.SentAt = DateTime.UtcNow;
 
-    _context.candidateInvitations.Update(inviteItem);
-    await _context.SaveChangesAsync();
+            _context.candidateInvitations.Update(inviteItem);
+            await _context.SaveChangesAsync();
 
-    // ✅ STEP 7: Audit log
-    string userId = _userManager.GetUserId(User)!;
-    var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+            // ✅ STEP 7: Audit log
+            string userId = _userManager.GetUserId(User)!;
+            var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
-    await _auditLogService.LogActivityAsync(
-        userId: userId,
-        action: "Candidate Invite Sent",
-        details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
-        ipAddress: ipAddress,
-        tenantId: tenantId != Guid.Empty ? tenantId : null
-    );
+            await _auditLogService.LogActivityAsync(
+                userId: userId,
+                action: "Candidate Invite Sent",
+                details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
+                ipAddress: ipAddress,
+                tenantId: tenantId != Guid.Empty ? tenantId : null
+            );
 
-    TempData["SuccessMessage"] = result.Message ?? "Invitation sent successfully.";
-    return RedirectToAction(nameof(GetSentCandidateInvitations));
-}
+            TempData["SuccessMessage"] = result.Message ?? "Invitation sent successfully.";
+            return RedirectToAction(nameof(GetSentCandidateInvitations));
+        }
 
         #endregion
 
 
         #region PendingCandidateApplications
-        [HttpGet("UnsetCandidate-applications")]
+        [HttpGet("UnseNtCandidate-applications")]
         [Authorize(Roles = "SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> GetUnsentCandidateApplications(int pageNumber = 1, int pageSize = 10)
         {

@@ -303,7 +303,7 @@ namespace OnlineVotingApplication.Controllers
             bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
             Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            // ✅ ROBUST QUERY: Fixes case sensitivity, ignores filters, and removes name mismatch
+            // ✅ Robust query matching your list view data safely
             var query = _context.candidateInvitations
                 .IgnoreQueryFilters()
                 .Where(m => m.CandidateEmail != null
@@ -341,6 +341,14 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
+            // ✅ Explicitly mark as sent so it transitions to the Sent list view
+            inviteItem.IsSent = true;
+            inviteItem.SentAt = DateTime.UtcNow;
+
+            _context.candidateInvitations.Update(inviteItem);
+            await _context.SaveChangesAsync();
+
+            // Audit Logging
             string userId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 

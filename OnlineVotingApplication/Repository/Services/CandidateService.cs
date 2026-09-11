@@ -183,34 +183,34 @@ namespace OnlineVotingApplication.Repository.Services
         public async Task<ServiceResponse<string>> SendCandidateInviteAsync(SendCandidateInvitation model)
         {
             var response = new ServiceResponse<string>();
-            var tenantId = _tenantProvider.GetCurrentTenantId();
 
             bool isAdmin = _httpContext.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
             bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
+            bool isOfficial = _httpContext.HttpContext?.User.IsInRole("Official") ?? false;
 
-            // Fixed logic check: Ensure it blocks users if they aren't an admin/platform admin OR lack a tenant
-            if (!isAdmin && !isPlatformAdmin)
+            // Fixed: Allowed "Official" to match the controller level permissions
+            if (!isAdmin && !isPlatformAdmin && !isOfficial)
             {
                 response.Success = false;
                 response.Message = "Only Authorized Users can invite candidates.";
                 return response;
             }
 
-            if (model == null || string.IsNullOrWhiteSpace(model.CandidateEmail))
+            if (model == null || string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
             {
                 response.Success = false;
-                response.Message = "Candidate email is required.";
+                response.Message = "Candidate email and election event ID are required.";
                 return response;
             }
 
             string normalizedEmail = model.CandidateEmail.Trim().ToLower();
 
-            // Safer Query: Target the specific email within the specific election event
+            // Target the specific email within the specific election event
             var inviteItem = await _appDbContext.candidateInvitations
                 .FirstOrDefaultAsync(m => m.CandidateEmail != null
-                                       && m.CandidateEmail.ToLower() == normalizedEmail
-                                       && m.ElectionEventId == model.ElectionEventId
-                                       && !m.IsUsed);
+                                        && m.CandidateEmail.ToLower() == normalizedEmail
+                                        && m.ElectionEventId == model.ElectionEventId
+                                        && !m.IsUsed);
 
             if (inviteItem == null)
             {

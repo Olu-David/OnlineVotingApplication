@@ -291,27 +291,29 @@ namespace OnlineVotingApplication.Controllers
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation model)
         {
-            if (string.IsNullOrWhiteSpace(model.CandidateEmail))
+            if (string.IsNullOrWhiteSpace(model.CandidateEmail) || model.ElectionEventId == Guid.Empty)
             {
-                TempData["ErrorMessage"] = "Candidate email is required.";
-                return RedirectToAction("PendingCandidateApplications");
+                TempData["ErrorMessage"] = "Candidate email and election event ID are required.";
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
-            // 1. Normalize email and find the pending invitation
+            // 1. Normalize email and find the specific pending invitation
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
 
             var inviteItem = await _context.candidateInvitations
                 .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.CandidateEmail.ToLower() == cleanEmail && !m.IsUsed);
+                .FirstOrDefaultAsync(m => m.CandidateEmail != null
+                                       && m.CandidateEmail.ToLower() == cleanEmail
+                                       && m.ElectionEventId == model.ElectionEventId
+                                       && !m.IsUsed);
 
             if (inviteItem == null)
             {
-                TempData["ErrorMessage"] = "User has not applied yet or the invite has already been used.";
+                TempData["ErrorMessage"] = "User has not applied yet for this election or the invite has already been used.";
                 return RedirectToAction("PendingCandidateApplications");
             }
 
-            // 2. Assign the token and reliably build the secure link manually 
-            // (Bypasses any Url.Action routing or area-mismatch bugs that return null)
+            // 2. Assign the token and reliably build the secure link manually
             model.Token = inviteItem.Token;
             var baseUrl = $"{Request.Scheme}://{Request.Host}";
             model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}";
@@ -322,7 +324,7 @@ namespace OnlineVotingApplication.Controllers
             if (!result.Success)
             {
                 TempData["ErrorMessage"] = result.Message;
-                return RedirectToAction("PendingCandidateApplications");
+                return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
             // --- AUDIT LOGGING ---
@@ -333,14 +335,13 @@ namespace OnlineVotingApplication.Controllers
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Candidate Invite Sent",
-                details: $"Sent invitation to '{cleanEmail}'",
+                details: $"Sent invitation to '{cleanEmail}' for election ID: {model.ElectionEventId}",
                 ipAddress: ipAddress,
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
             TempData["SuccessMessage"] = result.Message;
-            return RedirectToAction(nameof(GetUnsentCandidateApplications));
-        
+            return RedirectToAction(nameof(GetSentCandidateInvitations));
         }
         #endregion
 

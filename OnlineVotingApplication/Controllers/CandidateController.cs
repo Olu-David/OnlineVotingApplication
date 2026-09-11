@@ -206,11 +206,16 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // ─── 4. Duplicate check (pending invitation only) ───────────────
-            var voteremail=  User.FindFirstValue(ClaimTypes.Email);
-            var cleanEmail = model.Email.Trim().ToLower();
+            // ─── 4. Duplicate check ─────────────────────────────────────────
+            // Grab the email safely from the form model or fallback to the voter object
+            var cleanEmail = (model.CandidateEmail ?? voter.Email ?? string.Empty).Trim().ToLower();
 
-            voteremail = cleanEmail;
+            if (string.IsNullOrEmpty(cleanEmail))
+            {
+                TempData["Error"] = "Email address is required to apply.";
+                return RedirectToAction(nameof(ApplyAsCandidate), new { electionEventId = model.ElectionEventId });
+            }
+
             bool alreadyInvited = await _context.candidateInvitations
                 .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
                             && a.CandidateEmail.ToLower() == cleanEmail);
@@ -220,6 +225,8 @@ namespace OnlineVotingApplication.Controllers
                 TempData["Error"] = "You have already submitted an application for this election event.";
                 return RedirectToAction(nameof(ApplyAsCandidate), new { electionEventId = model.ElectionEventId });
             }
+           
+
 
             // ─── 5. Create the invitation ───────────────────────────────────
             var token = GenerateCode();

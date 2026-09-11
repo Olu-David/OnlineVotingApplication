@@ -297,35 +297,26 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("PendingCandidateApplications");
             }
 
-            // 1. Generate the token first (or fetch it so we can build the URL)
-            // For this example, let's assume we quickly grab the token from the DB or generate it, 
-            // OR we can generate the Url.Action using a temporary token lookup.
+            // 1. Normalize email and find the pending invitation
+            var cleanEmail = model.CandidateEmail.Trim().ToLower();
+
             var inviteItem = await _context.candidateInvitations
                 .AsNoTracking()
-                .FirstOrDefaultAsync(m => m.CandidateEmail == model.CandidateEmail && !m.IsUsed);
+                .FirstOrDefaultAsync(m => m.CandidateEmail.ToLower() == cleanEmail && !m.IsUsed);
 
             if (inviteItem == null)
             {
-                TempData["ErrorMessage"] = "User has not applied yet.";
+                TempData["ErrorMessage"] = "User has not applied yet or the invite has already been used.";
                 return RedirectToAction("PendingCandidateApplications");
             }
 
-            // 2. NOW generate model.SecureLink BEFORE calling the email service
+            // 2. Assign the token and reliably build the secure link manually 
+            // (Bypasses any Url.Action routing or area-mismatch bugs that return null)
             model.Token = inviteItem.Token;
-            model.SecureLink = Url.Action(
-                action: "CreateCandidate",
-                controller: "Candidate",
-                values: new { token = model.Token },
-                protocol: Request.Scheme
-            ) ?? string.Empty;
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            model.SecureLink = $"{baseUrl}/Candidate/CreateCandidate?token={model.Token}";
 
-            if (string.IsNullOrEmpty(model.SecureLink))
-            {
-                TempData["ErrorMessage"] = "Could not generate secure invitation link.";
-                return RedirectToAction("PendingCandidateApplications");
-            }
-
-            // 3. FINALLY, pass the fully populated model (with SecureLink) into your service to send the email!
+            // 3. Send the invite via your service
             var result = await _candidateService.SendCandidateInviteAsync(model);
 
             if (!result.Success)
@@ -342,13 +333,14 @@ namespace OnlineVotingApplication.Controllers
             await _auditLogService.LogActivityAsync(
                 userId: userId,
                 action: "Candidate Invite Sent",
-                details: $"Sent invitation to '{model.CandidateEmail.Trim().ToLower()}'",
+                details: $"Sent invitation to '{cleanEmail}'",
                 ipAddress: ipAddress,
                 tenantId: tenantId != Guid.Empty ? tenantId : null
             );
 
             TempData["SuccessMessage"] = result.Message;
-            return RedirectToAction(nameof(GetSentCandidateInvitations));
+            return RedirectToAction(nameof(GetUnsentCandidateApplications));
+        
         }
         #endregion
 

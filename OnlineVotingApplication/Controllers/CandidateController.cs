@@ -298,55 +298,59 @@ public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation mod
         return RedirectToAction(nameof(GetUnsentCandidateApplications));
     }
 
-    var cleanEmail = model.CandidateEmail.Trim().ToLower();
+    // ✅ Normalize properly
+    var cleanEmail = model.CandidateEmail.Trim().ToLowerInvariant();
+
     bool isAdmin = User.IsInRole("SuperAdmin");
     bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
     Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-    // 🔥 STEP 1: Get ALL possible matches first (no strict filtering)
+    // ✅ STEP 1: Base query (NO IgnoreQueryFilters unless absolutely necessary)
     var query = _context.candidateInvitations
-        .IgnoreQueryFilters()
         .Where(m =>
-            m.CandidateEmail != null &&
-            m.CandidateEmail.Trim().ToLower() == cleanEmail &&
+            m.CandidateEmail == cleanEmail &&
             m.ElectionEventId == model.ElectionEventId
         );
 
-    // Apply tenant restriction ONLY if needed
+    // ✅ STEP 2: Tenant filtering
     if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
     {
         query = query.Where(m => m.TenantId == tenantId);
     }
 
-    // 🔥 STEP 2: Pick the latest valid invite
+    // ✅ STEP 3: Deterministic ordering (fix CreatedAt issues)
     var inviteItem = await query
-        .OrderByDescending(m => m.CreatedAt) // IMPORTANT
+        .OrderByDescending(m => m.CreatedAt)
+        .ThenByDescending(m => m.Id)
         .FirstOrDefaultAsync();
 
     if (inviteItem == null)
     {
-        _logger.LogWarning("❌ No invitation found for Email: {Email}, Event: {EventId}, Tenant: {TenantId}",
-            cleanEmail, model.ElectionEventId, tenantId);
+        _logger.LogWarning(
+            "❌ No invitation found for Email: {Email}, Event: {EventId}, Tenant: {TenantId}",
+            cleanEmail, model.ElectionEventId, tenantId
+        );
 
         TempData["ErrorMessage"] = "No invitation found for this candidate in this election.";
         return RedirectToAction(nameof(GetUnsentCandidateApplications));
     }
 
-    // 🔥 STEP 3: Prevent reuse ONLY (allow resend)
+    // ❌ Block ONLY reused token (but allow resend)
     if (inviteItem.IsUsed)
     {
         TempData["ErrorMessage"] = "This invitation has already been used.";
         return RedirectToAction(nameof(GetUnsentCandidateApplications));
     }
 
-    // 🔥 STEP 4: Build secure link
+    // ✅ STEP 4: Build secure link
     var baseUrl = $"{Request.Scheme}://{Request.Host}";
-    var secureLink = $"{baseUrl}/Candidate/CreateCandidate?token={inviteItem.Token}&electionEventId={model.ElectionEventId}";
+    var secureLink =
+        $"{baseUrl}/Candidate/CreateCandidate?token={inviteItem.Token}&electionEventId={model.ElectionEventId}";
 
     model.Token = inviteItem.Token;
     model.SecureLink = secureLink;
 
-    // 🔥 STEP 5: Send email
+    // ✅ STEP 5: Send email
     var result = await _candidateService.SendCandidateInviteAsync(model);
 
     if (!result.Success)
@@ -355,13 +359,14 @@ public async Task<IActionResult> SendCandidateInvite(SendCandidateInvitation mod
         return RedirectToAction(nameof(GetUnsentCandidateApplications));
     }
 
-    // 🔥 STEP 6: Mark as sent (but still allow resend later if needed)
+    // ✅ STEP 6: Mark as sent
     inviteItem.IsSent = true;
     inviteItem.SentAt = DateTime.UtcNow;
 
+    _context.candidateInvitations.Update(inviteItem);
     await _context.SaveChangesAsync();
 
-    // 🔥 STEP 7: Audit logging
+    // ✅ STEP 7: Audit log
     string userId = _userManager.GetUserId(User)!;
     var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 

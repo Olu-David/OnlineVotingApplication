@@ -299,17 +299,30 @@ namespace OnlineVotingApplication.Controllers
             }
 
             var cleanEmail = model.CandidateEmail.Trim().ToLower();
+            bool isAdmin = User.IsInRole("SuperAdmin");
+            bool isPlatformAdmin = User.IsInRole("PlatformAdmin");
+            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
-            
-            var inviteItem = await _context.candidateInvitations
-                .FirstOrDefaultAsync(m => m.CandidateEmail != null
-                                       && m.CandidateEmail.ToLower() == cleanEmail
-                                       && m.ElectionEventId == model.ElectionEventId
-                                       && !m.IsUsed);
+            // Build a unified query with query filters ignored for safety
+            var query = _context.candidateInvitations
+                .IgnoreQueryFilters()
+                .Where(m => m.CandidateEmail != null
+                         && m.CandidateEmail.ToLower() == cleanEmail
+                         && m.ElectionEventId == model.ElectionEventId
+                         && !m.IsUsed
+                         && !m.IsSent);
+
+            // Apply tenant restriction only if the user is NOT a global admin
+            if (!isAdmin && !isPlatformAdmin && tenantId != Guid.Empty)
+            {
+                query = query.Where(m => m.TenantId == tenantId);
+            }
+
+            var inviteItem = await query.FirstOrDefaultAsync();
 
             if (inviteItem == null)
             {
-                TempData["ErrorMessage"] = "No pending application found, or the invite has already been used.";
+                TempData["ErrorMessage"] = "No pending application found, or the invite has already been used/sent.";
                 return RedirectToAction(nameof(GetUnsentCandidateApplications));
             }
 
@@ -328,7 +341,6 @@ namespace OnlineVotingApplication.Controllers
 
             string userId = _userManager.GetUserId(User)!;
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
 
             await _auditLogService.LogActivityAsync(
                 userId: userId,

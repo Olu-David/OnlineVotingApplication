@@ -133,9 +133,13 @@ namespace OnlineVotingApplication.Repository.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to send candidate invite to {Email}", inviteItem.CandidateEmail);
+                // 🔍 Capture the root cause (e.g., SMTP settings, authentication failure, null sender)
+                var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+                _logger.LogError(ex, "Failed to send candidate invite to {Email}. Reason: {Reason}", inviteItem.CandidateEmail, innerMessage);
+
                 response.Success = false;
-                response.Message = "An error occurred while sending the invitation email.";
+                response.Message = $"Email sending failed: {innerMessage}"; // Temporarily show this to debug
+                return response;
             }
 
             return response;

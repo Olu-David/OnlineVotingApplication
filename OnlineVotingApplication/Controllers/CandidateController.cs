@@ -405,7 +405,7 @@ namespace OnlineVotingApplication.Controllers
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
-                return RedirectToAction("Login", "Account");
+                return RedirectToAction("Login", "AuthService");
             }
 
             var fullName = $"{user.FullName}".Trim();

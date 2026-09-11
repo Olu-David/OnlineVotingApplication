@@ -5,25 +5,14 @@
 @{
     ViewData["Title"] = "Create Candidate Profile";
 
-    bool isPolitical = false;
-    if (ViewBag.ElectionCategory != null)
-    {
-        if (ViewBag.ElectionCategory is TenantCategory categoryEnum)
-        {
-            isPolitical = categoryEnum == TenantCategory.Political;
-        }
-        else if (int.TryParse(ViewBag.ElectionCategory.ToString(), out int categoryInt))
-        {
-            isPolitical = categoryInt == (int)TenantCategory.Political;
-        }
-        else
-        {
-            isPolitical = string.Equals(ViewBag.ElectionCategory.ToString(), TenantCategory.Political.ToString(), StringComparison.OrdinalIgnoreCase);
-        }
-    }
+    // ─── Category detection (simplified) ────────────────────────
+    bool isPolitical = ViewBag.IsPolitical as bool? ?? false;
 
-    var customFields = ViewBag.CustomFields as List<ElectionCustomField>;
+    var customFields = ViewBag.CustomFields as List<ElectionCustomField> ?? new();
     var stateList = ViewBag.StateView as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var partyList = ViewBag.Party as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var positionList = ViewBag.PositionView as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
+    var lgaList = ViewBag.Lga as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
 }
 
 @section Styles {
@@ -34,39 +23,64 @@
     <div class="card shadow-sm border-0 rounded-3 overflow-hidden">
         <div class="card-header candform-header p-3">
             <h4 class="mb-0">
-                <i class="fas fa-user-plus me-2" style="color: var(--votex-amber, #ffb703);"></i>Create Candidate for @ViewBag.ElectionTitle
+                <i class="fas fa-user-plus me-2" style="color: var(--votex-amber, #ffb703);"></i>
+                Create Candidate for @ViewBag.ElectionTitle
             </h4>
         </div>
-        <div class="card-body p-4">
 
+        <div class="card-body p-4">
             @if (TempData["ErrorMessage"] != null)
             {
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                 </div>
             }
 
-            <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data">
+            <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data" id="candidateForm">
                 @Html.AntiForgeryToken()
 
-                <input type="hidden" asp-for="ElectionEventId" value="@Model.ElectionEventId" />
-                <input type="hidden" name="token" value="@ViewBag.Token" />
+                <input type="hidden" asp-for="ElectionEventId" />
+                <input type="hidden" name="token" value="@ViewBag.InviteToken" />
 
-                <!-- Standard Candidate Details -->
+                <!-- ═══════════════════════════════════════════════
+                     STANDARD FIELDS
+                     ═══════════════════════════════════════════════ -->
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label asp-for="Name" class="form-label fw-bold">Candidate Full Name <span class="text-danger">*</span></label>
-                        <input asp-for="Name" class="form-control" placeholder="e.g. John Doe" />
-                        <span asp-validation-for="Name" class="text-danger"></span>
+                        <label asp-for="Name" class="form-label fw-bold">
+                            Candidate Full Name <span class="text-danger">*</span>
+                        </label>
+
+                        <!-- Read-only display -->
+                        <input type="text"
+                               class="form-control bg-light"
+                               value="@ViewBag.LockedCandidateName"
+                               readonly
+                               tabindex="-1"
+                               aria-readonly="true" />
+
+                        <!-- Hidden field carries the actual value to the server -->
+                        <input type="hidden" asp-for="Name" value="@ViewBag.LockedCandidateName" />
+
+                        <span asp-validation-for="Name" class="text-danger small"></span>
+                        <small class="text-muted d-block mt-1">
+                            <i class="fas fa-lock me-1"></i> Your name comes from your account and cannot be changed here.
+                        </small>
                     </div>
 
                     <div class="col-md-6 mb-3">
-                        <label asp-for="PositionId" class="form-label fw-bold">Position <span class="text-danger">*</span></label>
-                        <select asp-for="PositionId" asp-items="ViewBag.PositionView" class="form-select">
+                        <label asp-for="PositionId" class="form-label fw-bold">
+                            Position <span class="text-danger">*</span>
+                        </label>
+                        <select asp-for="PositionId" class="form-select">
                             <option value="">-- Select Position --</option>
+                            @foreach (var p in positionList)
+                            {
+                                <option value="@p.Value" selected="@(Model.PositionId?.ToString() == p.Value)">@p.Text</option>
+                            }
                         </select>
-                        <span asp-validation-for="PositionId" class="text-danger"></span>
+                        <span asp-validation-for="PositionId" class="text-danger small"></span>
                     </div>
                 </div>
 
@@ -74,69 +88,84 @@
                     @if (isPolitical)
                     {
                         <div class="col-md-6 mb-3">
-                            <label asp-for="PartyId" class="form-label fw-bold">Political Party <span class="text-danger">*</span></label>
-                            <select asp-for="PartyId" asp-items="ViewBag.Party" class="form-select">
+                            <label asp-for="PartyId" class="form-label fw-bold">
+                                Political Party <span class="text-danger">*</span>
+                            </label>
+                            <select asp-for="PartyId" class="form-select">
                                 <option value="">-- Select Party --</option>
+                                @foreach (var party in partyList)
+                                {
+                                    <option value="@party.Value" selected="@(Model.PartyId?.ToString() == party.Value)">@party.Text</option>
+                                }
                             </select>
-                            <span asp-validation-for="PartyId" class="text-danger"></span>
+                            <span asp-validation-for="PartyId" class="text-danger small"></span>
                         </div>
                     }
 
                     <div class="col-md-6 mb-3">
                         <label asp-for="StateId" class="form-label fw-bold">State</label>
-                        <select asp-for="StateId" id="stateDropdown" class="form-select">
+                        <select asp-for="StateId" id="stateDropdown" class="form-select" data-selected="@Model.StateId">
                             <option value="">-- Select State --</option>
                             @foreach (var state in stateList)
                             {
-                                <option value="@state.Value">@state.Text</option>
+                                <option value="@state.Value" selected="@(Model.StateId?.ToString() == state.Value)">@state.Text</option>
                             }
                         </select>
-                        <span asp-validation-for="StateId" class="text-danger"></span>
+                        <span asp-validation-for="StateId" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
-                        <select asp-for="LgaId" id="lgaDropdown" asp-items="ViewBag.Lga" class="form-select">
+                        <select asp-for="LgaId" id="lgaDropdown" class="form-select" data-selected="@Model.LgaId">
                             <option value="">-- Select LGA --</option>
+                            @foreach (var lga in lgaList)
+                            {
+                                <option value="@lga.Value" selected="@(Model.LgaId?.ToString() == lga.Value)">@lga.Text</option>
+                            }
                         </select>
-                        <span asp-validation-for="LgaId" class="text-danger"></span>
+                        <span asp-validation-for="LgaId" class="text-danger small"></span>
                     </div>
 
                     <div class="col-md-6 mb-3">
                         <label asp-for="CandidateImageUrl" class="form-label fw-bold">Candidate Profile Picture</label>
                         <input asp-for="CandidateImageUrl" type="file" class="form-control" accept="image/*" />
-                        <span asp-validation-for="CandidateImageUrl" class="text-danger"></span>
+                        <span asp-validation-for="CandidateImageUrl" class="text-danger small"></span>
                     </div>
                 </div>
 
                 <div class="mb-3">
                     <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
                     <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's vision or campaign goals..."></textarea>
-                    <span asp-validation-for="Manifesto" class="text-danger"></span>
+                    <span asp-validation-for="Manifesto" class="text-danger small"></span>
                 </div>
 
                 <div class="mb-3">
                     <label asp-for="GalleryPhotos" class="form-label fw-bold">Gallery Photos (Optional)</label>
                     <input asp-for="GalleryPhotos" type="file" class="form-control" multiple accept="image/*" />
-                    <span asp-validation-for="GalleryPhotos" class="text-danger"></span>
+                    <span asp-validation-for="GalleryPhotos" class="text-danger small"></span>
                 </div>
 
-                <!-- Dynamic Custom Fields Section -->
-                @if (customFields != null && customFields.Any())
+                <!-- ═══════════════════════════════════════════════
+                     DYNAMIC CUSTOM FIELDS
+                     ═══════════════════════════════════════════════ -->
+                @if (customFields.Any())
                 {
                     <hr class="my-4 text-muted" />
                     <h5 class="mb-3 fw-bold" style="color: var(--votex-navy-900, #0a192f);">
-                        <i class="fas fa-clipboard-question me-2" style="color: var(--votex-amber, #ffb703);"></i>Additional Information
+                        <i class="fas fa-clipboard-question me-2" style="color: var(--votex-amber, #ffb703);"></i>
+                        Additional Information
                     </h5>
 
                     <div class="row">
                         @foreach (var field in customFields)
                         {
-                            string existingVal = Model.DynamicAnswers != null && Model.DynamicAnswers.ContainsKey(field.Id)
+                            var existingVal = Model.DynamicAnswers != null && Model.DynamicAnswers.ContainsKey(field.Id)
                             ? Model.DynamicAnswers[field.Id]
                             : string.Empty;
 
-                            <div class="col-12 mb-3">
+                            var fieldKey = field.Id.ToString();
+
+                            <div class="col-12 mb-3" data-field-container="@fieldKey">
                                 <label class="form-label fw-semibold">
                                     @field.FieldName
                                     @if (field.IsRequired)
@@ -151,102 +180,84 @@
                                         var options = !string.IsNullOrEmpty(field.CustomChoicesCsv)
                                         ? field.CustomChoicesCsv.Split(',', StringSplitOptions.RemoveEmptyEntries)
                                         : Array.Empty<string>();
-
-                                        if (field.IsRequired)
-                                        {
-                                            <select name="DynamicAnswers[@field.Id]" class="form-select" required>
-                                                <option value="">-- Select @field.FieldName --</option>
-                                                @foreach (var opt in options)
-                                                {
-                                                    var trimmed = opt.Trim();
-                                                    <option value="@trimmed" selected="@(existingVal == trimmed ? "selected" : null)">@trimmed</option>
-                                                }
-                                            </select>
-                                        }
-                                        else
-                                        {
-                                            <select name="DynamicAnswers[@field.Id]" class="form-select">
-                                                <option value="">-- Select @field.FieldName --</option>
-                                                @foreach (var opt in options)
-                                                {
-                                                    var trimmed = opt.Trim();
-                                                    <option value="@trimmed" selected="@(existingVal == trimmed ? "selected" : null)">@trimmed</option>
-                                                }
-                                            </select>
-                                        }
+                                        <select name="DynamicAnswers[@(fieldKey)]" class="form-select" required="@(field.IsRequired ? "required" : null)">
+                                            <option value="">-- Select @field.FieldName --</option>
+                                            @foreach (var opt in options)
+                                            {
+                                                var trimmed = opt.Trim();
+                                                <option value="@trimmed" selected="@(existingVal == trimmed)">@trimmed</option>
+                                            }
+                                        </select>
                                         break;
 
                                     case ElectionFieldType.StateDropdown:
-                                        if (field.IsRequired)
-                                        {
-                                            <select name="DynamicAnswers[@field.Id]" class="form-select dynamic-state-select" required>
-                                                <option value="">-- Select State --</option>
-                                                @foreach (var state in stateList)
-                                                {
-                                                    <option value="@state.Value" selected="@(existingVal == state.Value ? "selected" : null)">@state.Text</option>
-                                                }
-                                            </select>
-                                        }
-                                        else
-                                        {
-                                            <select name="DynamicAnswers[@field.Id]" class="form-select dynamic-state-select">
-                                                <option value="">-- Select State --</option>
-                                                @foreach (var state in stateList)
-                                                {
-                                                    <option value="@state.Value" selected="@(existingVal == state.Value ? "selected" : null)">@state.Text</option>
-                                                }
-                                            </select>
-                                        }
+                                        <select name="DynamicAnswers[@(fieldKey)]"
+                                                class="form-select dynamic-state-select"
+                                                data-linked-lga="@fieldKey"
+                                                required="@(field.IsRequired ? "required" : null)">
+                                            <option value="">-- Select State --</option>
+                                            @foreach (var state in stateList)
+                                            {
+                                                <option value="@state.Value" selected="@(existingVal == state.Value)">@state.Text</option>
+                                            }
+                                        </select>
+                                        break;
+
+                                    case ElectionFieldType.LgaDropdown:
+                                        <select name="DynamicAnswers[@(fieldKey)]"
+                                                class="form-select dynamic-lga-select"
+                                                data-parent-state="@fieldKey"
+                                                required="@(field.IsRequired ? "required" : null)">
+                                            <option value="">-- Select LGA --</option>
+                                        </select>
                                         break;
 
                                     case ElectionFieldType.File:
-                                        if (field.IsRequired)
-                                        {
-                                            <input type="file" name="DynamicFiles[@field.Id]" class="form-control" required />
-                                        }
-                                        else
-                                        {
-                                            <input type="file" name="DynamicFiles[@field.Id]" class="form-control" />
-                                        }
+                                        <input type="file"
+                                               name="DynamicFiles[@(fieldKey)]"
+                                               class="form-control"
+                                               required="@(field.IsRequired ? "required" : null)" />
                                         <span class="form-text text-muted">Upload required attachment or credential document.</span>
                                         break;
 
                                     case ElectionFieldType.TextArea:
-                                        if (field.IsRequired)
-                                        {
-                                            <textarea name="DynamicAnswers[@field.Id]" class="form-control" rows="3" placeholder="Provide answer..." required>@existingVal</textarea>
-                                        }
-                                        else
-                                        {
-                                            <textarea name="DynamicAnswers[@field.Id]" class="form-control" rows="3" placeholder="Provide answer...">@existingVal</textarea>
-                                        }
+                                        <textarea name="DynamicAnswers[@(fieldKey)]"
+                                  class="form-control"
+                                  rows="3"
+                                  placeholder="Provide answer..."
+                                  required="@(field.IsRequired ? "required" : null)">@existingVal</textarea>
                                         break;
 
                                     case ElectionFieldType.Input:
                                     default:
-                                        if (field.IsRequired)
-                                        {
-                                            <input type="text" name="DynamicAnswers[@field.Id]" value="@existingVal" class="form-control" placeholder="Provide answer..." required />
-                                        }
-                                        else
-                                        {
-                                            <input type="text" name="DynamicAnswers[@field.Id]" value="@existingVal" class="form-control" placeholder="Provide answer..." />
-                                        }
+                                        <input type="text"
+                                               name="DynamicAnswers[@(fieldKey)]"
+                                               value="@existingVal"
+                                               class="form-control"
+                                               placeholder="Provide answer..."
+                                               required="@(field.IsRequired ? "required" : null)" />
                                         break;
                                 }
+
+                                @Html.ValidationMessage($"DynamicAnswers[{fieldKey}]", new { @class = "text-danger small" })
                             </div>
                         }
                     </div>
                 }
 
-                <!-- Cloudflare Turnstile Security Verification Widget -->
+                <!-- Cloudflare Turnstile -->
                 <div class="mb-4 d-flex justify-content-center">
-                    <div class="cf-turnstile" data-sitekey="YOUR_PUBLIC_SITE_KEY_HERE"></div>
+                    <div class="cf-turnstile" data-sitekey="@ViewBag.TurnstileSiteKey"></div>
                 </div>
 
                 <div class="d-flex justify-content-between mt-4">
-                    <a asp-controller="Home" asp-action="Index" class="btn btn-outline-secondary">Cancel</a>
-                    <button type="submit" class="btn candform-submit px-4">Create Candidate</button>
+                    <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
+                       class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-1"></i> Cancel
+                    </a>
+                    <button type="submit" class="btn candform-submit px-4">
+                        <i class="fas fa-save me-1"></i> Create Candidate
+                    </button>
                 </div>
             </form>
         </div>
@@ -255,35 +266,76 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <!-- Cloudflare Turnstile SDK Script -->
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <script>
-        $(document).ready(function () {
-            // Static State -> LGA Cascading Dropdown
-            $('#stateDropdown').on('change', function () {
-                var selectedStateId = $(this).val();
-                var $lgaSelect = $('#lgaDropdown');
+        $(function () {
+            // ─────────────────────────────────────────────
+            // Helper: load LGAs for a given state
+            // ─────────────────────────────────────────────
+            function loadLgas(stateId, $lgaTarget, preselectedLga) {
+                $lgaTarget.empty().append('<option value="">-- Select LGA --</option>');
+                if (!stateId) return;
 
-                $lgaSelect.empty().append('<option value="">-- Select LGA --</option>');
-
-                if (selectedStateId) {
-                    $.ajax({
-                        url: '/Candidate/GetLgasByState',
-                        type: 'GET',
-                        data: { stateId: selectedStateId },
-                        dataType: 'json',
-                        success: function (data) {
-                            $.each(data, function (index, item) {
-                                var id = item.id || item.Id;
-                                var name = item.name || item.Name;
-                                $lgaSelect.append(new Option(name, id));
-                            });
-                        },
-                        error: function (xhr, status, error) {
-                            console.error("Error retrieving LGAs for standard state: ", error);
-                        }
+                $.ajax({
+                    url: '/Candidate/GetLgasByState',
+                    type: 'GET',
+                    data: { stateId: stateId },
+                    dataType: 'json'
+                })
+                .done(function (data) {
+                    $.each(data, function (_, item) {
+                        var id = item.id || item.Id;
+                        var name = item.name || item.Name;
+                        var isSelected = preselectedLga && String(id) === String(preselectedLga);
+                        $lgaTarget.append(new Option(name, id, false, isSelected));
                     });
+                })
+                .fail(function (xhr) {
+                    console.error("Failed to load LGAs:", xhr.status, xhr.responseText);
+                });
+            }
+
+            // ─────────────────────────────────────────────
+            // Standard State → LGA cascade (on page load if preselected)
+            // ─────────────────────────────────────────────
+            var $state = $('#stateDropdown');
+            var $lga = $('#lgaDropdown');
+
+            if ($state.val()) {
+                loadLgas($state.val(), $lga, $lga.data('selected'));
+            }
+
+            $state.on('change', function () {
+                loadLgas($(this).val(), $lga, null);
+            });
+
+            // ─────────────────────────────────────────────
+            // Dynamic State → LGA cascade for custom fields
+            // ─────────────────────────────────────────────
+            function findLinkedLgaSelect($stateSelect) {
+                // Find the LgaDropdown field whose data-parent-state matches this field's container
+                var container = $stateSelect.closest('[data-field-container]');
+                var stateKey = container.data('field-container');
+                return $('[data-parent-state="' + stateKey + '"]');
+            }
+
+            $('.dynamic-state-select').on('change', function () {
+                var $state = $(this);
+                var $lgaTarget = findLinkedLgaSelect($state);
+                if ($lgaTarget.length === 0) return;
+
+                loadLgas($state.val(), $lgaTarget, null);
+            });
+
+            // Preselect LGA on page load for dynamic fields
+            $('.dynamic-state-select').each(function () {
+                var $state = $(this);
+                if ($state.val()) {
+                    var $lgaTarget = findLinkedLgaSelect($state);
+                    if ($lgaTarget.length) {
+                        loadLgas($state.val(), $lgaTarget, $lgaTarget.data('selected'));
+                    }
                 }
             });
         });

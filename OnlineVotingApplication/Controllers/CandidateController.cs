@@ -207,8 +207,10 @@ namespace OnlineVotingApplication.Controllers
             }
 
             // ─── 4. Duplicate check (pending invitation only) ───────────────
+            var voteremail=  User.FindFirstValue(ClaimTypes.Email);
             var cleanEmail = model.Email.Trim().ToLower();
 
+            voteremail = cleanEmail;
             bool alreadyInvited = await _context.candidateInvitations
                 .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
                             && a.CandidateEmail.ToLower() == cleanEmail);

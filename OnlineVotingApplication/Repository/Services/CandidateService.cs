@@ -61,124 +61,6 @@ namespace OnlineVotingApplication.Repository.Services
             _tenantProvider = tenantProvider;
             _emailService = emailService;
         }
-        #region GetUnsentCandidateApplicationsAsync AND GetsentCandidateApplicationsAsync
-        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetUnsentCandidateApplicationsAsync(
-      int pageNumber = 1, int pageSize = 10)
-        {
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
-            pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Max(1, pageSize);
-            int skip = (pageNumber - 1) * pageSize;
-
-            var httpUser = _httpContext.HttpContext?.User;
-            bool isGlobalViewer = httpUser?.IsInRole("SuperAdmin") == true
-                               || httpUser?.IsInRole("PlatformAdmin") == true;
-
-            if (!isGlobalViewer && tenantId == Guid.Empty)
-            {
-                return new PaginatedListViewModel<PendingApplicationViewModel> { Items = new List<PendingApplicationViewModel>(), TotalItems = 0, PageNumber = pageNumber, PageSize = pageSize };
-            }
-
-            var baseQuery = _appDbContext.candidateInvitations
-                .AsNoTracking()
-                .IgnoreQueryFilters()
-                .Where(a => !a.IsSent && !a.IsUsed); // Not sent yet and not fully used up
-
-            if (!isGlobalViewer)
-            {
-                baseQuery = baseQuery.Where(a => a.TenantId == tenantId);
-            }
-
-            int totalCount = await baseQuery.CountAsync();
-
-            var rawApplications = await baseQuery
-                .Include(a => a.ElectionEvent)
-                .Include(a => a.Position)
-                .OrderByDescending(a => a.CreatedAt)
-                .Skip(skip)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var appList = rawApplications.Select(a => new PendingApplicationViewModel
-            {
-                ApplicationId = a.Id,
-                ElectionEventId = a.ElectionEventId,
-                PositionId = a.PositionId,
-                CandidateEmail = a.CandidateEmail,
-                CandidateName = a.CandidateName,
-                ElectionTitle = a.ElectionEvent?.Title ?? "N/A",
-                PositionName = a.Position?.Name ?? "General Position",
-                CreatedAt = a.CreatedAt
-            }).ToList();
-
-            return new PaginatedListViewModel<PendingApplicationViewModel>
-            {
-                Items = appList,
-                TotalItems = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-        }
-
-        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetSentCandidateInvitationsAsync(
-    int pageNumber = 1, int pageSize = 10)
-        {
-            Guid tenantId = _tenantProvider.GetCurrentTenantId();
-            pageNumber = Math.Max(1, pageNumber);
-            pageSize = Math.Max(1, pageSize);
-            int skip = (pageNumber - 1) * pageSize;
-
-            var httpUser = _httpContext.HttpContext?.User;
-            bool isGlobalViewer = httpUser?.IsInRole("SuperAdmin") == true
-                               || httpUser?.IsInRole("PlatformAdmin") == true;
-
-            if (!isGlobalViewer && tenantId == Guid.Empty)
-            {
-                return new PaginatedListViewModel<PendingApplicationViewModel> { Items = new List<PendingApplicationViewModel>(), TotalItems = 0, PageNumber = pageNumber, PageSize = pageSize };
-            }
-
-            var baseQuery = _appDbContext.candidateInvitations
-                .AsNoTracking()
-                .IgnoreQueryFilters()
-                .Where(a => a.IsSent && !a.IsUsed); // Already emailed, but waiting on registration
-
-            if (!isGlobalViewer)
-            {
-                baseQuery = baseQuery.Where(a => a.TenantId == tenantId);
-            }
-
-            int totalCount = await baseQuery.CountAsync();
-
-            var rawApplications = await baseQuery
-                .Include(a => a.ElectionEvent)
-                .Include(a => a.Position)
-                .OrderByDescending(a => a.CreatedAt)
-                .Skip(skip)
-                .Take(pageSize)
-                .ToListAsync();
-
-            var appList = rawApplications.Select(a => new PendingApplicationViewModel
-            {
-                ApplicationId = a.Id,
-                ElectionEventId = a.ElectionEventId,
-                PositionId = a.PositionId,
-                CandidateEmail = a.CandidateEmail,
-                CandidateName = a.CandidateName,
-                ElectionTitle = a.ElectionEvent?.Title ?? "N/A",
-                PositionName = a.Position?.Name ?? "General Position",
-                CreatedAt = a.CreatedAt
-            }).ToList();
-
-            return new PaginatedListViewModel<PendingApplicationViewModel>
-            {
-                Items = appList,
-                TotalItems = totalCount,
-                PageNumber = pageNumber,
-                PageSize = pageSize
-            };
-        }
-        #endregion
-
         #region SendCandidateInviteAsync
         public async Task<ServiceResponse<string>> SendCandidateInviteAsync(SendCandidateInvitation model)
         {
@@ -188,7 +70,6 @@ namespace OnlineVotingApplication.Repository.Services
             bool isPlatformAdmin = _httpContext.HttpContext?.User.IsInRole("PlatformAdmin") ?? false;
             bool isOfficial = _httpContext.HttpContext?.User.IsInRole("Official") ?? false;
 
-            // Fixed: Allowed "Official" to match the controller level permissions
             if (!isAdmin && !isPlatformAdmin && !isOfficial)
             {
                 response.Success = false;
@@ -203,14 +84,21 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            if (string.IsNullOrWhiteSpace(model.SecureLink))
+            {
+                response.Success = false;
+                response.Message = "The secure invitation link is missing.";
+                return response;
+            }
+
             string normalizedEmail = model.CandidateEmail.Trim().ToLower();
 
-            // Target the specific email within the specific election event
+            // ⚠️ No AsNoTracking – we need to update IsSent
             var inviteItem = await _appDbContext.candidateInvitations
                 .FirstOrDefaultAsync(m => m.CandidateEmail != null
-                                        && m.CandidateEmail.ToLower() == normalizedEmail
-                                        && m.ElectionEventId == model.ElectionEventId
-                                        && !m.IsUsed);
+                                       && m.CandidateEmail.ToLower() == normalizedEmail
+                                       && m.ElectionEventId == model.ElectionEventId
+                                       && !m.IsUsed);
 
             if (inviteItem == null)
             {
@@ -219,24 +107,115 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // Compose and send email using model.SecureLink
-            string subject = "Your Secure Candidate Registration Invitation";
-            string message = $"Hello {inviteItem.CandidateName}, You have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n{model.SecureLink}\n\nNote: This link is unique to your email address ({inviteItem.CandidateEmail}) and can only be used once.";
+            try
+            {
+                string subject = "Your Secure Candidate Registration Invitation";
+                string message =
+                    $"Hello {inviteItem.CandidateName},\n\n" +
+                    $"You have been invited to register as a candidate. Click the secure link below to complete your registration form:\n\n" +
+                    $"{model.SecureLink}\n\n" +
+                    $"Note: This link is unique to your email address ({inviteItem.CandidateEmail}) and can only be used once.";
 
-            await _emailService.EmailSendAsync(inviteItem.CandidateEmail, subject, message);
+                await _emailService.EmailSendAsync(inviteItem.CandidateEmail, subject, message);
 
-            // Update dispatch status and persist to database
-            inviteItem.IsSent = true;
-            await _appDbContext.SaveChangesAsync();
+                inviteItem.IsSent = true;
+                inviteItem.SentAt = DateTime.UtcNow;   // add this column if you don't have it
+                await _appDbContext.SaveChangesAsync();
 
-            response.Data = inviteItem.Token;
-            response.Message = "Invitation Link Has been Sent to Candidate";
-            response.Success = true;
+                response.Data = inviteItem.Token;
+                response.Message = "Invitation link has been sent to the candidate.";
+                response.Success = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send candidate invite to {Email}", inviteItem.CandidateEmail);
+                response.Success = false;
+                response.Message = "An error occurred while sending the invitation email.";
+            }
+
             return response;
         }
         #endregion
 
 
+        #region GetUnsentCandidateApplicationsAsync
+        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetUnsentCandidateApplicationsAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
+            var query = _appDbContext.candidateInvitations
+                .Where(i => !i.IsSent && !i.IsUsed)
+                .Include(i => i.ElectionEvent)
+                .Include(i => i.Position)
+                .OrderByDescending(i => i.CreatedAt)
+                .AsNoTracking();
+
+            int total = await query.CountAsync();
+
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(i => new PendingApplicationViewModel
+                {
+                    CandidateName = i.CandidateName,
+                    CandidateEmail = i.CandidateEmail,
+                    ElectionEventId = i.ElectionEventId,
+                    PositionName = i.Position != null ? i.Position.Name : "—",
+                    ElectionTitle = i.ElectionEvent != null ? i.ElectionEvent.Title : "—",
+                    CreatedAt = i.CreatedAt
+                })
+                .ToListAsync();
+
+            return new PaginatedListViewModel<PendingApplicationViewModel>
+            {
+                Items = items,
+                TotalItems = total,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        #endregion
+
+
+        #region GetSentCandidateInvitationsAsync
+        public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetSentCandidateInvitationsAsync(int pageNumber = 1, int pageSize = 10)
+        {
+            pageNumber = Math.Max(1, pageNumber);
+            pageSize = Math.Max(1, pageSize);
+
+            var query = _appDbContext.candidateInvitations
+                .Where(i => i.IsSent && !i.IsUsed)
+                .Include(i => i.ElectionEvent)
+                .Include(i => i.Position)
+                .OrderByDescending(i => i.CreatedAt)
+                .AsNoTracking();
+
+            int total = await query.CountAsync();
+
+            var items = await query
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .Select(i => new PendingApplicationViewModel
+                {
+                    CandidateName = i.CandidateName,
+                    CandidateEmail = i.CandidateEmail,
+                    ElectionEventId = i.ElectionEventId,
+                    PositionName = i.Position != null ? i.Position.Name : "—",
+                    ElectionTitle = i.ElectionEvent != null ? i.ElectionEvent.Title : "—",
+                    CreatedAt = i.CreatedAt
+                })
+                .ToListAsync();
+
+            return new PaginatedListViewModel<PendingApplicationViewModel>
+            {
+                Items = items,
+                TotalItems = total,
+                PageNumber = pageNumber,
+                PageSize = pageSize
+            };
+        }
+        #endregion
 
 
         #region CreateCandidateAsync

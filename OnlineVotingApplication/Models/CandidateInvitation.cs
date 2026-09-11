@@ -18,6 +18,7 @@ public class CandidateInvitation
     public virtual ElectionEvent? ElectionEvent { get; set; }
     public virtual Positions? Position { get; set; } // 🌟 Add this if you want to link the position
     [ForeignKey(nameof(TenantId))] 
-    public virtual Tenant? Tenant { get; internal set; }
-    public bool IsSent { get; internal set; }
+    public virtual Tenant? Tenant { get;  set; }
+    public bool IsSent { get;  set; }
+    public DateTime? SentAt { get;  set; }
 }

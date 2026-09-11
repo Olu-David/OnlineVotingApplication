@@ -240,6 +240,7 @@ namespace OnlineVotingApplication.Controllers
                 CandidateName = model.FullName ?? voter.FullName ?? string.Empty,
                 CandidateEmail = cleanEmail,
                 IsUsed = false,
+                IsSent=false,
                 Token = token,
                 CreatedAt = DateTime.UtcNow
             };

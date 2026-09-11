@@ -144,10 +144,11 @@ namespace OnlineVotingApplication.Repository.Services
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
 
-            // ✅ IgnoreQueryFilters to bypass any tenant/soft-delete filter
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
             var query = _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
-                .Where(i => !i.IsUsed && !i.IsSent)
+                .Where(i => !i.IsSent && !i.IsUsed && (tenantId == Guid.Empty || i.TenantId == tenantId))
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
                 .OrderByDescending(i => i.CreatedAt)
@@ -179,16 +180,17 @@ namespace OnlineVotingApplication.Repository.Services
         }
         #endregion
 
-
         #region GetSentCandidateInvitationsAsync
         public async Task<PaginatedListViewModel<PendingApplicationViewModel>> GetSentCandidateInvitationsAsync(int pageNumber = 1, int pageSize = 10)
         {
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
 
+            var tenantId = _tenantProvider.GetCurrentTenantId();
+
             var query = _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
-                .Where(i => i.IsSent && !i.IsUsed)
+                .Where(i => i.IsSent && !i.IsUsed && (tenantId == Guid.Empty || i.TenantId == tenantId))
                 .Include(i => i.ElectionEvent)
                 .Include(i => i.Position)
                 .OrderByDescending(i => i.CreatedAt)

@@ -15,6 +15,7 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid? ElectionEventId { get; set; }
 
         public Guid? PositionId { get; set; }
+        public string? Position {  get; set; }
         public Guid? StateId { get; set; }
         public Guid? LgaId { get; set; }
         public Guid? PartyId { get; set; }

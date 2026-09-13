@@ -353,100 +353,112 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region CreateCandidate
-        // ─────────────────────────────────────────────
-
-        // GET: Candidate Registration Form
-        // ─────────────────────────────────────────────
+        #region CreateCandidate (GET)
         [HttpGet]
         [Authorize(Roles = "Voter, Candidate")]
         public async Task<IActionResult> CreateCandidate(Guid electionEventId, string token)
         {
-            _logger.LogInformation("CreateCandidate GET called for ElectionEventId={ElectionEventId}", electionEventId);
+            _logger.LogInformation("CreateCandidate GET → ElectionEventId={ElectionEventId}", electionEventId);
 
             if (string.IsNullOrWhiteSpace(token))
             {
-                TempData["ErrorMessage"] = "A secure invitation link is required to access candidate registration.";
+                TempData["ErrorMessage"] = "A secure invitation link is required.";
                 return RedirectToAction("Index", "Voter");
             }
 
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
-            // 🛠️ FIX: Added .IgnoreQueryFilters() and flexible tenant scoping
+            // 1. Validate the invitation
             var invitation = await _context.candidateInvitations
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Token == token
-                                       && i.ElectionEventId == electionEventId
-                                       && (currentTenantId == Guid.Empty || i.TenantId == currentTenantId)
-                                       && !i.IsUsed);
+                .FirstOrDefaultAsync(i => i.Token == token && !i.IsUsed);
 
             if (invitation == null)
             {
-                _logger.LogWarning("⚠️ CreateCandidate GET: Invalid token '{Token}' or ElectionId {ElectionEventId} for Tenant {TenantId}",
-                    token, electionEventId, currentTenantId);
-
+                _logger.LogWarning("Invalid token '{Token}'", token);
                 TempData["ErrorMessage"] = "This registration link is invalid, expired, or has already been used.";
                 return RedirectToAction("Index", "Voter");
             }
 
+            // Cross-check URL vs invitation (trust the invitation)
+            if (electionEventId != Guid.Empty && invitation.ElectionEventId != electionEventId)
+            {
+                _logger.LogWarning("URL election {UrlId} != invitation election {InvId}",
+                    electionEventId, invitation.ElectionEventId);
+                electionEventId = invitation.ElectionEventId ?? Guid.Empty;
+            }
+
+            // 2. Load election FROM THE INVITATION
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
+                .Include(e => e.CustomFields)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == electionEventId
-                                       && !e.IsDeleted);
+                .FirstOrDefaultAsync(e => e.Id == invitation.ElectionEventId && !e.IsDeleted);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "The specified election event could not be found or has been disabled.";
+                TempData["ErrorMessage"] = "The linked election event could not be found.";
                 return RedirectToAction("Index", "Voter");
             }
 
+            // 3. Load position FROM THE INVITATION
+            var position = await _context.Position
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(p => p.Id == invitation.PositionId);
+
+            if (position == null)
+            {
+                TempData["ErrorMessage"] = "The linked position could not be found. Please contact support.";
+                return RedirectToAction("Index", "Voter");
+            }
+
+            // 4. Load user
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
-            {
                 return RedirectToAction("Login", "AuthService");
-            }
 
-            var fullName = $"{user.FullName}".Trim();
-            if (string.IsNullOrWhiteSpace(fullName))
+            var fullName = string.IsNullOrWhiteSpace(user.FullName)
+                ? (user.UserName ?? user.Email ?? "Candidate")
+                : user.FullName;
+
+            // 5. Build the view model
+            var vm = new CandidateViewModel
             {
-                fullName = user.UserName ?? user.Email ?? "Candidate";
-            }
-
-            await PopulateCreateDropdownsAsync(election, null);
-
-            ViewBag.InviteToken = token;
-            ViewBag.LockedCandidateName = fullName;
-
-            var viewModel = new CandidateViewModel
-            {
-                ElectionEventId = electionEventId,
-                Name = fullName
+                ElectionEventId = election.Id,
+                PositionId = position.Id,
+                Name = fullName,
+                LockedName = fullName,
+                LockedPositionName = position.Name,
+                LockedElectionTitle = election.Title,
+                IsPolitical = election.Category == Enums.TenantCategory.Political
             };
 
-            return View(viewModel);
+            await PopulateCreateDropdownsAsync(vm, election, null);
+
+            ViewBag.InviteToken = token;
+
+            return View(vm);
         }
         #endregion
 
-        #region CreateCandidate (2)
-        // ─────────────────────────────────────────────
-        // POST: Candidate Self-Registration Submission
-        // ─────────────────────────────────────────────
+        #region CreateCandidate (POST)
         [HttpPost]
         [Authorize(Roles = "Voter, Candidate")]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string token)
         {
-            if (model == null || model.ElectionEventId == Guid.Empty)
+            if (model == null || string.IsNullOrWhiteSpace(token))
             {
-                TempData["ErrorMessage"] = "Invalid candidate payload submitted.";
-                return RedirectToAction("AllElections", "Election");
+                TempData["ErrorMessage"] = "Invalid submission.";
+                return RedirectToAction("Index", "Voter");
             }
 
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
+            // 1. Server-trusted user name
             var user = await _userManager.GetUserAsync(User);
             if (user == null)
             {
@@ -454,66 +466,131 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Login", "Account");
             }
 
-            var fullName = $"{user.FullName}".Trim();
-            model.Name = string.IsNullOrWhiteSpace(fullName) ? user.UserName! : fullName;
+            model.Name = string.IsNullOrWhiteSpace(user.FullName)
+                ? (user.UserName ?? user.Email ?? "Candidate")
+                : user.FullName;
 
+            ModelState.Remove(nameof(model.Name));
+
+            // 2. Load the invitation (source of truth)
+            var invitation = await _context.candidateInvitations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(i => i.Token == token && !i.IsUsed);
+
+            if (invitation == null)
+            {
+                TempData["ErrorMessage"] = "This registration link is invalid, expired, or has already been used.";
+                return RedirectToAction("Index", "Voter");
+            }
+
+            // Lock election & position to the invitation
+            model.ElectionEventId = invitation.ElectionEventId;
+            model.PositionId = invitation.PositionId;
+
+            ModelState.Remove(nameof(model.ElectionEventId));
+            ModelState.Remove(nameof(model.PositionId));
+
+            // 3. Load election from the invitation
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .Include(e => e.CustomFields)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
-                                       && e.TenantId == currentTenantId
-                                       && !e.IsDeleted);
+                .FirstOrDefaultAsync(e => e.Id == invitation.ElectionEventId && !e.IsDeleted);
 
             if (election == null)
             {
-                TempData["ErrorMessage"] = "Targeted election event could not be found for this tenant.";
-                return RedirectToAction("AllElections", "Election");
+                TempData["ErrorMessage"] = "The linked election event could not be found.";
+                return RedirectToAction("Index", "Voter");
             }
 
+            // 4. Non-political → remove State/LGA/Party
             if (election.Category != Enums.TenantCategory.Political)
             {
-                ModelState.Remove("PartyId");
+                ModelState.Remove(nameof(model.PartyId));
+                ModelState.Remove(nameof(model.StateId));
+                ModelState.Remove(nameof(model.LgaId));
                 model.PartyId = null;
+                model.StateId = null;
+                model.LgaId = null;
             }
 
+            // 5. Validation failure → rehydrate
             if (!ModelState.IsValid)
             {
-                var validationErrors = string.Join(" | ", ModelState.Values
+                var errors = string.Join(" | ", ModelState.Values
                     .SelectMany(v => v.Errors)
                     .Select(e => e.ErrorMessage));
 
-                _logger.LogWarning("Validation failed for ElectionId {ElectionId} on Tenant {TenantId}: {Errors}",
-                    model.ElectionEventId, currentTenantId, validationErrors);
+                _logger.LogWarning("Validation failed for Election {ElectionId}: {Errors}",
+                    model.ElectionEventId, errors);
 
-                TempData["ErrorMessage"] = $"Validation Errors: {validationErrors}";
+                TempData["ErrorMessage"] = $"Validation Errors: {errors}";
+
+                await PopulateCreateDropdownsAsync(model, election, model.StateId);
+
                 ViewBag.InviteToken = token;
-                ViewBag.LockedCandidateName = model.Name;
-
-                await PopulateCreateDropdownsAsync(election, model.StateId);
                 return View(model);
             }
 
+            // 6. Create the candidate
             var result = await _candidateService.CreateCandidateAsync(model, user.Id, token);
 
             if (!result.Success)
             {
-                ModelState.AddModelError(string.Empty, result.Message ?? "An error occurred while saving candidate.");
+                ModelState.AddModelError(string.Empty, result.Message ?? "An error occurred while saving the candidate.");
                 TempData["ErrorMessage"] = result.Message;
 
-                ViewBag.InviteToken = token;
-                ViewBag.LockedCandidateName = model.Name;
+                await PopulateCreateDropdownsAsync(model, election, model.StateId);
 
-                await PopulateCreateDropdownsAsync(election, model.StateId);
+                ViewBag.InviteToken = token;
                 return View(model);
             }
 
+            // 7. Save dynamic answers
+            if (model.DynamicAnswers != null && model.DynamicAnswers.Any())
+            {
+                Guid newCandidateId = Guid.TryParse(result.Data?.ToString(), out var parsed)
+                    ? parsed
+                    : Guid.Empty;
+
+                if (newCandidateId != Guid.Empty)
+                {
+                    var customValues = new List<CandidateCustomValue>();
+
+                    foreach (var kvp in model.DynamicAnswers)
+                    {
+                        if (string.IsNullOrWhiteSpace(kvp.Value))
+                            continue;
+
+                        customValues.Add(new CandidateCustomValue
+                        {
+                            Id = Guid.NewGuid(),
+                            CandidateId = newCandidateId,
+                            FieldId = kvp.Key,
+                            Value = kvp.Value.Trim(),
+                            TenantId = currentTenantId != Guid.Empty ? currentTenantId : null
+                        });
+                    }
+
+                    if (customValues.Any())
+                    {
+                        _context.CandidateCustomValues.AddRange(customValues);
+                        await _context.SaveChangesAsync();
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("Could not resolve new candidate Id; skipping dynamic answers.");
+                }
+            }
+
+            // 8. Audit log
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             await _auditLogService.LogActivityAsync(
                 userId: user.Id,
                 action: "Candidate Self-Registered",
-                details: $"Candidate profile '{model.Name}' created for election ID: {model.ElectionEventId}",
+                details: $"Candidate '{model.Name}' created for election {model.ElectionEventId}",
                 ipAddress: ipAddress,
                 tenantId: currentTenantId != Guid.Empty ? currentTenantId : null
             );
@@ -523,11 +600,91 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
+        #region PopulateUpdateDropdownsAsync
+        private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)
+        {
+            ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
+
+            var positions = await _context.Position
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.ElectionEventId == electionEventId)
+                .ToListAsync();
+
+            ViewBag.Positions = new SelectList(positions, "Id", "Name", selectedPosition);
+            ViewBag.States = new SelectList(await _context.States.AsNoTracking().ToListAsync(), "Id", "Name", selectedState);
+        }
+        #endregion
+
+        #region PopulateCreateDropdownsAsync
+        private async Task PopulateCreateDropdownsAsync(CandidateViewModel vm, ElectionEvent election, Guid? selectedStateId)
+        {
+            var tenantId = election.TenantId;
+
+            // ── Parties ────────────────────────────────────────────────
+            var parties = await _context.Party
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => !p.TenantId.HasValue
+                         || p.TenantId == Guid.Empty
+                         || p.TenantId == tenantId)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+
+            vm.Parties = new SelectList(parties, "Id", "Name", vm.PartyId);
+
+            // ── Positions (this election) ──────────────────────────────
+            var positions = await _context.Position
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.ElectionEventId == election.Id && !p.IsDeleted)
+                .OrderBy(p => p.Name)
+                .ToListAsync();
+
+            vm.Positions = new SelectList(positions, "Id", "Name", vm.PositionId);
+
+            // ── States ─────────────────────────────────────────────────
+            var states = await _context.States
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .OrderBy(s => s.Name)
+                .ToListAsync();
+
+            vm.States = new SelectList(states, "Id", "Name", selectedStateId);
+
+            // ── LGAs ───────────────────────────────────────────────────
+            if (selectedStateId.HasValue && selectedStateId.Value != Guid.Empty)
+            {
+                var lgas = await _context.Lgas
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(l => l.StateId == selectedStateId.Value)
+                    .OrderBy(l => l.Name)
+                    .ToListAsync();
+
+                vm.Lga = new SelectList(lgas, "Id", "Name", vm.LgaId);
+            }
+            else
+            {
+                vm.Lga = new List<SelectListItem>();
+            }
+
+            // ── Election meta ──────────────────────────────────────────
+            vm.LockedElectionTitle = election.Title;
+            vm.IsPolitical = election.Category == Enums.TenantCategory.Political;
+
+            // ── Custom fields ──────────────────────────────────────────
+            vm.CustomFields = await _context.ElectionCustomFields
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(f => f.ElectionEventId == election.Id)
+                .ToListAsync();
+        }
+        #endregion
+
         #region GetLgasByState
-        // ─────────────────────────────────────────────
-        // AJAX Endpoints
-        // ─────────────────────────────────────────────
         [HttpGet]
+        [AllowAnonymous]
         public async Task<JsonResult> GetLgasByState(Guid stateId)
         {
             var lgas = await _context.Lgas
@@ -952,84 +1109,7 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region PopulateCreateDropdownsAsync
-        // ─────────────────────────────────────────────
-        // Helpers
-        // ─────────────────────────────────────────────
-        private async Task PopulateCreateDropdownsAsync(ElectionEvent election, Guid? selectedStateId)
-        {
-            var tenantId = election.TenantId;
-
-            var parties = await _context.Party
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => (tenantId.HasValue && p.TenantId == tenantId) ||
-                            (!p.TenantId.HasValue) ||
-                            p.TenantId == Guid.Empty)
-                .ToListAsync();
-
-            ViewBag.Party = new SelectList(parties, "Id", "Name");
-
-            var positions = await _context.Position
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => p.ElectionEventId == election.Id)
-                .ToListAsync();
-
-            ViewBag.PositionView = new SelectList(positions, "Id", "Name");
-
-            var states = await _context.States
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .ToListAsync();
-
-            ViewBag.StateView = new SelectList(states, "Id", "Name", selectedStateId);
-            ViewBag.StatesList = new SelectList(states, "Id", "Name");
-
-            if (selectedStateId.HasValue && selectedStateId.Value != Guid.Empty)
-            {
-                var lgas = await _context.Lgas
-                    .IgnoreQueryFilters()
-                    .AsNoTracking()
-                    .Where(l => l.StateId == selectedStateId.Value)
-                    .ToListAsync();
-
-                ViewBag.Lga = new SelectList(lgas, "Id", "Name");
-            }
-            else
-            {
-                ViewBag.Lga = Enumerable.Empty<SelectListItem>();
-            }
-
-            ViewBag.ElectionTitle = election.Title;
-            ViewBag.ElectionCategory = election.Category;
-
-            var customFields = await _context.ElectionCustomFields
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(f => f.ElectionEventId == election.Id)
-                .ToListAsync();
-
-            ViewBag.CustomFields = customFields;
-        }
-        #endregion
-
-        #region PopulateUpdateDropdownsAsync
-        private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)
-        {
-            ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
-
-            var positions = await _context.Position
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => p.ElectionEventId == electionEventId)
-                .ToListAsync();
-
-            ViewBag.Positions = new SelectList(positions, "Id", "Name", selectedPosition);
-            ViewBag.States = new SelectList(await _context.States.AsNoTracking().ToListAsync(), "Id", "Name", selectedState);
-        }
-        #endregion
-
+        
 
     }
 }

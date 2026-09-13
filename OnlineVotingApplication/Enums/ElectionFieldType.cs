@@ -9,3 +9,4 @@
         StateDropdown = 4,
         LgaDropdown = 5
     }
+}

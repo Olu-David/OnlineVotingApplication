@@ -4,15 +4,6 @@
 
 @{
     ViewData["Title"] = "Create Candidate Profile";
-
-    // ─── Category detection (simplified) ────────────────────────
-    bool isPolitical = ViewBag.IsPolitical as bool? ?? false;
-
-    var customFields = ViewBag.CustomFields as List<ElectionCustomField> ?? new();
-    var stateList = ViewBag.StateView as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
-    var partyList = ViewBag.Party as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
-    var positionList = ViewBag.PositionView as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
-    var lgaList = ViewBag.Lga as IEnumerable<SelectListItem> ?? Enumerable.Empty<SelectListItem>();
 }
 
 @section Styles {
@@ -24,7 +15,7 @@
         <div class="card-header candform-header p-3">
             <h4 class="mb-0">
                 <i class="fas fa-user-plus me-2" style="color: var(--votex-amber, #ffb703);"></i>
-                Create Candidate for @ViewBag.ElectionTitle
+                Create Candidate for @Model.LockedElectionTitle
             </h4>
         </div>
 
@@ -33,101 +24,107 @@
             {
                 <div class="alert alert-danger alert-dismissible fade show" role="alert">
                     <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             }
 
             <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data" id="candidateForm">
                 @Html.AntiForgeryToken()
 
+                <!-- ═══ Server-locked hidden fields ═══ -->
                 <input type="hidden" asp-for="ElectionEventId" />
+                <input type="hidden" asp-for="PositionId" />
+                <input type="hidden" asp-for="Name" value="@Model.LockedName" />
                 <input type="hidden" name="token" value="@ViewBag.InviteToken" />
 
                 <!-- ═══════════════════════════════════════════════
-                     STANDARD FIELDS
+                     LOCKED FIELDS (read-only display)
                      ═══════════════════════════════════════════════ -->
                 <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label asp-for="Name" class="form-label fw-bold">
+                        <label class="form-label fw-bold">
                             Candidate Full Name <span class="text-danger">*</span>
                         </label>
-
-                        <!-- Read-only display -->
                         <input type="text"
                                class="form-control bg-light"
-                               value="@ViewBag.LockedCandidateName"
+                               value="@Model.LockedName"
                                readonly
                                tabindex="-1"
                                aria-readonly="true" />
-
-                        <!-- Hidden field carries the actual value to the server -->
-                        <input type="hidden" asp-for="Name" value="@ViewBag.LockedCandidateName" />
-
-                        <span asp-validation-for="Name" class="text-danger small"></span>
                         <small class="text-muted d-block mt-1">
-                            <i class="fas fa-lock me-1"></i> Your name comes from your account and cannot be changed here.
+                            <i class="fas fa-lock me-1"></i> Locked to your account name.
                         </small>
                     </div>
 
                     <div class="col-md-6 mb-3">
-                        <label asp-for="PositionId" class="form-label fw-bold">
+                        <label class="form-label fw-bold">
                             Position <span class="text-danger">*</span>
                         </label>
-                        <select asp-for="PositionId" class="form-select">
-                            <option value="">-- Select Position --</option>
-                            @foreach (var p in positionList)
-                            {
-                                <option value="@p.Value" selected="@(Model.PositionId?.ToString() == p.Value)">@p.Text</option>
-                            }
-                        </select>
-                        <span asp-validation-for="PositionId" class="text-danger small"></span>
+                        <input type="text"
+                               class="form-control bg-light"
+                               value="@Model.LockedPositionName"
+                               readonly
+                               tabindex="-1"
+                               aria-readonly="true" />
+                        <small class="text-muted d-block mt-1">
+                            <i class="fas fa-lock me-1"></i> Locked to the position on your invitation.
+                        </small>
                     </div>
                 </div>
 
-                <div class="row">
-                    @if (isPolitical)
-                    {
+                <!-- ═══════════════════════════════════════════════
+                     POLITICAL-ONLY FIELDS
+                     ═══════════════════════════════════════════════ -->
+                @if (Model.IsPolitical)
+                {
+                    <div class="row">
+                        <!-- Party -->
                         <div class="col-md-6 mb-3">
                             <label asp-for="PartyId" class="form-label fw-bold">
                                 Political Party <span class="text-danger">*</span>
                             </label>
-                            <select asp-for="PartyId" class="form-select">
+                            <select asp-for="PartyId" asp-items="Model.Parties" class="form-select">
                                 <option value="">-- Select Party --</option>
-                                @foreach (var party in partyList)
-                                {
-                                    <option value="@party.Value" selected="@(Model.PartyId?.ToString() == party.Value)">@party.Text</option>
-                                }
                             </select>
                             <span asp-validation-for="PartyId" class="text-danger small"></span>
                         </div>
-                    }
 
-                    <div class="col-md-6 mb-3">
-                        <label asp-for="StateId" class="form-label fw-bold">State</label>
-                        <select asp-for="StateId" id="stateDropdown" class="form-select" data-selected="@Model.StateId">
-                            <option value="">-- Select State --</option>
-                            @foreach (var state in stateList)
-                            {
-                                <option value="@state.Value" selected="@(Model.StateId?.ToString() == state.Value)">@state.Text</option>
-                            }
-                        </select>
-                        <span asp-validation-for="StateId" class="text-danger small"></span>
+                        <!-- State -->
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="StateId" class="form-label fw-bold">State</label>
+                            <select asp-for="StateId"
+                                    id="stateDropdown"
+                                    asp-items="Model.States"
+                                    class="form-select"
+                                    data-selected="@Model.StateId">
+                                <option value="">-- Select State --</option>
+                            </select>
+                            <span asp-validation-for="StateId" class="text-danger small"></span>
+                        </div>
+
+                        <!-- LGA -->
+                        <div class="col-md-6 mb-3">
+                            <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
+                            <select asp-for="LgaId"
+                                    id="lgaDropdown"
+                                    asp-items="Model.Lga"
+                                    class="form-select"
+                                    data-selected="@Model.LgaId">
+                                <option value="">-- Select LGA --</option>
+                            </select>
+                            <span asp-validation-for="LgaId" class="text-danger small"></span>
+                        </div>
                     </div>
+                }
 
+                <!-- ═══════════════════════════════════════════════
+                     COMMON FIELDS
+                     ═══════════════════════════════════════════════ -->
+                <div class="row">
                     <div class="col-md-6 mb-3">
-                        <label asp-for="LgaId" class="form-label fw-bold">LGA</label>
-                        <select asp-for="LgaId" id="lgaDropdown" class="form-select" data-selected="@Model.LgaId">
-                            <option value="">-- Select LGA --</option>
-                            @foreach (var lga in lgaList)
-                            {
-                                <option value="@lga.Value" selected="@(Model.LgaId?.ToString() == lga.Value)">@lga.Text</option>
-                            }
-                        </select>
-                        <span asp-validation-for="LgaId" class="text-danger small"></span>
-                    </div>
-
-                    <div class="col-md-6 mb-3">
-                        <label asp-for="CandidateImageUrl" class="form-label fw-bold">Candidate Profile Picture</label>
+                        <label asp-for="CandidateImageUrl" class="form-label fw-bold">
+                            Candidate Profile Picture
+                        </label>
                         <input asp-for="CandidateImageUrl" type="file" class="form-control" accept="image/*" />
                         <span asp-validation-for="CandidateImageUrl" class="text-danger small"></span>
                     </div>
@@ -135,7 +132,10 @@
 
                 <div class="mb-3">
                     <label asp-for="Manifesto" class="form-label fw-bold">Manifesto</label>
-                    <textarea asp-for="Manifesto" class="form-control" rows="4" placeholder="Enter candidate's vision or campaign goals..."></textarea>
+                    <textarea asp-for="Manifesto"
+                              class="form-control"
+                              rows="4"
+                              placeholder="Enter candidate's vision or campaign goals..."></textarea>
                     <span asp-validation-for="Manifesto" class="text-danger small"></span>
                 </div>
 
@@ -148,7 +148,7 @@
                 <!-- ═══════════════════════════════════════════════
                      DYNAMIC CUSTOM FIELDS
                      ═══════════════════════════════════════════════ -->
-                @if (customFields.Any())
+                @if (Model.CustomFields.Any())
                 {
                     <hr class="my-4 text-muted" />
                     <h5 class="mb-3 fw-bold" style="color: var(--votex-navy-900, #0a192f);">
@@ -157,7 +157,7 @@
                     </h5>
 
                     <div class="row">
-                        @foreach (var field in customFields)
+                        @foreach (var field in Model.CustomFields)
                         {
                             var existingVal = Model.DynamicAnswers != null && Model.DynamicAnswers.ContainsKey(field.Id)
                             ? Model.DynamicAnswers[field.Id]
@@ -196,9 +196,9 @@
                                                 data-linked-lga="@fieldKey"
                                                 required="@(field.IsRequired ? "required" : null)">
                                             <option value="">-- Select State --</option>
-                                            @foreach (var state in stateList)
+                                            @foreach (var s in Model.States!)
                                             {
-                                                <option value="@state.Value" selected="@(existingVal == state.Value)">@state.Text</option>
+                                                <option value="@s.Value" selected="@(existingVal == s.Value)">@s.Text</option>
                                             }
                                         </select>
                                         break;
@@ -245,11 +245,7 @@
                     </div>
                 }
 
-                <!-- Cloudflare Turnstile -->
-                <div class="mb-4 d-flex justify-content-center">
-                    <div class="cf-turnstile" data-sitekey="@ViewBag.TurnstileSiteKey"></div>
-                </div>
-
+                <!-- ═══ Actions ═══ -->
                 <div class="d-flex justify-content-between mt-4">
                     <a asp-controller="Candidate" asp-action="PendingCandidateApplications"
                        class="btn btn-outline-secondary">
@@ -266,7 +262,6 @@
 
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
-    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
 
     <script>
         $(function () {
@@ -297,12 +292,12 @@
             }
 
             // ─────────────────────────────────────────────
-            // Standard State → LGA cascade (on page load if preselected)
+            // Standard State → LGA cascade
             // ─────────────────────────────────────────────
             var $state = $('#stateDropdown');
             var $lga = $('#lgaDropdown');
 
-            if ($state.val()) {
+            if ($state.length && $state.val()) {
                 loadLgas($state.val(), $lga, $lga.data('selected'));
             }
 
@@ -311,30 +306,28 @@
             });
 
             // ─────────────────────────────────────────────
-            // Dynamic State → LGA cascade for custom fields
+            // Dynamic State → LGA cascade (custom fields)
             // ─────────────────────────────────────────────
             function findLinkedLgaSelect($stateSelect) {
-                // Find the LgaDropdown field whose data-parent-state matches this field's container
                 var container = $stateSelect.closest('[data-field-container]');
                 var stateKey = container.data('field-container');
                 return $('[data-parent-state="' + stateKey + '"]');
             }
 
             $('.dynamic-state-select').on('change', function () {
-                var $state = $(this);
-                var $lgaTarget = findLinkedLgaSelect($state);
-                if ($lgaTarget.length === 0) return;
-
-                loadLgas($state.val(), $lgaTarget, null);
+                var $s = $(this);
+                var $target = findLinkedLgaSelect($s);
+                if ($target.length === 0) return;
+                loadLgas($s.val(), $target, null);
             });
 
-            // Preselect LGA on page load for dynamic fields
+            // Preselect LGA on page load for dynamic State fields
             $('.dynamic-state-select').each(function () {
-                var $state = $(this);
-                if ($state.val()) {
-                    var $lgaTarget = findLinkedLgaSelect($state);
-                    if ($lgaTarget.length) {
-                        loadLgas($state.val(), $lgaTarget, $lgaTarget.data('selected'));
+                var $s = $(this);
+                if ($s.val()) {
+                    var $target = findLinkedLgaSelect($s);
+                    if ($target.length) {
+                        loadLgas($s.val(), $target, $target.data('selected'));
                     }
                 }
             });

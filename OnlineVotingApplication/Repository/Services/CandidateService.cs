@@ -133,13 +133,9 @@ namespace OnlineVotingApplication.Repository.Services
             }
             catch (Exception ex)
             {
-                // 🔍 Capture the root cause (e.g., SMTP settings, authentication failure, null sender)
-                var innerMessage = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
-                _logger.LogError(ex, "Failed to send candidate invite to {Email}. Reason: {Reason}", inviteItem.CandidateEmail, innerMessage);
-
+                _logger.LogError(ex, "Failed to send candidate invite to {Email}", inviteItem.CandidateEmail);
                 response.Success = false;
-                response.Message = $"Email sending failed: {innerMessage}"; // Temporarily show this to debug
-                return response;
+                response.Message = "An error occurred while sending the invitation email.";
             }
 
             return response;
@@ -408,6 +404,26 @@ namespace OnlineVotingApplication.Repository.Services
 
                     await _appDbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
+
+
+
+                    if (model.DynamicAnswers != null && model.DynamicAnswers.Any())
+                    {
+                        foreach (var kvp in model.DynamicAnswers)
+                        {
+                            // kvp.Key = field Guid, kvp.Value = the user's answer
+                            var customValue = new CandidateCustomValue
+                            {
+                                Id = Guid.NewGuid(),
+                                CandidateId = newCandidate.Id,
+                                FieldId = kvp.Key,
+                                Value = kvp.Value ?? string.Empty,
+                                TenantId = newCandidate.TenantId != Guid.Empty ?newCandidate.TenantId : null
+                            };
+                            _appDbContext.CandidateCustomValues.Add(customValue);
+                        }
+                        await _appDbContext.SaveChangesAsync();
+                    }
 
                     response.Data = newCandidate.CandidateID;
                     response.Success = true;

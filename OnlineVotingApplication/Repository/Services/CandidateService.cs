@@ -284,8 +284,10 @@ namespace OnlineVotingApplication.Repository.Services
             CandidateInvitation? invitation = null;
             if (!string.IsNullOrEmpty(token))
             {
+                var trimmedToken = token?.Trim();
+
                 invitation = await _appDbContext.candidateInvitations
-                    .FirstOrDefaultAsync(i => i.Token==token && i.IsSent && i.IsUsed==false);
+                    .FirstOrDefaultAsync(i => i.Token == trimmedToken && i.IsSent && i.IsUsed == false);
 
                 if (invitation == null)
                 {

@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 using OnlineVotingApplication.Enums;
+using OnlineVotingApplication.Validation;
 
 namespace OnlineVotingApplication.DataTransferView
 {
@@ -20,8 +21,12 @@ namespace OnlineVotingApplication.DataTransferView
         [Display(Name = "Admin Email")]
         public string AdminEmail { get; set; } = string.Empty;
 
+        // ✅ Organization logo — optional, ≤ 300 KB, image only
         [DataType(DataType.Upload)]
         [Display(Name = "Organization Logo")]
+        [MaxFileSize(300 * 1024, ErrorMessage = "Organization logo must be under 300 KB.")]
+        [AllowedImageTypes(".jpg", ".jpeg", ".png", ".webp", ".svg",
+            ErrorMessage = "Logo must be a JPG, PNG, WEBP, or SVG image.")]
         public IFormFile? ProfilePicture { get; set; }
 
         [Required(ErrorMessage = "Admin password is required.")]

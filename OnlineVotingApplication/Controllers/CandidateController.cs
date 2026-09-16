@@ -217,8 +217,10 @@ namespace OnlineVotingApplication.Controllers
             }
 
             bool alreadyInvited = await _context.candidateInvitations
-                .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
-                            && a.CandidateEmail.ToLower() == cleanEmail & a.IsSent);
+      .IgnoreQueryFilters()
+      .AnyAsync(a => a.ElectionEventId == model.ElectionEventId
+                  && a.CandidateEmail.ToLower() == cleanEmail
+                  && !a.IsUsed);   // ← block if an active invitation exists
 
             if (alreadyInvited)
             {

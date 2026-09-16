@@ -199,7 +199,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IDataProtectionK
             .HasForeignKey(v => v.CandidateId)
             .IsRequired(false)
             .OnDelete(DeleteBehavior.Restrict);
-
         // Candidate Invitation Block
         builder.Entity<CandidateInvitation>(entity =>
         {
@@ -217,6 +216,11 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>, IDataProtectionK
                   .HasForeignKey(ci => ci.TenantId)
                   .IsRequired(false)
                   .OnDelete(DeleteBehavior.NoAction);
+
+            // ✅ Unique index: one invitation per email per election
+            entity.HasIndex(ci => new { ci.ElectionEventId, ci.CandidateEmail })
+                  .IsUnique()
+                  .HasDatabaseName("IX_CandidateInvitation_Election_Email_Unique");
         });
 
         // Global Query Filters for Multi-Tenancy

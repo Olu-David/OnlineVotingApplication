@@ -47,10 +47,8 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region Index
-        // ─────────────────────────────────────────────
-        // CANDIDATE DASHBOARD (INDEX) - TENANT AWARE
-        // ─────────────────────────────────────────────
+        #region Candidate – Index (GET)
+
         [HttpGet]
         [Authorize(Roles = "Candidate, SuperAdmin, PlatformAdmin, Official")]
         public async Task<IActionResult> Index()
@@ -61,48 +59,101 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Login", "AuthService");
             }
 
-            if (User.IsInRole("Candidate"))
+            // ── SuperAdmin / PlatformAdmin / Official: go to the admin list ──
+            if (!User.IsInRole("Candidate"))
             {
-                var candidateRecord = await _context.Candidate
-                    .IgnoreQueryFilters()
-                    .AsNoTracking()
-                    .Include(c => c.Party)
-                    .Include(c => c.Position)
-                        .ThenInclude(p => p!.ElectionEvent)
-                    .Include(c => c.State)
-                    .Include(c => c.LGA)
-                    .FirstOrDefaultAsync(c => c.UserId == userId && !c.isDeleted);
-
-                if (candidateRecord == null)
-                {
-                    TempData["ErrorMessage"] = "No candidate profile is currently linked to your user account.";
-                    return View("ProfileNotFound");
-                }
-
-                var candidateVm = new CandidateViewModel
-                {
-                    CandidateID = candidateRecord.Id,
-                    Name = candidateRecord.Name,
-                    Manifesto = candidateRecord.Manifesto,
-                    PartyId = candidateRecord.PartyId,
-                    PartyName = candidateRecord.Party?.Name,
-                    PositionId = candidateRecord.PositionId,
-                    PositionName = candidateRecord.Position?.Name,
-                    StateId = candidateRecord.StateId,
-                    StateName = candidateRecord.State?.Name,
-                    LgaId = candidateRecord.LgaId,
-                    LgaName = candidateRecord.LGA?.Name,
-                    ElectionEventId = candidateRecord.Position?.ElectionEventId ?? Guid.Empty
-                };
-
-                ViewBag.ElectionTitle = candidateRecord.Position?.ElectionEvent?.Title;
-                ViewBag.TenantId = candidateRecord.Position?.ElectionEvent?.TenantId;
-
-                return View("Index", candidateVm);
+                return RedirectToAction(nameof(AllCandidate));
             }
 
-            return RedirectToAction(nameof(AllCandidate));
+            // ── Load the candidate's full profile ──
+            var candidateRecord = await _context.Candidate
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Include(c => c.Party)
+                .Include(c => c.Position)
+                    .ThenInclude(p => p!.ElectionEvent)
+                .Include(c => c.State)
+                .Include(c => c.LGA)
+                .Include(c => c.GalleryPhotos)
+                .FirstOrDefaultAsync(c => c.UserId == userId && !c.isDeleted);
+
+            if (candidateRecord == null)
+            {
+                TempData["ErrorMessage"] = "No candidate profile is currently linked to your user account.";
+                return View("ProfileNotFound");
+            }
+
+            // ── Build the view model ──
+            var candidateVm = new CandidateViewModel
+            {
+                CandidateID = candidateRecord.Id,
+                Name = candidateRecord.Name,
+                Manifesto = candidateRecord.Manifesto,
+                CandidateImg = candidateRecord.CandidateImg,
+                IsApproved = candidateRecord.isApproved,
+
+                PartyId = candidateRecord.PartyId,
+                PartyName = candidateRecord.Party?.Name,
+
+                PositionId = candidateRecord.PositionId,
+                PositionName = candidateRecord.Position?.Name,
+
+                StateId = candidateRecord.StateId,
+                StateName = candidateRecord.State?.Name,
+
+                LgaId = candidateRecord.LgaId,
+                LgaName = candidateRecord.LGA?.Name,
+
+                ElectionEventId = candidateRecord.Position?.ElectionEventId ?? Guid.Empty,
+
+                ExistingGalleries = candidateRecord.GalleryPhotos?.ToList()
+                                ?? new List<CandidateGallery>()
+            };
+
+            // ── Election / Tenant info ──
+            ViewBag.ElectionTitle = candidateRecord.Position?.ElectionEvent?.Title;
+            ViewBag.TenantId = candidateRecord.Position?.ElectionEvent?.TenantId;
+
+            // ── Total votes for this candidate ──
+            ViewBag.TotalVotes = await _context.Votes
+                .AsNoTracking()
+                .CountAsync(v => v.CandidateId == candidateRecord.Id
+                              && v.ElectionId == candidateVm.ElectionEventId
+                              && v.HasVoted);
+
+            // ── Rank among all candidates for the same position ──
+            if (candidateRecord.PositionId.HasValue && candidateVm.ElectionEventId != Guid.Empty)
+            {
+                var ranked = await _context.Candidate
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .Where(c => c.PositionId == candidateRecord.PositionId
+                             && c.ElectionEventId == candidateVm.ElectionEventId
+                             && !c.isDeleted)
+                    .Select(c => new
+                    {
+                        c.Id,
+                        VoteCount = _context.Votes
+                            .Count(v => v.CandidateId == c.Id
+                                     && v.ElectionId == candidateVm.ElectionEventId
+                                     && v.HasVoted)
+                    })
+                    .OrderByDescending(x => x.VoteCount)
+                    .ToListAsync();
+
+                var position = ranked.FindIndex(x => x.Id == candidateRecord.Id);
+                ViewBag.Rank = position >= 0
+                    ? $"{position + 1} of {ranked.Count}"
+                    : $"— of {ranked.Count}";
+            }
+            else
+            {
+                ViewBag.Rank = "—";
+            }
+
+            return View("Index", candidateVm);
         }
+
         #endregion
 
         #region ApplyAsCandidate (GET & POST)
@@ -1125,9 +1176,6 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToAction(nameof(AllCandidate), new { pageNumber, pageSize });
         }
         #endregion
-
-
-
 
         #region PopulateUpdateDropdownsAsync
         private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)

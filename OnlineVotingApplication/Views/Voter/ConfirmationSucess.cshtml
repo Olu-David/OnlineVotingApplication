@@ -1,0 +1,71 @@
+﻿@model OnlineVotingApplication.DataTransferView.VoteSuccessViewModel
+@{
+    ViewData["Title"] = "Vote Successful";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/vote-success.css" asp-append-version="true" />
+}
+
+<div class="vx-success-wrap">
+    <div class="vx-success-card">
+
+        <!-- ═════════ HERO ═════════ -->
+        <div class="vx-hero">
+            <div class="vx-checkmark">
+                <i class="fas fa-check"></i>
+            </div>
+            <h1>Vote Successful</h1>
+            <p>Your vote has been securely recorded.<br />Thank you for participating in the democratic process.</p>
+        </div>
+
+        <!-- ═════════ BODY ═════════ -->
+        <div class="vx-success-body">
+
+            <div class="vx-receipt">
+                <div class="vx-receipt-row">
+                    <span class="vx-receipt-label">Election</span>
+                    <span class="vx-receipt-value">@Model.ElectionTitle</span>
+                </div>
+                <div class="vx-receipt-row">
+                    <span class="vx-receipt-label">Position</span>
+                    <span class="vx-receipt-value">@Model.PositionName</span>
+                </div>
+                <div class="vx-receipt-row">
+                    <span class="vx-receipt-label">Candidate</span>
+                    <span class="vx-receipt-value">@Model.CandidateName</span>
+                </div>
+                <div class="vx-receipt-row">
+                    <span class="vx-receipt-label">Recorded At</span>
+                    <span class="vx-receipt-value">@Model.RecordedAt.ToString("yyyy-MM-dd HH:mm:ss") UTC</span>
+                </div>
+                <div class="vx-receipt-row">
+                    <span class="vx-receipt-label">Status</span>
+                    <span class="vx-receipt-value">
+                        <span class="vx-status"><span class="dot"></span> Recorded</span>
+                    </span>
+                </div>
+            </div>
+
+            <div class="vx-note">
+                <strong>A confirmation receipt has been emailed to you.</strong><br />
+                You can safely close this page. Your vote is immutable and cannot be changed.
+            </div>
+
+            <div class="vx-actions">
+                <a asp-controller="Voter" asp-action="Index" class="vx-btn vx-btn-outline">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a asp-controller="Results" asp-action="LiveCount" class="vx-btn vx-btn-primary">
+                    <i class="fas fa-chart-line"></i> Live Results
+                </a>
+            </div>
+
+            <div class="vx-footer-note">
+                Didn't cast this vote? Contact
+                <a href="mailto:support@votex.ng">support@votex.ng</a> immediately.
+            </div>
+
+        </div>
+    </div>
+</div>

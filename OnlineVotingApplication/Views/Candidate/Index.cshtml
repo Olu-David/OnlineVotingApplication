@@ -2,133 +2,416 @@
 
 @{
     ViewData["Title"] = "Candidate Dashboard";
-    Layout = "_Layout"; // Adjust if using a specific dashboard layout wrapper
+    Layout = "_Layout";
+
+    string initial = !string.IsNullOrWhiteSpace(Model.Name)
+        ? Model.Name!.Substring(0, 1).ToUpper()
+        : "C";
+
+    int completed = 0;
+    int total = 6;
+    if (!string.IsNullOrWhiteSpace(Model.Name)) completed++;
+    if (!string.IsNullOrWhiteSpace(Model.Manifesto)) completed++;
+    if (!string.IsNullOrWhiteSpace(Model.PartyName)) completed++;
+    if (!string.IsNullOrWhiteSpace(Model.PositionName)) completed++;
+    if (!string.IsNullOrWhiteSpace(Model.StateName)) completed++;
+    if (!string.IsNullOrWhiteSpace(Model.CandidateImg)) completed++;
+    int completenessPct = (int)Math.Round((double)completed / total * 100);
+
+    string completenessColor = completenessPct >= 80 ? "success"
+                             : completenessPct >= 50 ? "warning"
+                             : "danger";
 }
 
-<div class="container-fluid py-4">
-    <!-- Page Header -->
-    <div class="row mb-4 align-items-center">
-        <div class="col">
+@section Styles {
+    <style>
+        .cand-hero {
+            background: linear-gradient(135deg, #0f1a38 0%, #1a2e5a 100%);
+            border-radius: 18px;
+            padding: 32px;
+            color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cand-hero::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background:
+                radial-gradient(circle at 10% 20%, rgba(245,166,35,0.18), transparent 45%),
+                radial-gradient(circle at 90% 80%, rgba(245,166,35,0.12), transparent 45%);
+            pointer-events: none;
+        }
+
+        .cand-hero > * { position: relative; z-index: 2; }
+
+        .cand-avatar {
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #f5a623, #d4891a);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 38px;
+            font-weight: 800;
+            color: #0f1a38;
+            box-shadow: 0 12px 30px rgba(245,166,35,0.35);
+            flex-shrink: 0;
+            overflow: hidden;
+        }
+
+        .cand-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        .stat-card {
+            background: #fff;
+            border-radius: 14px;
+            border: 1px solid #eef2f7;
+            padding: 20px;
+            height: 100%;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            border-color: #f5a623;
+            box-shadow: 0 8px 24px rgba(15,26,56,0.06);
+            transform: translateY(-2px);
+        }
+
+        .stat-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            color: #fff;
+            margin-bottom: 12px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-bottom: 1px dashed #eef2f7;
+        }
+
+        .info-row:last-child { border-bottom: none; }
+
+        .info-label {
+            font-size: 13px;
+            color: #6b7280;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f1a38;
+            text-align: right;
+        }
+
+        .manifesto-box {
+            background: #f8fafc;
+            border-left: 4px solid #f5a623;
+            border-radius: 10px;
+            padding: 22px 24px;
+            font-size: 15px;
+            line-height: 1.75;
+            color: #334155;
+            white-space: pre-line;
+        }
+
+        .gallery-thumb {
+            aspect-ratio: 1;
+            border-radius: 10px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #eef2f7;
+        }
+
+        .gallery-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transition: transform 0.3s;
+        }
+
+        .gallery-thumb:hover img { transform: scale(1.05); }
+
+        .progress-thin {
+            height: 6px;
+            border-radius: 3px;
+            background: #eef2f7;
+            overflow: hidden;
+        }
+    </style>
+}
+
+<div class="container-fluid py-4" style="max-width: 1400px;">
+
+    <!-- PAGE HEADER -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+        <div>
             <h1 class="h3 fw-bold text-dark mb-1">
                 <i class="fas fa-user-tie text-primary me-2"></i>Candidate Portal
             </h1>
-            <p class="text-muted mb-0">Manage your campaign profile, manifesto, and election constituency details.</p>
+            <p class="text-muted mb-0">Manage your campaign profile, manifesto, and constituency details.</p>
         </div>
-        <div class="col-auto">
-            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID" class="btn btn-warning fw-semibold px-4 shadow-sm">
+        <div class="d-flex gap-2">
+            <a asp-action="LiveResults" class="btn btn-outline-primary fw-semibold px-3">
+                <i class="fas fa-chart-line me-2"></i>Live Results
+            </a>
+            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID"
+               class="btn btn-warning fw-semibold px-4 shadow-sm">
                 <i class="fas fa-edit me-2"></i>Edit Profile
             </a>
         </div>
     </div>
 
-    <!-- Alert Notifications -->
+    <!-- ALERTS -->
     @if (TempData["SuccessMessage"] != null)
     {
-        <div class="alert alert-success alert-dismissible fade show shadow-sm" role="alert">
-            <i class="fas fa-check-circle me-2"></i>@TempData["SuccessMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-success alert-dismissible fade show shadow-sm d-flex align-items-center" role="alert">
+            <i class="fas fa-check-circle me-2"></i>
+            <span>@TempData["SuccessMessage"]</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
         </div>
     }
     @if (TempData["ErrorMessage"] != null)
     {
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm" role="alert">
-            <i class="fas fa-exclamation-triangle me-2"></i>@TempData["ErrorMessage"]
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        <div class="alert alert-danger alert-dismissible fade show shadow-sm d-flex align-items-center" role="alert">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <span>@TempData["ErrorMessage"]</span>
+            <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
         </div>
     }
 
-    <div class="row g-4">
-        <!-- Left Column: Profile Card & Quick Info -->
-        <div class="col-lg-4">
-            <div class="card border-0 shadow-sm rounded-4 overflow-hidden h-100">
-                <div class="bg-primary p-4 text-center text-white position-relative" style="background: linear-gradient(135deg, #1a2e5a 0%, #2a437e 100%) !important;">
-                    <div class="position-absolute top-0 end-0 p-3">
-                        <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill shadow-sm">Active Candidate</span>
-                    </div>
-                    <div class="avatar-lg rounded-circle bg-warning text-dark fw-bold display-6 d-inline-flex align-items-center justify-content-center shadow-lg mb-3" style="width: 80px; height: 80px;">
-                        @(Model.Name?.Substring(0, 1).ToUpper() ?? "C")
-                    </div>
-                    <h4 class="fw-bold mb-1">@Model.Name</h4>
-                    <p class="text-white-50 small mb-0"><i class="fas fa-landmark me-1"></i> @(ViewBag.ElectionTitle ?? "Election Event")</p>
+    <!-- HERO -->
+    <div class="cand-hero mb-4">
+        <div class="d-flex flex-wrap align-items-center gap-4">
+            <div class="cand-avatar">
+                @if (!string.IsNullOrWhiteSpace(Model.CandidateImg))
+                {
+                    <img src="@Model.CandidateImg" alt="@Model.Name" />
+                }
+                else
+                {
+                    @initial
+                }
+            </div>
+            <div class="flex-grow-1">
+                <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                    <span class="badge bg-warning text-dark fw-bold px-3 py-2 rounded-pill">
+                        <i class="fas fa-circle-check me-1"></i>Active Candidate
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(Model.PositionName))
+                    {
+                        <span class="badge bg-white bg-opacity-10 text-white fw-semibold px-3 py-2 rounded-pill">
+                            <i class="fas fa-id-badge me-1"></i>@Model.PositionName
+                        </span>
+                    }
                 </div>
+                <h2 class="fw-bold mb-1" style="color: #fff;">@Model.Name</h2>
+                <p class="mb-0" style="color: rgba(255,255,255,0.7);">
+                    <i class="fas fa-landmark me-1"></i>
+                    @(ViewBag.ElectionTitle ?? "Election Event")
+                </p>
+            </div>
+        </div>
+
+        <div class="mt-4 pt-3" style="border-top: 1px solid rgba(255,255,255,0.1);">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <small class="text-uppercase fw-semibold"
+                       style="color: rgba(255,255,255,0.7); letter-spacing: 1px;">
+                    Profile Completeness
+                </small>
+                <small class="fw-bold" style="color: #f5a623;">@completenessPct%</small>
+            </div>
+            <div class="progress-thin" style="background: rgba(255,255,255,0.1);">
+                <div class="progress-bar bg-@completenessColor"
+                     role="progressbar"
+                     style="width: @completenessPct%;"
+                     aria-valuenow="@completenessPct"
+                     aria-valuemin="0"
+                     aria-valuemax="100"></div>
+            </div>
+            <small class="d-block mt-2" style="color: rgba(255,255,255,0.55);">
+                @if (completenessPct == 100)
+                {
+                    <i class="fas fa-check-circle text-success me-1"></i> <text>Your profile is complete and voter-ready.</text>
+                }
+                else
+                {
+                    <i class="fas fa-info-circle text-warning me-1"></i> <text>Complete your profile to boost voter confidence.</text>
+                }
+            </small>
+        </div>
+    </div>
+
+    <!-- QUICK STATS -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-primary"><i class="fas fa-chart-bar"></i></div>
+                <div class="text-muted small mb-1">Total Votes</div>
+                <div class="fw-bold fs-4 text-dark">@(ViewBag.TotalVotes ?? "0")</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #f5a623;"><i class="fas fa-trophy"></i></div>
+                <div class="text-muted small mb-1">Current Rank</div>
+                <div class="fw-bold fs-4 text-dark">@(ViewBag.Rank ?? "—")</div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon bg-success"><i class="fas fa-shield-halved"></i></div>
+                <div class="text-muted small mb-1">Approval</div>
+                <div class="fw-bold fs-4 text-dark">
+                    @(Model.IsApproved ? "Approved" : "Pending")
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: #6366f1;"><i class="fas fa-images"></i></div>
+                <div class="text-muted small mb-1">Gallery Photos</div>
+                <div class="fw-bold fs-4 text-dark">
+                    @(Model.ExistingGalleries?.Count ?? 0)
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GRID -->
+    <div class="row g-4">
+
+        <!-- LEFT: Info Card -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 h-100">
                 <div class="card-body p-4">
-                    <ul class="list-group list-group-flush">
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                            <span class="text-muted"><i class="fas fa-flag text-primary me-2"></i> Political Party</span>
-                            <span class="fw-semibold text-dark">@(Model.PartyName ?? "Independent / N/A")</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                            <span class="text-muted"><i class="fas fa-id-badge text-primary me-2"></i> Running Position</span>
-                            <span class="fw-semibold text-dark">@(Model.PositionName ?? "Not Specified")</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                            <span class="text-muted"><i class="fas fa-map-marker-alt text-primary me-2"></i> State Constituency</span>
-                            <span class="fw-semibold text-dark">@(Model.StateName ?? "Nationwide / General")</span>
-                        </li>
-                        <li class="list-group-item d-flex justify-content-between align-items-center px-0 py-3">
-                            <span class="text-muted"><i class="fas fa-city text-primary me-2"></i> Local Govt (LGA)</span>
-                            <span class="fw-semibold text-dark">@(Model.LgaName ?? "All LGAs")</span>
-                        </li>
-                    </ul>
+                    <h5 class="fw-bold text-dark mb-3">
+                        <i class="fas fa-circle-info text-primary me-2"></i>Campaign Info
+                    </h5>
+
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-flag text-primary"></i> Political Party</span>
+                        <span class="info-value">@(Model.PartyName ?? "Independent")</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-id-badge text-primary"></i> Position</span>
+                        <span class="info-value">@(Model.PositionName ?? "Not Specified")</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-map-marker-alt text-primary"></i> State</span>
+                        <span class="info-value">@(Model.StateName ?? "Nationwide")</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-city text-primary"></i> LGA</span>
+                        <span class="info-value">@(Model.LgaName ?? "All LGAs")</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label"><i class="fas fa-barcode text-primary"></i> Candidate ID</span>
+                        <span class="info-value" style="font-family: monospace; font-size: 12px;">
+                            @(Model.CandidateID.ToString() ?? "—")
+                        </span>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Right Column: Manifesto & Campaign Information -->
+        <!-- RIGHT: Manifesto + Gallery + Actions -->
         <div class="col-lg-8">
-            <div class="card border-0 shadow-sm rounded-4 h-100">
-                <div class="card-header bg-white border-0 pt-4 px-4 pb-0">
-                    <h5 class="fw-bold text-dark mb-0">
-                        <i class="fas fa-scroll text-warning me-2"></i>Campaign Manifesto & Vision
-                    </h5>
-                    <hr class="text-muted opacity-25 mt-3">
-                </div>
-                <div class="card-body px-4 pb-4">
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold text-dark mb-0">
+                            <i class="fas fa-scroll me-2" style="color: #f5a623;"></i>Campaign Manifesto
+                        </h5>
+                        <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID"
+                           class="btn btn-sm btn-outline-secondary">
+                            <i class="fas fa-pen me-1"></i>Edit
+                        </a>
+                    </div>
+
                     @if (!string.IsNullOrWhiteSpace(Model.Manifesto))
                     {
-                        <div class="p-4 rounded-3 bg-light text-secondary lh-lg" style="white-space: pre-line; border-left: 4px solid #f5a623;">
-                            @Model.Manifesto
-                        </div>
+                        <div class="manifesto-box">@Model.Manifesto</div>
                     }
                     else
                     {
                         <div class="text-center py-5">
-                            <div class="text-muted mb-3">
-                                <i class="fas fa-file-alt fa-3x opacity-50"></i>
-                            </div>
+                            <i class="fas fa-file-alt fa-3x text-muted opacity-25 mb-3"></i>
                             <h6 class="fw-semibold text-dark">No Manifesto Added Yet</h6>
-                            <p class="text-muted small mb-3">Share your plans and vision with voters by updating your profile.</p>
-                            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID" class="btn btn-outline-primary btn-sm px-3">
-                                <i class="fas fa-plus me-1"></i> Add Manifesto
+                            <p class="text-muted small mb-3">
+                                Share your plans and vision with voters by updating your profile.
+                            </p>
+                            <a asp-action="UpdateCandidate" asp-route-id="@Model.CandidateID"
+                               class="btn btn-warning btn-sm px-3 fw-semibold">
+                                <i class="fas fa-plus me-1"></i>Add Manifesto
                             </a>
                         </div>
                     }
+                </div>
+            </div>
 
-                    <!-- Quick Navigation Action Cards -->
-                    <div class="row g-3 mt-4">
-                        <div class="col-md-6">
-                            <div class="p-3 border rounded-3 bg-white shadow-sm d-flex align-items-center">
-                                <div class="bg-primary text-white rounded-3 p-3 me-3">
-                                    <i class="fas fa-chart-bar fa-lg"></i>
-                                </div>
-                                <div>
-                                    <h6 class="fw-bold mb-1">Live Vote Tracking</h6>
-                                    <p class="text-muted small mb-0">Monitor real-time ballot counts for your position.</p>
-                                </div>
-                            </div>
+            @if (Model.ExistingGalleries != null && Model.ExistingGalleries.Any())
+            {
+                <div class="card border-0 shadow-sm rounded-4 mb-4">
+                    <div class="card-body p-4">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="fw-bold text-dark mb-0">
+                                <i class="fas fa-images me-2" style="color: #6366f1;"></i>Campaign Gallery
+                            </h5>
+                            <small class="text-muted">@Model.ExistingGalleries.Count photo(s)</small>
                         </div>
-                        <div class="col-md-6">
-                            <div class="p-3 border rounded-3 bg-white shadow-sm d-flex align-items-center">
-                                <div class="bg-success text-white rounded-3 p-3 me-3">
-                                    <i class="fas fa-shield-alt fa-lg"></i>
+
+                        <div class="row g-2">
+                            @foreach (var photo in Model.ExistingGalleries.Take(6))
+                            {
+                                <div class="col-4 col-md-2">
+                                    <div class="gallery-thumb">
+                                        <img src="@photo.ImageUrl" alt="Gallery photo" />
+                                    </div>
                                 </div>
-                                <div>
-                                    <h6 class="fw-bold mb-1">Tenant Verified</h6>
-                                    <p class="text-muted small mb-0">Secured under your active election workspace.</p>
-                                </div>
-                            </div>
+                            }
                         </div>
                     </div>
+                </div>
+            }
+
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <a asp-action="LiveResults" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-primary"><i class="fas fa-chart-bar"></i></div>
+                            <h6 class="fw-bold mb-1 text-dark">Live Vote Tracking</h6>
+                            <p class="text-muted small mb-0">Monitor real-time ballot counts.</p>
+                        </div>
+                    </a>
+                </div>
+                <div class="col-md-4">
+                    <div class="stat-card">
+                        <div class="stat-icon bg-success"><i class="fas fa-shield-halved"></i></div>
+                        <h6 class="fw-bold mb-1 text-dark">Tenant Verified</h6>
+                        <p class="text-muted small mb-0">Secured in your election workspace.</p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <a asp-action="MyProfile" class="text-decoration-none">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: #f5a623;"><i class="fas fa-user-circle"></i></div>
+                            <h6 class="fw-bold mb-1 text-dark">Public Profile</h6>
+                            <p class="text-muted small mb-0">See how voters see you.</p>
+                        </div>
+                    </a>
                 </div>
             </div>
         </div>

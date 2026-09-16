@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Http;
+using OnlineVotingApplication.Validation;
 using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
@@ -14,8 +15,11 @@ namespace OnlineVotingApplication.DataTransferView
         [EmailAddress(ErrorMessage = "Invalid email address format.")]
         public string CandidateEmail { get; set; } = string.Empty;
 
-        // ✅ Profile image is REQUIRED
+        // ✅ Profile image is REQUIRED — ≤ 500 KB, JPG/PNG/WEBP only
         [Required(ErrorMessage = "Profile picture is required.")]
+        [MaxFileSize(500 * 1024, ErrorMessage = "Profile picture must be under 500 KB.")]
+        [AllowedImageTypes(".jpg", ".jpeg", ".png", ".webp",
+            ErrorMessage = "Profile picture must be a JPG, PNG, or WEBP image.")]
         public IFormFile CandidateImage { get; set; } = default!;
 
         [MaxLength(2000, ErrorMessage = "Manifesto cannot exceed 2000 characters.")]
@@ -29,7 +33,10 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid? StateId { get; set; }
         public Guid? LgaId { get; set; }
 
-        // ✅ Gallery is OPTIONAL
+        // ✅ Gallery is OPTIONAL — each ≤ 1 MB, JPG/PNG/WEBP only
+        [MaxFileSize(1024 * 1024, ErrorMessage = "Each gallery image must be under 1 MB.")]
+        [AllowedImageTypes(".jpg", ".jpeg", ".png", ".webp",
+            ErrorMessage = "Gallery images must be JPG, PNG, or WEBP.")]
         public List<IFormFile>? GalleryPhotos { get; set; } = new List<IFormFile>();
     }
 }

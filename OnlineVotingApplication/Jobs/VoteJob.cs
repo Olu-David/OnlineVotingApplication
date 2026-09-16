@@ -1,10 +1,6 @@
-﻿using OnlineVotingApplication.Repository.iServices;
-
-namespace OnlineVotingApplication.Jobs
+﻿namespace OnlineVotingApplication.Jobs
 {
-    public record VoteJob
-   (
-
+    public record VoteJob(
         string VoterId,
         Guid ElectionId,
         Guid CandidateId,
@@ -12,10 +8,5 @@ namespace OnlineVotingApplication.Jobs
         Guid? StateId,
         Guid? TenantId,
         string ConfirmationCode,
-        CancellationToken CancellationToken = default);
-    }
-
-
-   
-
- 
+        DateTime EnqueuedAt = default);
+}

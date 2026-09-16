@@ -1020,7 +1020,7 @@ namespace OnlineVotingApplication.Repository.Services
             : new Dictionary<Guid, string>(),
 
                     // Mapped gallery photos collection safely in-memory
-                    GalleryPhotoss = m.GalleryPhotos != null
+                    ExistingGalleries = m.GalleryPhotos != null
             ? m.GalleryPhotos.ToList()
             : new List<CandidateGallery>()
                 }).ToList();
@@ -1331,11 +1331,6 @@ namespace OnlineVotingApplication.Repository.Services
             return response;
         }
         #endregion
-
-
-
-
-
 
 
         #region GetCandidateByStateAsync

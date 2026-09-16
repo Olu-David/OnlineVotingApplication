@@ -7,7 +7,7 @@ namespace OnlineVotingApplication.Repository.iServices
     {
         Task<ServiceResponse<List<VoteResultDto>>> GetResultsAsync(Guid electionId, Guid positionId);
         Task<ServiceResponse<List<StateResultDto>>> GetVoteByStateViaPosition(Guid electionID, Guid positionID);
-        Task<ServiceResponse<string>> GenerateAndQueueConfirmationCodeAsync(string voterId, Guid electionId);
+        Task<ServiceResponse<string>> GenerateAndQueueConfirmationCodeAsync(string voterId, Guid electionId,Guid positionId);
         Task<ServiceResponse<string>> ConfirmAndCastVoteAsync(string voterId, Guid electionId, string enteredCode, Guid candidateId, Guid positionId);
         Task<ServiceResponse<List<ElectionEvent>>> GetElectionsTakenByVoterAsync(string voterId);
         Task<ServiceResponse<List<Vote>>> GetVoterBallotHistoryAsync(string voterId, Guid electionId);

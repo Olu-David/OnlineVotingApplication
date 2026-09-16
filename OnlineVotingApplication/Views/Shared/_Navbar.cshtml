@@ -17,7 +17,7 @@
     bool isCandidate = User.IsInRole("Candidate");
     bool isAuditor = User.IsInRole("Auditor");
 
-    // Determine dashboard controller AND action (SuperAdmin/Official use "Dashboard")
+    // Determine dashboard controller AND action
     string dashCtrl = "Home";
     string dashAction = "Index";
 
@@ -49,17 +49,19 @@
 <nav class="navbar navbar-expand-lg navbar-dark votezy-navbar sticky-top shadow-sm">
     <div class="container py-1">
 
-        <!-- Brand Logo -->
+        <!-- Brand -->
         <a asp-controller="@(isAuth && !isBlocked ? dashCtrl : "Home")"
            asp-action="@(isAuth && !isBlocked ? dashAction : "Index")"
            class="navbar-brand fw-bold d-flex align-items-center gap-2">
             <div class="brand-logo-badge shadow-sm">
                 <i class="fas fa-vote-yea text-dark"></i>
             </div>
-            <span class="fs-4 tracking-wide text-white">Vote<span class="text-warning">zy</span></span>
+            <span class="fs-4 tracking-wide text-white">
+                Vote<span class="text-warning">zy</span>
+            </span>
         </a>
 
-        <!-- Mobile Toggle -->
+        <!-- Mobile toggle -->
         <button class="navbar-toggler border-0 shadow-none px-2 py-1" type="button"
                 data-bs-toggle="collapse" data-bs-target="#mainNavMenu"
                 aria-controls="mainNavMenu" aria-expanded="false" aria-label="Toggle navigation">
@@ -69,12 +71,12 @@
         <div class="collapse navbar-collapse" id="mainNavMenu">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-lg-center gap-lg-1 ms-lg-3">
 
-                <!-- Home (guests or blocked) -->
+                <!-- Home for guests / blocked -->
                 @if (!isAuth || isBlocked)
                 {
                     <li class="nav-item">
                         <a asp-controller="Home" asp-action="Index"
-                           class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Home" && action == "Index" ? "active shadow-xs" : "")">
+                           class="nav-link px-3 py-1 rounded-pill @(ctrl == "Home" && action == "Index" ? "active" : "")">
                             <i class="fas fa-home me-1 text-warning opacity-75"></i> Home
                         </a>
                     </li>
@@ -82,57 +84,65 @@
 
                 @if (isAuth && !isBlocked)
                 {
-                    <!-- Dashboard (all except Candidate) -->
+                    <!-- Dashboard (all except Candidate — candidates use Campaign dropdown) -->
                     @if (!isCandidate)
                     {
                         <li class="nav-item">
                             <a asp-controller="@dashCtrl" asp-action="@dashAction"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == dashCtrl && action == dashAction ? "active shadow-xs" : "")">
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == dashCtrl && action == dashAction ? "active" : "")">
                                 <i class="fas fa-tachometer-alt me-1 text-info opacity-75"></i> Dashboard
                             </a>
                         </li>
                     }
 
-                    <!-- Voter links -->
+                    <!-- ═══════════════════════════════════════════════════
+                         VOTER ONLY
+                         ═══════════════════════════════════════════════════ -->
                     @if (isVoter)
                     {
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="MyHistory"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "MyHistory" ? "active shadow-xs" : "")">
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == "Voter" && action == "MyHistory" ? "active" : "")">
                                 <i class="fas fa-history me-1 text-success opacity-75"></i> My Ballots
                             </a>
                         </li>
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="LiveResults"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
-                                <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == "Voter" && action == "LiveResults" ? "active" : "")">
+                                <span class="pulse-dot"></span> Live Results
                             </a>
                         </li>
                     }
 
-                    <!-- Candidate dropdown -->
+                    <!-- ═══════════════════════════════════════════════════
+                         CANDIDATE ONLY — no My Ballots, no Live Results link
+                         (Live Results is inside the Campaign dropdown)
+                         ═══════════════════════════════════════════════════ -->
                     @if (isCandidate)
                     {
                         <li class="nav-item dropdown">
-                            <a class="nav-link dropdown-toggle px-2.5 py-1 rounded-pill @(ctrl == "Candidate" || (ctrl == "Voter" && (action == "MyHistory" || action == "LiveResults")) ? "active" : "")"
+                            <a class="nav-link dropdown-toggle px-3 py-1 rounded-pill @(ctrl == "Candidate" ? "active" : "")"
                                role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="fas fa-user-tie me-1 text-warning"></i> Campaign
                             </a>
                             <ul class="dropdown-menu border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown">
                                 <li>
-                                    <a asp-controller="Candidate" asp-action="Index" class="dropdown-item rounded-2 py-2 @(ctrl == "Candidate" && action == "Index" ? "active bg-light text-dark fw-bold" : "")">
+                                    <a asp-controller="Candidate" asp-action="Index"
+                                       class="dropdown-item rounded-2 py-2 @(ctrl == "Candidate" && action == "Index" ? "active bg-light text-dark fw-bold" : "")">
                                         <i class="fas fa-home me-2 text-primary"></i> Overview
                                     </a>
                                 </li>
                                 <li>
-                                    <a asp-controller="Voter" asp-action="MyHistory" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "MyHistory" ? "active bg-light text-dark fw-bold" : "")">
-                                        <i class="fas fa-vote-yea me-2 text-warning"></i> My Ballots
+                                    <a asp-controller="Candidate" asp-action="UpdateCandidate"
+                                       class="dropdown-item rounded-2 py-2">
+                                        <i class="fas fa-user-edit me-2 text-success"></i> Edit Profile
                                     </a>
                                 </li>
                                 <li><hr class="dropdown-divider my-1 opacity-25" /></li>
                                 <li>
-                                    <a asp-controller="Voter" asp-action="LiveResults" class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "LiveResults" ? "active bg-light text-dark fw-bold" : "")">
-                                        <span class="spinner-grow spinner-grow-sm me-2 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                                    <a asp-controller="Voter" asp-action="LiveResults"
+                                       class="dropdown-item rounded-2 py-2 @(ctrl == "Voter" && action == "LiveResults" ? "active bg-light text-dark fw-bold" : "")">
+                                        <span class="pulse-dot me-2"></span> Live Results
                                     </a>
                                 </li>
                             </ul>
@@ -144,19 +154,25 @@
                     {
                         <li class="nav-item">
                             <a asp-controller="AuditLog" asp-action="Index"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "AuditLog" && action == "Index" ? "active shadow-xs" : "")">
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == "AuditLog" && action == "Index" ? "active" : "")">
                                 <i class="fas fa-file-alt me-1 text-danger opacity-75"></i> Audit Logs
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a asp-controller="Voter" asp-action="LiveResults"
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == "Voter" && action == "LiveResults" ? "active" : "")">
+                                <span class="pulse-dot"></span> Live Results
                             </a>
                         </li>
                     }
 
-                    <!-- Live Results for non-voter/candidate/auditor -->
+                    <!-- Live Results for admins / officials only -->
                     @if (!isCandidate && !isVoter && !isAuditor)
                     {
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="LiveResults"
-                               class="nav-link px-2.5 py-1 rounded-pill transition-all @(ctrl == "Voter" && action == "LiveResults" ? "active shadow-xs" : "")">
-                                <span class="spinner-grow spinner-grow-sm me-1 text-danger" role="status" style="width: 6px; height: 6px;"></span> Live Results
+                               class="nav-link px-3 py-1 rounded-pill @(ctrl == "Voter" && action == "LiveResults" ? "active" : "")">
+                                <span class="pulse-dot"></span> Live Results
                             </a>
                         </li>
                     }
@@ -165,35 +181,37 @@
                 <!-- Privacy -->
                 <li class="nav-item">
                     <a asp-controller="Home" asp-action="Privacy"
-                       class="nav-link px-2.5 py-1 rounded-pill transition-all text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
+                       class="nav-link px-3 py-1 rounded-pill text-white-50 @(ctrl == "Home" && action == "Privacy" ? "active text-white" : "")">
                         <i class="fas fa-lock me-1"></i> Privacy
                     </a>
                 </li>
             </ul>
 
-            <!-- Right side: User Profile & Authentication -->
+            <!-- Right side -->
             <div class="d-flex align-items-center gap-3 pt-3 pt-lg-0 border-top border-light border-opacity-10 ms-auto">
                 @if (isAuth && SignInManager.IsSignedIn(User))
                 {
-                    <span class="badge @roleBadgeClass px-2.5 py-1.5 rounded-pill fw-semibold shadow-sm text-xs">
+                    <span class="badge @roleBadgeClass px-3 py-2 rounded-pill fw-semibold shadow-sm text-xs">
                         <i class="fas fa-shield-alt me-1 small"></i> @roleBadge
                     </span>
 
                     <div class="dropdown position-static">
                         <button class="btn user-menu-btn d-flex align-items-center gap-2 dropdown-toggle border-0 rounded-pill px-2 py-1"
                                 type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false">
-                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm" style="width:30px; height:30px; font-size: 0.8rem;">
+                            <span class="avatar-sm rounded-circle bg-warning text-dark fw-bold d-inline-flex align-items-center justify-content-center shadow-sm"
+                                  style="width:30px; height:30px; font-size: 0.8rem;">
                                 @nameInitial
                             </span>
                             <span class="d-none d-lg-inline small fw-semibold text-white">@userName</span>
                         </button>
 
-                        <!-- 🎯 Floating dropdown pinned to the far RIGHT of the viewport -->
                         <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 rounded-4 p-2 animate-dropdown user-dropdown-menu">
                             <li>
                                 <div class="dropdown-item-text py-2 bg-light bg-opacity-10 rounded-3 mb-2">
                                     <div class="fw-bold small text-dark text-truncate">@userName</div>
-                                    <small class="text-muted text-uppercase tracking-wider" style="font-size: 0.65rem;">Role: @roleBadge</small>
+                                    <small class="text-muted text-uppercase tracking-wider" style="font-size: 0.65rem;">
+                                        Role: @roleBadge
+                                    </small>
                                 </div>
                             </li>
                             <li>
@@ -225,8 +243,14 @@
                 else
                 {
                     <div class="d-flex align-items-center gap-2 w-100">
-                        <a asp-action="Login" asp-controller="AuthService" class="btn btn-outline-light btn-sm px-3 rounded-pill fw-semibold">Sign In</a>
-                        <a asp-action="UserRegistration" asp-controller="AuthService" class="btn btn-warning btn-sm fw-bold text-dark px-3 rounded-pill shadow-sm">Register</a>
+                        <a asp-action="Login" asp-controller="AuthService"
+                           class="btn btn-outline-light btn-sm px-3 rounded-pill fw-semibold">
+                            Sign In
+                        </a>
+                        <a asp-action="UserRegistration" asp-controller="AuthService"
+                           class="btn btn-warning btn-sm fw-bold text-dark px-3 rounded-pill shadow-sm">
+                            Register
+                        </a>
                     </div>
                 }
             </div>
@@ -255,10 +279,6 @@
         color: rgba(255, 255, 255, 0.8) !important;
         font-weight: 500;
         font-size: 0.875rem;
-        padding-left: 0.75rem !important;
-        padding-right: 0.75rem !important;
-        padding-top: 0.35rem !important;
-        padding-bottom: 0.35rem !important;
         transition: all 0.2s ease;
     }
 
@@ -291,59 +311,106 @@
         animation: fadeInDropdown 0.2s ease-in-out;
     }
 
-    /* ═══════════════════════════════════════════════════════════
-       🎯 FLOATING DROPDOWN – pinned to the FAR RIGHT of viewport
-       ═══════════════════════════════════════════════════════════ */
+    /* Pulse dot for live indicators */
+    .pulse-dot {
+        display: inline-block;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #ef4444;
+        margin-right: 6px;
+        animation: pulseDot 1.5s infinite;
+        vertical-align: middle;
+    }
 
-    /* Ensure parent containers never clip the dropdown */
+    @@keyframes pulseDot {
+        0%, 100%
+
+    {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+    }
+
+    }
+
+    /* Floating dropdown pinned to the right */
     .navbar,
     .navbar .container,
     .navbar-collapse {
         overflow: visible !important;
     }
 
-    /* Position the dropdown relative to the viewport (position-static on wrapper) */
     .user-dropdown-menu {
         position: fixed !important;
-        top: 62px;                    /* just below the sticky navbar */
-        right: 1rem !important;       /* flush to the right edge with a small gap */
+        top: 62px;
+        right: 1rem !important;
         left: auto !important;
         margin: 0 !important;
-        transform: none !important;   /* cancel Bootstrap's Popper transform */
+        transform: none !important;
         min-width: 240px;
         max-width: calc(100vw - 1rem) !important;
-        z-index: 2000;                /* float above everything */
-        animation: fadeInDropdown 0.2s ease-in-out;
+        z-index: 2000;
     }
 
-    /* On smaller screens keep it comfortably within the viewport */
     @@media (max-width: 576px) {
-        .user-dropdown-menu {
-            top: 56px;
-            right: 0.5rem !important;
-            min-width: 200px;
-            max-width: calc(100vw - 1rem) !important;
-        }
+        .user-dropdown-menu
+
+    {
+        top: 56px;
+        right: 0.5rem !important;
+        min-width: 200px;
     }
 
-    /* When the mobile navbar is expanded, push the menu a bit lower */
-    @@media (max-width: 991.98px) {
-        .navbar-collapse.show + * .user-dropdown-menu,
-        .navbar-collapse.collapsing + * .user-dropdown-menu {
-            top: auto;
-            position: absolute !important;
-            right: 0 !important;
-        }
     }
 
     @@keyframes fadeInDropdown {
-        from {
-            opacity: 0;
-            transform: translateY(8px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
+        from
+
+    {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    }
+
+    /* Role badge colors */
+    .role-badge--superadmin {
+        background: #dc3545;
+        color: #fff;
+    }
+
+    .role-badge--official {
+        background: #0d6efd;
+        color: #fff;
+    }
+
+    .role-badge--candidate {
+        background: #f5a623;
+        color: #101d35;
+    }
+
+    .role-badge--auditor {
+        background: #6f42c1;
+        color: #fff;
+    }
+
+    .role-badge--voter {
+        background: #2f9e6e;
+        color: #fff;
+    }
+
+    .role-badge--guest {
+        background: #6c757d;
+        color: #fff;
     }
 </style>

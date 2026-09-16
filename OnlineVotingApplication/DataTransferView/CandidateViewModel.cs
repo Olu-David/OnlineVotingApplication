@@ -1,11 +1,13 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using OnlineVotingApplication.Models;
+using OnlineVotingApplication.Validation;
+using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace OnlineVotingApplication.DataTransferView
 {
-    // 💡 Refactored from 'record' to 'class' so form model binding works.
     public class CandidateViewModel
     {
         // ─── Identity / keys ────────────────────────────────────
@@ -16,7 +18,7 @@ namespace OnlineVotingApplication.DataTransferView
         public Guid? ElectionEventId { get; set; }
 
         public Guid? PositionId { get; set; }
-        public string? Position {  get; set; }
+        public string? Position { get; set; }
         public Guid? StateId { get; set; }
         public Guid? LgaId { get; set; }
         public Guid? PartyId { get; set; }
@@ -24,15 +26,20 @@ namespace OnlineVotingApplication.DataTransferView
         // ─── Core content ───────────────────────────────────────
         public string? Name { get; set; }
         public string? Manifesto { get; set; }
+
+        // ✅ Profile picture — required (enforced in create action), ≤ 500 KB, image only
+        [MaxFileSize(500 * 1024, ErrorMessage = "Profile picture must be under 500 KB.")]
+        [AllowedImageTypes(".jpg", ".jpeg", ".png", ".webp",
+            ErrorMessage = "Profile picture must be a JPG, PNG, or WEBP image.")]
         public IFormFile? CandidateImageUrl { get; set; }
 
-        // ─── Server-locked display values (never trust the client) ──
+        // ─── Server-locked display values ───────────────────────
         public string? LockedName { get; set; }
         public string? LockedPositionName { get; set; }
         public string? LockedElectionTitle { get; set; }
         public bool IsPolitical { get; set; }
 
-        // ─── Display-only labels (for confirmation / receipts) ──
+        // ─── Display-only labels ────────────────────────────────
         public string? StateName { get; set; }
         public string? LgaName { get; set; }
         public string? PartyName { get; set; }
@@ -40,7 +47,7 @@ namespace OnlineVotingApplication.DataTransferView
         public string? image { get; set; }
         public int VoteCount { get; set; }
 
-        // ─── Dropdown sources (strongly typed, used by the view) ──
+        // ─── Dropdown sources ───────────────────────────────────
         public IEnumerable<SelectListItem>? States { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem>? Lga { get; set; } = new List<SelectListItem>();
         public IEnumerable<SelectListItem>? Positions { get; set; } = new List<SelectListItem>();
@@ -51,7 +58,15 @@ namespace OnlineVotingApplication.DataTransferView
         public List<ElectionCustomField> CustomFields { get; set; } = new List<ElectionCustomField>();
 
         // ─── Uploads / gallery ──────────────────────────────────
-        public List<IFormFile>? GalleryPhotos { get; set; } = new List<IFormFile>();
-        public ICollection<CandidateGallery>? GalleryPhotoss { get; set; }
+        // ✅ Gallery — optional, each ≤ 1 MB, image only
+        [MaxFileSize(1024 * 1024, ErrorMessage = "Each gallery image must be under 1 MB.")]
+        [AllowedImageTypes(".jpg", ".jpeg", ".png", ".webp",
+            ErrorMessage = "Gallery images must be JPG, PNG, or WEBP.")]
+        public List<IFormFile> GalleryPhotos { get; set; } = new List<IFormFile>();
+
+        public List<CandidateGallery>? ExistingGalleries { get; set; } = new();
+
+        public bool IsApproved { get; set; }
+        public string? CandidateImg { get; set; }
     }
 }

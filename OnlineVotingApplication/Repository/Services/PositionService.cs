@@ -35,17 +35,19 @@ namespace OnlineVotingApplication.Repository.Services
 
         #region GetAllPositionsAsync
 
-        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(Guid electionId, int pageNumber = 1, int pageSize = 10, CancellationToken cancellationToken = default)
+        public async Task<PaginatedListViewModel<PositionDTO>> GetAllPositionsAsync(
+            Guid electionId,
+            int pageNumber = 1,
+            int pageSize = 10,
+            bool isSuperAdmin = false,
+            CancellationToken cancellationToken = default)
         {
-            // ─── STEP 1: Validate page numbers ──────────────────────────────
             if (pageNumber < 1) pageNumber = 1;
             if (pageSize < 1) pageSize = 10;
 
-            // ─── STEP 2: Who is asking? ─────────────────────────────────────
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
-            bool isSuperAdmin = _contextAccessor.HttpContext?.User.IsInRole("SuperAdmin") ?? false;
 
-            // ─── STEP 3: Quick exit for non-admins with no tenant ───────────
+            // Non-admins without a tenant can't see anything
             if (!isSuperAdmin && activeTenantId == Guid.Empty)
             {
                 return new PaginatedListViewModel<PositionDTO>
@@ -57,35 +59,33 @@ namespace OnlineVotingApplication.Repository.Services
                 };
             }
 
-            // ─── STEP 4: Build the base query ───────────────────────────────
-            // If SuperAdmin, use .IgnoreQueryFilters() to bypass tenant-isolation rules
-            var query = _context.Position
-                .AsNoTracking();
+            var query = _context.Position.AsNoTracking();
 
+            // SuperAdmin: ignore tenant isolation + soft-delete filter
             if (isSuperAdmin)
             {
                 query = query.IgnoreQueryFilters();
             }
 
+            // Always filter by election (and not soft-deleted)
             query = query.Where(p => p.ElectionEventId == electionId && !p.IsDeleted);
 
-            // ─── STEP 5: Add tenant filter for regular tenant users ─────────
+            // Non-superadmin: restrict to their tenant
             if (!isSuperAdmin)
             {
-                query = query.Where(p => p.ElectionEvent != null && p.ElectionEvent.TenantId == activeTenantId);
+                query = query.Where(p => p.ElectionEvent != null
+                                      && p.ElectionEvent.TenantId == activeTenantId);
             }
 
-            // ─── STEP 6: Check cache first ──────────────────────────────────
+            // Cache key reflects scope
             string scope = isSuperAdmin ? "super" : $"tenant_{activeTenantId}";
             string cacheKey = $"positions_{electionId}_{scope}_page{pageNumber}_size{pageSize}";
 
-            if (_cache.TryGetValue(cacheKey, out PaginatedListViewModel<PositionDTO>? cachedResult)
-                && cachedResult != null)
+            if (_cache.TryGetValue(cacheKey, out PaginatedListViewModel<PositionDTO>? cached) && cached != null)
             {
-                return cachedResult;
+                return cached;
             }
 
-            // ─── STEP 7: Query the database ─────────────────────────────────
             int totalItems = await query.CountAsync(cancellationToken);
 
             var positions = await query
@@ -108,11 +108,11 @@ namespace OnlineVotingApplication.Repository.Services
                 TotalItems = totalItems
             };
 
-            // ─── STEP 8: Cache the result ───────────────────────────────────
             _cache.Set(cacheKey, result, TimeSpan.FromMinutes(30));
 
             return result;
         }
+
         #endregion
 
         #region GetPositionByIdAsync

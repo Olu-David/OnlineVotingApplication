@@ -250,6 +250,7 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region CreateCandidateAsync
+        #region CreateCandidateAsync
         public async Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId, string token)
         {
             var response = new ServiceResponse<string>();
@@ -281,39 +282,79 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // ═══════════════════════════════════════════════════════════
+            // INVITATION LOOKUP — Id + Token, with rich diagnostics
+            // ═══════════════════════════════════════════════════════════
             CandidateInvitation? invitation = null;
-            if (!string.IsNullOrEmpty(token))
-            {
-                var trimmedToken = token?.Trim();
 
-                invitation = await _appDbContext.candidateInvitations
-                    .FirstOrDefaultAsync(i => i.Token == trimmedToken && i.IsSent && i.IsUsed == false);
-
-                if (invitation == null)
-                {
-                    response.Success = false;
-                    response.Message = "This registration link is invalid, expired, or has already been used.";
-                    return response;
-                }
-
-                if (invitation.ElectionEventId != targetElection.Id)
-                {
-                    response.Success = false;
-                    response.Message = "This registration link does not belong to this election event.";
-                    return response;
-                }
-
-                if (!string.Equals(user.Email, invitation.CandidateEmail, StringComparison.OrdinalIgnoreCase))
-                {
-                    response.Success = false;
-                    response.Message = $"Access Denied: This secure link was issued exclusively to {invitation.CandidateEmail}. You are logged in with a different profile.";
-                    return response;
-                }
-            }
-            else
+            if (string.IsNullOrWhiteSpace(token))
             {
                 response.Success = false;
                 response.Message = "A secure invitation token is required to register as a candidate.";
+                return response;
+            }
+
+            var trimmedToken = token.Trim();
+
+            _logger.LogWarning("SERVICE: Token='{Token}', ModelInvitationId={ModelId}",
+                trimmedToken, model.CandidateInvitationID);
+
+            // Full lookup with both Id and Token
+            invitation = await _appDbContext.candidateInvitations
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(i =>
+                    i.Id == model.CandidateInvitationID &&
+                    i.Token == trimmedToken &&
+                    i.IsSent == true &&
+                    i.IsUsed == false);
+
+            if (invitation == null)
+            {
+                // Diagnostics — find out what exactly failed
+                var byId = await _appDbContext.candidateInvitations
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(i => i.Id == model.CandidateInvitationID);
+
+                var byToken = await _appDbContext.candidateInvitations
+                    .IgnoreQueryFilters()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(i => i.Token == trimmedToken);
+
+                _logger.LogWarning("Invitation lookup FAILED. " +
+                                   "ById={ById}, ByToken={ByToken}, ModelId={ModelId}, Token='{Token}'",
+                    byId?.Id.ToString() ?? "null",
+                    byToken?.Id.ToString() ?? "null",
+                    model.CandidateInvitationID,
+                    trimmedToken);
+
+                if (byToken != null)
+                {
+                    _logger.LogWarning(
+                        "Row by token → IsSent={IsSent}, IsUsed={IsUsed}, Email='{Email}', UserEmail='{UserEmail}', ElectionId={ElectionId}",
+                        byToken.IsSent, byToken.IsUsed,
+                        byToken.CandidateEmail, user?.Email,
+                        byToken.ElectionEventId);
+                }
+
+                response.Success = false;
+                response.Message = "This registration link is invalid, expired, or has already been used.";
+                return response;
+            }
+
+            // Cross-check election
+            if (invitation.ElectionEventId != targetElection.Id)
+            {
+                response.Success = false;
+                response.Message = "This registration link does not belong to this election event.";
+                return response;
+            }
+
+            // Cross-check email
+            if (!string.Equals(user.Email, invitation.CandidateEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                response.Success = false;
+                response.Message = $"Access Denied: This secure link was issued exclusively to {invitation.CandidateEmail}. You are logged in with a different profile.";
                 return response;
             }
 
@@ -337,7 +378,7 @@ namespace OnlineVotingApplication.Repository.Services
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
 
-            // Upload file outside the transaction boundary to avoid holding locks during network I/O
+            // Upload file outside transaction
             try
             {
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
@@ -398,29 +439,23 @@ namespace OnlineVotingApplication.Repository.Services
 
                     await _appDbContext.Candidate.AddAsync(newCandidate);
 
-                    if (invitation != null)
-                    {
-                        invitation.IsUsed = true;
-                        _appDbContext.candidateInvitations.Update(invitation);
-                    }
+                    invitation.IsUsed = true;
+                    _appDbContext.candidateInvitations.Update(invitation);
 
                     await _appDbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
-
-
 
                     if (model.DynamicAnswers != null && model.DynamicAnswers.Any())
                     {
                         foreach (var kvp in model.DynamicAnswers)
                         {
-                            // kvp.Key = field Guid, kvp.Value = the user's answer
                             var customValue = new CandidateCustomValue
                             {
                                 Id = Guid.NewGuid(),
                                 CandidateId = newCandidate.Id,
                                 FieldId = kvp.Key,
                                 Value = kvp.Value ?? string.Empty,
-                                TenantId = newCandidate.TenantId != Guid.Empty ?newCandidate.TenantId : null
+                                TenantId = newCandidate.TenantId != Guid.Empty ? newCandidate.TenantId : null
                             };
                             _appDbContext.CandidateCustomValues.Add(customValue);
                         }
@@ -436,7 +471,6 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     await transaction.RollbackAsync();
 
-                    // Cleanup uploaded file if DB saving fails
                     if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
                         try
@@ -445,11 +479,10 @@ namespace OnlineVotingApplication.Repository.Services
                         }
                         catch (Exception cleanupEx)
                         {
-                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image: {Path}", uploadedFileUrlPath);
                         }
                     }
 
-                    // Rollback Identity role assignment if it was added during this failed attempt
                     if (roleAdded && await _userManager.IsInRoleAsync(user, "Candidate"))
                     {
                         try
@@ -458,7 +491,7 @@ namespace OnlineVotingApplication.Repository.Services
                         }
                         catch (Exception roleEx)
                         {
-                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", userId);
+                            _logger.LogError(roleEx, "Failed to rollback candidate role for user: {UserId}", userId);
                         }
                     }
 
@@ -468,6 +501,7 @@ namespace OnlineVotingApplication.Repository.Services
                 }
             });
         }
+        #endregion
         #endregion
 
 

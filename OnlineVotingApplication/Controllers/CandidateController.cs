@@ -353,7 +353,6 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-
         #region CreateCandidate (GET)
 
         [HttpGet]
@@ -369,31 +368,31 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
             }
 
-            token = token.Trim();
+            var trimmedToken = token.Trim();
 
-            // 1. Load invitation (log all matches first)
+            // 1. Load invitation by token
             var invitation = await _context.candidateInvitations
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Token == token);
+                .FirstOrDefaultAsync(i => i.Token == trimmedToken);
 
             if (invitation == null)
             {
-                _logger.LogWarning("Invitation NOT FOUND for token '{Token}'", token);
+                _logger.LogWarning("GET: Invitation NOT FOUND for token '{Token}'", trimmedToken);
                 TempData["ErrorMessage"] = "This registration link is invalid or does not exist.";
                 return RedirectToAction("Index", "Voter");
             }
 
             if (invitation.IsUsed)
             {
-                _logger.LogWarning("Invitation {Id} already used", invitation.Id);
+                _logger.LogWarning("GET: Invitation {Id} already used", invitation.Id);
                 TempData["ErrorMessage"] = "This registration link has already been used.";
                 return RedirectToAction("Index", "Voter");
             }
 
             if (!invitation.IsSent)
             {
-                _logger.LogWarning("Invitation {Id} not marked as sent", invitation.Id);
+                _logger.LogWarning("GET: Invitation {Id} not marked as sent", invitation.Id);
                 TempData["ErrorMessage"] = "This invitation has not been sent yet. Please contact support.";
                 return RedirectToAction("Index", "Voter");
             }
@@ -432,7 +431,7 @@ namespace OnlineVotingApplication.Controllers
                 ? (user.UserName ?? user.Email ?? "Candidate")
                 : user.FullName;
 
-            // 5. Build view model
+            // 5. Build view model — bind Id + Token + locked display fields
             var vm = new CandidateViewModel
             {
                 ElectionEventId = election.Id,
@@ -447,7 +446,7 @@ namespace OnlineVotingApplication.Controllers
 
             await PopulateCreateDropdownsAsync(vm, election, null);
 
-            ViewBag.InviteToken = token;
+            ViewBag.InviteToken = trimmedToken;
 
             return View(vm);
         }
@@ -462,13 +461,19 @@ namespace OnlineVotingApplication.Controllers
         [EnableRateLimiting("StandardPolicy")]
         public async Task<IActionResult> CreateCandidate(CandidateViewModel model, string token)
         {
+            // ═══ DEBUG BLOCK ═══
+            _logger.LogWarning("POST CreateCandidate → Token RAW='{Token}', Trimmed='{Trimmed}', " +
+                               "ModelInviteId={ModelId}, ElectionId={ElectionId}, PositionId={PositionId}",
+                token, token?.Trim(), model?.CandidateInvitationID,
+                model?.ElectionEventId, model?.PositionId);
+
             if (model == null || string.IsNullOrWhiteSpace(token))
             {
                 TempData["ErrorMessage"] = "Invalid submission.";
                 return RedirectToAction("Index", "Voter");
             }
 
-            token = token.Trim();
+            var trimmedToken = token.Trim();
             Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
 
             // 1. Trusted user name
@@ -485,15 +490,15 @@ namespace OnlineVotingApplication.Controllers
 
             ModelState.Remove(nameof(model.Name));
 
-            // 2. Load invitation (log full state)
+            // 2. Load invitation by token
             var invitation = await _context.candidateInvitations
                 .IgnoreQueryFilters()
                 .AsNoTracking()
-                .FirstOrDefaultAsync(i => i.Token == token);
+                .FirstOrDefaultAsync(i => i.Token == trimmedToken);
 
             if (invitation == null)
             {
-                _logger.LogWarning("POST: Invitation NOT FOUND for token '{Token}'", token);
+                _logger.LogWarning("POST: Invitation NOT FOUND for token '{Token}'", trimmedToken);
                 TempData["ErrorMessage"] = "This registration link is invalid or does not exist.";
                 return RedirectToAction("Index", "Voter");
             }
@@ -551,33 +556,30 @@ namespace OnlineVotingApplication.Controllers
                     .SelectMany(kv => kv.Value!.Errors.Select(e => $"{kv.Key}: {e.ErrorMessage}"))
                     .ToList();
 
-                _logger.LogWarning("ModelState invalid. Errors:\n{Errors}", string.Join("\n", errorDetails));
-
+                _logger.LogWarning("ModelState invalid:\n{Errors}", string.Join("\n", errorDetails));
                 TempData["ErrorMessage"] = "Validation Errors: " + string.Join(" | ", errorDetails);
 
-                // 🔑 Rehydrate locked fields
+                // Rehydrate locked fields
                 await RehydrateLockedFieldsAsync(model, invitation, election);
-
                 await PopulateCreateDropdownsAsync(model, election, model.StateId);
 
-                ViewBag.InviteToken = token;
+                ViewBag.InviteToken = trimmedToken;
                 return View(model);
             }
 
-            // 7. Create candidate
-            var result = await _candidateService.CreateCandidateAsync(model, user.Id, token);
+            // 7. Create candidate via service
+            var result = await _candidateService.CreateCandidateAsync(model, user.Id, trimmedToken);
 
             if (!result.Success)
             {
                 ModelState.AddModelError(string.Empty, result.Message ?? "An error occurred while saving the candidate.");
                 TempData["ErrorMessage"] = result.Message;
 
-                // 🔑 Rehydrate locked fields
+                // Rehydrate locked fields
                 await RehydrateLockedFieldsAsync(model, invitation, election);
-
                 await PopulateCreateDropdownsAsync(model, election, model.StateId);
 
-                ViewBag.InviteToken = token;
+                ViewBag.InviteToken = trimmedToken;
                 return View(model);
             }
 
@@ -601,15 +603,14 @@ namespace OnlineVotingApplication.Controllers
         #region Helpers
 
         /// <summary>
-        /// Reloads locked display fields (Name, Position, Election) from invitation data.
-        /// Called when re-rendering the view after a validation or save failure.
+        /// Reloads locked display fields from invitation + election so the view
+        /// doesn't lose them after a ModelState or service error.
         /// </summary>
         private async Task RehydrateLockedFieldsAsync(
             CandidateViewModel model,
             CandidateInvitation invitation,
             ElectionEvent election)
         {
-            // Position
             var position = await _context.Position
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -710,6 +711,7 @@ namespace OnlineVotingApplication.Controllers
 
         #endregion
     
+   
 
         #region SoftDelete
 // ─────────────────────────────────────────────

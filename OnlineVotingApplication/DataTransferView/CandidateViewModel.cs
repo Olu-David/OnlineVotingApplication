@@ -10,6 +10,7 @@ namespace OnlineVotingApplication.DataTransferView
     {
         // ─── Identity / keys ────────────────────────────────────
         public Guid CandidateID { get; set; }
+        public Guid CandidateInvitationID { get; set; }
 
         [Required]
         public Guid? ElectionEventId { get; set; }

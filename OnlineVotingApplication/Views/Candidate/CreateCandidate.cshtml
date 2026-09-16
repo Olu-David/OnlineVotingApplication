@@ -28,13 +28,19 @@
                 </div>
             }
 
-            <form asp-action="CreateCandidate" method="post" enctype="multipart/form-data" id="candidateForm">
+            <form asp-action="CreateCandidate"
+                  asp-route-token="@ViewBag.InviteToken"
+                  method="post"
+                  enctype="multipart/form-data"
+                  id="candidateForm">
+
                 @Html.AntiForgeryToken()
 
                 <!-- ═══ Server-locked hidden fields ═══ -->
                 <input type="hidden" asp-for="ElectionEventId" />
                 <input type="hidden" asp-for="PositionId" />
-                <input type="hidden" asp-for="Name" value="@Model.LockedName" />
+                <input type="hidden" asp-for="CandidateInvitationID" />
+                <input type="hidden" asp-for="Name" />
                 <input type="hidden" name="token" value="@ViewBag.InviteToken" />
 
                 <!-- ═══════════════════════════════════════════════

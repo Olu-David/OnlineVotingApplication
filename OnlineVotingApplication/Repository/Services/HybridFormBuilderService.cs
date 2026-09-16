@@ -84,7 +84,7 @@ namespace OnlineVotingApplication.Repository.Services
                     FieldType = bp.FieldType,
                     FormCategory = bp.FormCategory,
                     CustomChoicesCsv = bp.CustomChoicesCsv,
-                    IsRequired = bp.IsRequired
+                    IsRequired = bp.IsRequired                                                                                                                                                                                                                         
                 });
             }
 

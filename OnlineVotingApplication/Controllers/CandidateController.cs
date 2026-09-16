@@ -354,11 +354,16 @@ namespace OnlineVotingApplication.Controllers
         #endregion
 
         #region CreateCandidate (GET)
+
+        // ═══════════════════════════════════════════════════════════
+        // GET: CreateCandidate
+        // ═══════════════════════════════════════════════════════════
         [HttpGet]
         [Authorize(Roles = "Voter, Candidate")]
         public async Task<IActionResult> CreateCandidate(Guid electionEventId, string token)
         {
-            _logger.LogInformation("CreateCandidate GET → ElectionEventId={ElectionEventId}", electionEventId);
+            _logger.LogInformation("CreateCandidate GET → ElectionEventId={ElectionEventId}, Token={Token}",
+                electionEventId, token);
 
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -366,9 +371,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
             }
 
-            Guid currentTenantId = _tenantProvider.GetCurrentTenantId();
-
-            // 1. Validate the invitation
+            // 1. Validate invitation
             var invitation = await _context.candidateInvitations
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -381,7 +384,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
             }
 
-            // Cross-check URL vs invitation (trust the invitation)
+            // Trust the invitation over the URL
             if (electionEventId != Guid.Empty && invitation.ElectionEventId != electionEventId)
             {
                 _logger.LogWarning("URL election {UrlId} != invitation election {InvId}",
@@ -389,7 +392,7 @@ namespace OnlineVotingApplication.Controllers
                 electionEventId = invitation.ElectionEventId ?? Guid.Empty;
             }
 
-            // 2. Load election FROM THE INVITATION
+            // 2. Load election
             var election = await _context.ElectionEvents
                 .IgnoreQueryFilters()
                 .Include(e => e.CustomFields)
@@ -402,7 +405,7 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
             }
 
-            // 3. Load position FROM THE INVITATION
+            // 3. Load position
             var position = await _context.Position
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -423,11 +426,12 @@ namespace OnlineVotingApplication.Controllers
                 ? (user.UserName ?? user.Email ?? "Candidate")
                 : user.FullName;
 
-            // 5. Build the view model
+            // 5. Build view model — bind CandidateInvitationID!
             var vm = new CandidateViewModel
             {
                 ElectionEventId = election.Id,
                 PositionId = position.Id,
+                CandidateInvitationID = invitation.Id,   // ← CRITICAL
                 Name = fullName,
                 LockedName = fullName,
                 LockedPositionName = position.Name,
@@ -441,9 +445,15 @@ namespace OnlineVotingApplication.Controllers
 
             return View(vm);
         }
+
         #endregion
 
         #region CreateCandidate (POST)
+
+        // ═══════════════════════════════════════════════════════════
+        // POST: CreateCandidate
+        // ═══════════════════════════════════════════════════════════
+        // ═══════════════════════════════════════════════════════════
         [HttpPost]
         [Authorize(Roles = "Voter, Candidate")]
         [ValidateAntiForgeryToken]
@@ -483,12 +493,14 @@ namespace OnlineVotingApplication.Controllers
                 return RedirectToAction("Index", "Voter");
             }
 
-            // Lock election & position to the invitation
-            model.ElectionEventId = invitation.ElectionEventId;
+            // Lock election, position, and invitation ID to the invitation
+            model.ElectionEventId = invitation.ElectionEventId ?? Guid.Empty;
             model.PositionId = invitation.PositionId;
+            model.CandidateInvitationID = invitation.Id;
 
             ModelState.Remove(nameof(model.ElectionEventId));
             ModelState.Remove(nameof(model.PositionId));
+            ModelState.Remove(nameof(model.CandidateInvitationID));
 
             // 3. Load election from the invitation
             var election = await _context.ElectionEvents
@@ -514,15 +526,17 @@ namespace OnlineVotingApplication.Controllers
                 model.LgaId = null;
             }
 
-            // 5. Validation failure → rehydrate
+            // 5. 🔍 DEBUG LOG – list all ModelState errors
             if (!ModelState.IsValid)
             {
-                var errors = string.Join(" | ", ModelState.Values
-                    .SelectMany(v => v.Errors)
-                    .Select(e => e.ErrorMessage));
+                var errorDetails = ModelState
+                    .Where(kv => kv.Value!.Errors.Count > 0)
+                    .SelectMany(kv => kv.Value!.Errors.Select(e => $"{kv.Key}: {e.ErrorMessage}"))
+                    .ToList();
 
-                _logger.LogWarning("Validation failed for Election {ElectionId}: {Errors}",
-                    model.ElectionEventId, errors);
+                _logger.LogWarning("ModelState invalid. Errors:\n{Errors}", string.Join("\n", errorDetails));
+
+                var errors = string.Join(" | ", errorDetails);
 
                 TempData["ErrorMessage"] = $"Validation Errors: {errors}";
 
@@ -532,7 +546,7 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // 6. Create the candidate
+            // 6. Create the candidate (service handles dynamic answers inside its transaction)
             var result = await _candidateService.CreateCandidateAsync(model, user.Id, token);
 
             if (!result.Success)
@@ -546,45 +560,7 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            // 7. Save dynamic answers
-            if (model.DynamicAnswers != null && model.DynamicAnswers.Any())
-            {
-                Guid newCandidateId = Guid.TryParse(result.Data?.ToString(), out var parsed)
-                    ? parsed
-                    : Guid.Empty;
-
-                if (newCandidateId != Guid.Empty)
-                {
-                    var customValues = new List<CandidateCustomValue>();
-
-                    foreach (var kvp in model.DynamicAnswers)
-                    {
-                        if (string.IsNullOrWhiteSpace(kvp.Value))
-                            continue;
-
-                        customValues.Add(new CandidateCustomValue
-                        {
-                            Id = Guid.NewGuid(),
-                            CandidateId = newCandidateId,
-                            FieldId = kvp.Key,
-                            Value = kvp.Value.Trim(),
-                            TenantId = currentTenantId != Guid.Empty ? currentTenantId : null
-                        });
-                    }
-
-                    if (customValues.Any())
-                    {
-                        _context.CandidateCustomValues.AddRange(customValues);
-                        await _context.SaveChangesAsync();
-                    }
-                }
-                else
-                {
-                    _logger.LogWarning("Could not resolve new candidate Id; skipping dynamic answers.");
-                }
-            }
-
-            // 8. Audit log
+            // 7. Audit log
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             await _auditLogService.LogActivityAsync(
@@ -600,28 +576,16 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region PopulateUpdateDropdownsAsync
-        private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)
-        {
-            ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
+        #region Helpers – Populate Dropdowns
 
-            var positions = await _context.Position
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => p.ElectionEventId == electionEventId)
-                .ToListAsync();
-
-            ViewBag.Positions = new SelectList(positions, "Id", "Name", selectedPosition);
-            ViewBag.States = new SelectList(await _context.States.AsNoTracking().ToListAsync(), "Id", "Name", selectedState);
-        }
-        #endregion
-
-        #region PopulateCreateDropdownsAsync
+        // ═══════════════════════════════════════════════════════════
+        // Helper: Populate dropdowns for create/update views
+        // ═══════════════════════════════════════════════════════════
         private async Task PopulateCreateDropdownsAsync(CandidateViewModel vm, ElectionEvent election, Guid? selectedStateId)
         {
             var tenantId = election.TenantId;
 
-            // ── Parties ────────────────────────────────────────────────
+            // ── Parties ────────────────────────────────────────────
             var parties = await _context.Party
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -633,7 +597,7 @@ namespace OnlineVotingApplication.Controllers
 
             vm.Parties = new SelectList(parties, "Id", "Name", vm.PartyId);
 
-            // ── Positions (this election) ──────────────────────────────
+            // ── Positions ──────────────────────────────────────────
             var positions = await _context.Position
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -643,7 +607,7 @@ namespace OnlineVotingApplication.Controllers
 
             vm.Positions = new SelectList(positions, "Id", "Name", vm.PositionId);
 
-            // ── States ─────────────────────────────────────────────────
+            // ── States ─────────────────────────────────────────────
             var states = await _context.States
                 .IgnoreQueryFilters()
                 .AsNoTracking()
@@ -652,7 +616,7 @@ namespace OnlineVotingApplication.Controllers
 
             vm.States = new SelectList(states, "Id", "Name", selectedStateId);
 
-            // ── LGAs ───────────────────────────────────────────────────
+            // ── LGAs ───────────────────────────────────────────────
             if (selectedStateId.HasValue && selectedStateId.Value != Guid.Empty)
             {
                 var lgas = await _context.Lgas
@@ -669,20 +633,25 @@ namespace OnlineVotingApplication.Controllers
                 vm.Lga = new List<SelectListItem>();
             }
 
-            // ── Election meta ──────────────────────────────────────────
+            // ── Election meta ──────────────────────────────────────
             vm.LockedElectionTitle = election.Title;
             vm.IsPolitical = election.Category == Enums.TenantCategory.Political;
 
-            // ── Custom fields ──────────────────────────────────────────
+            // ── Custom fields ──────────────────────────────────────
             vm.CustomFields = await _context.ElectionCustomFields
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(f => f.ElectionEventId == election.Id)
                 .ToListAsync();
         }
+
         #endregion
 
-        #region GetLgasByState
+        #region AJAX – Get LGAs by State
+
+        // ═══════════════════════════════════════════════════════════
+        // AJAX: Get LGAs by State
+        // ═══════════════════════════════════════════════════════════
         [HttpGet]
         [AllowAnonymous]
         public async Task<JsonResult> GetLgasByState(Guid stateId)
@@ -696,13 +665,15 @@ namespace OnlineVotingApplication.Controllers
 
             return Json(lgas);
         }
+
         #endregion
+   
 
         #region SoftDelete
-        // ─────────────────────────────────────────────
-        // Soft Delete & Restore
-        // ─────────────────────────────────────────────
-        [HttpGet]
+// ─────────────────────────────────────────────
+// Soft Delete & Restore
+// ─────────────────────────────────────────────
+[HttpGet]
         public IActionResult SoftDelete()
         {
             return View();
@@ -1109,7 +1080,23 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        
 
+
+
+        #region PopulateUpdateDropdownsAsync
+        private async Task PopulateUpdateDropdownsAsync(Guid? electionEventId, Guid? selectedParty = null, Guid? selectedPosition = null, Guid? selectedState = null)
+        {
+            ViewBag.Parties = new SelectList(await _context.Party.AsNoTracking().ToListAsync(), "Id", "Name", selectedParty);
+
+            var positions = await _context.Position
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(p => p.ElectionEventId == electionEventId)
+                .ToListAsync();
+
+            ViewBag.Positions = new SelectList(positions, "Id", "Name", selectedPosition);
+            ViewBag.States = new SelectList(await _context.States.AsNoTracking().ToListAsync(), "Id", "Name", selectedState);
+        }
+        #endregion
     }
 }

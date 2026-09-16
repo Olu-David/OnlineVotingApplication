@@ -285,7 +285,7 @@ namespace OnlineVotingApplication.Repository.Services
             if (!string.IsNullOrEmpty(token))
             {
                 invitation = await _appDbContext.candidateInvitations
-                    .FirstOrDefaultAsync(i => i.Token == token && !i.IsUsed);
+                    .FirstOrDefaultAsync(i => i.Token==token && i.IsSent && i.IsUsed==false);
 
                 if (invitation == null)
                 {

@@ -10,6 +10,8 @@ using OnlineVotingApplication.Repository.Settings;
 using OnlineVotingApplication.Services;
 using OnlineVotingApplication.SupaBase;
 using System.Text.RegularExpressions;
+using Amazon.S3;
+using Amazon.Runtime;
 
 namespace OnlineVotingApplication.Config;
 
@@ -81,6 +83,7 @@ public static class VotingInfrastructureExtensions
                 throw new InvalidOperationException("Could not determine database provider from connection string. Set 'DatabaseProvider' explicitly.");
             }
         }
+
         services.AddDbContext<AppDbContext>(options =>
         {
             if (usePostgres)
@@ -90,7 +93,6 @@ public static class VotingInfrastructureExtensions
                     npgsql.EnableRetryOnFailure(5, TimeSpan.FromSeconds(30), null);
                     npgsql.CommandTimeout(60);
                 })
-                // ─── ADD THIS LINE TO IGNORE THE WARNING ───
                 .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
             }
             else
@@ -118,22 +120,80 @@ public static class VotingInfrastructureExtensions
         services.AddHostedService<VoteBackgroundService>();
         services.AddHostedService<DeleteBackGroundService>();
 
+        // ═══════════════════════════════════════════════════════════
+        // SUPABASE CLIENT — validated at startup
+        // ═══════════════════════════════════════════════════════════
         services.AddScoped<Supabase.Client>(provider =>
         {
             var config = provider.GetRequiredService<IConfiguration>();
-            var url = config["Supabase:Url"] ?? config["SupabaseUrl"] ?? "";
-            var key = config["Supabase:ServiceRoleKey"] ?? config["Supabase:Key"] ?? config["SupabaseKey"] ?? "";
 
-            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key))
-            {
-                return null!;
-            }
+            var url = (config["Supabase:Url"] ?? config["SupabaseUrl"] ?? "").Trim();
+            var key = (config["Supabase:ServiceRoleKey"] ?? config["Supabase:Key"] ?? config["SupabaseKey"] ?? "").Trim();
+
+            // 1. Null / empty checks
+            if (string.IsNullOrWhiteSpace(url))
+                throw new InvalidOperationException(
+                    "Supabase:Url is missing. Set the environment variable Supabase__Url on your host " +
+                    "or fill it in appsettings.json.");
+
+            if (string.IsNullOrWhiteSpace(key))
+                throw new InvalidOperationException(
+                    "Supabase:ServiceRoleKey is missing. Set the environment variable Supabase__ServiceRoleKey.");
+
+            // 2. Placeholder detection (${...} template syntax)
+            if (url.StartsWith("$") || url.Contains("${"))
+                throw new InvalidOperationException(
+                    $"Supabase:Url contains an unresolved placeholder: '{url}'. " +
+                    "Remove the ${{...}} syntax from appsettings.json and set the real env var instead.");
+
+            if (key.StartsWith("$") || key.Contains("${"))
+                throw new InvalidOperationException(
+                    "Supabase:ServiceRoleKey contains an unresolved placeholder. Set the real env var.");
+
+            // 3. URL sanity
+            if (!url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException(
+                    $"Supabase:Url must start with https://. Got: '{url}'");
+
+            url = url.TrimEnd('/'); // remove trailing slash
+
+            // 4. Key sanity
+            if (!key.StartsWith("eyJ", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "Supabase:ServiceRoleKey does not look like a JWT (should start with 'eyJ'). " +
+                    "Make sure you copied the service_role secret, not the anon key.");
 
             return new Supabase.Client(url, key, new Supabase.SupabaseOptions
             {
                 AutoRefreshToken = true,
                 AutoConnectRealtime = true
             });
+        });
+        // ═══════════════════════════════════════════════════════════
+        // AWS S3 CLIENT (Supabase Storage S3 Protocol)
+        // ═══════════════════════════════════════════════════════════
+        services.AddSingleton<IAmazonS3>(provider =>
+        {
+            var config = provider.GetRequiredService<IConfiguration>();
+            var awsSection = config.GetSection("AWS");
+
+            var serviceUrl = awsSection["ServiceUrl"] ?? config["AWS_SERVICE_URL"];
+            var accessKey = awsSection["AccessKey"] ?? config["AWS_ACCESS_KEY_ID"];
+            var secretKey = awsSection["SecretKey"] ?? config["AWS_SECRET_ACCESS_KEY"];
+
+            if (string.IsNullOrWhiteSpace(serviceUrl) || string.IsNullOrWhiteSpace(accessKey) || string.IsNullOrWhiteSpace(secretKey))
+            {
+                throw new InvalidOperationException("AWS S3 settings (ServiceUrl, AccessKey, SecretKey) are missing for Supabase S3 storage.");
+            }
+
+            var s3Config = new AmazonS3Config
+            {
+                ServiceURL = serviceUrl,
+                ForcePathStyle = true // Required for Supabase S3 compatibility
+            };
+
+            var credentials = new BasicAWSCredentials(accessKey, secretKey);
+            return new AmazonS3Client(credentials, s3Config);
         });
 
         services.AddScoped<iAuthService, AuthService>();
@@ -155,10 +215,13 @@ public static class VotingInfrastructureExtensions
         services.AddScoped<IAppleAuthService, AppleAuthService>();
         services.AddScoped<iExternalAuthService, ExternalAuthService>();
         services.AddScoped<HybridFormBuilderService>();
+
         // Store data protection keys in your Supabase PostgreSQL database
         services.AddDataProtection()
             .PersistKeysToDbContext<AppDbContext>();
+
         services.AddSignalR();
+
         var redisConnectionString = configuration["REDIS_URL"] ?? configuration.GetConnectionString("RedisConnection");
 
         services.AddStackExchangeRedisCache(options =>

@@ -250,7 +250,6 @@ namespace OnlineVotingApplication.Repository.Services
         #endregion
 
         #region CreateCandidateAsync
-        #region CreateCandidateAsync
         public async Task<ServiceResponse<string>> CreateCandidateAsync(CandidateViewModel model, string userId, string token)
         {
             var response = new ServiceResponse<string>();
@@ -282,11 +281,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // INVITATION LOOKUP — Id + Token, with rich diagnostics
-            // ═══════════════════════════════════════════════════════════
-            CandidateInvitation? invitation = null;
-
+            // ── Invitation lookup ─────────────────────────────
             if (string.IsNullOrWhiteSpace(token))
             {
                 response.Success = false;
@@ -296,11 +291,7 @@ namespace OnlineVotingApplication.Repository.Services
 
             var trimmedToken = token.Trim();
 
-            _logger.LogWarning("SERVICE: Token='{Token}', ModelInvitationId={ModelId}",
-                trimmedToken, model.CandidateInvitationID);
-
-            // Full lookup with both Id and Token
-            invitation = await _appDbContext.candidateInvitations
+            var invitation = await _appDbContext.candidateInvitations
                 .IgnoreQueryFilters()
                 .FirstOrDefaultAsync(i =>
                     i.Id == model.CandidateInvitationID &&
@@ -310,39 +301,11 @@ namespace OnlineVotingApplication.Repository.Services
 
             if (invitation == null)
             {
-                // Diagnostics — find out what exactly failed
-                var byId = await _appDbContext.candidateInvitations
-                    .IgnoreQueryFilters()
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(i => i.Id == model.CandidateInvitationID);
-
-                var byToken = await _appDbContext.candidateInvitations
-                    .IgnoreQueryFilters()
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(i => i.Token == trimmedToken);
-
-                _logger.LogWarning("Invitation lookup FAILED. " +
-                                   "ById={ById}, ByToken={ByToken}, ModelId={ModelId}, Token='{Token}'",
-                    byId?.Id.ToString() ?? "null",
-                    byToken?.Id.ToString() ?? "null",
-                    model.CandidateInvitationID,
-                    trimmedToken);
-
-                if (byToken != null)
-                {
-                    _logger.LogWarning(
-                        "Row by token → IsSent={IsSent}, IsUsed={IsUsed}, Email='{Email}', UserEmail='{UserEmail}', ElectionId={ElectionId}",
-                        byToken.IsSent, byToken.IsUsed,
-                        byToken.CandidateEmail, user?.Email,
-                        byToken.ElectionEventId);
-                }
-
                 response.Success = false;
                 response.Message = "This registration link is invalid, expired, or has already been used.";
                 return response;
             }
 
-            // Cross-check election
             if (invitation.ElectionEventId != targetElection.Id)
             {
                 response.Success = false;
@@ -350,11 +313,10 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // Cross-check email
             if (!string.Equals(user.Email, invitation.CandidateEmail, StringComparison.OrdinalIgnoreCase))
             {
                 response.Success = false;
-                response.Message = $"Access Denied: This secure link was issued exclusively to {invitation.CandidateEmail}. You are logged in with a different profile.";
+                response.Message = $"Access Denied: This secure link was issued exclusively to {invitation.CandidateEmail}.";
                 return response;
             }
 
@@ -373,12 +335,15 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // ── Upload profile image ──────────────────────────
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string galleryFolderSegment = "Candidate_Galleries";
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
 
-            // Upload file outside transaction
+            var uploadedGalleryUrls = new List<string>();
+
             try
             {
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
@@ -396,7 +361,40 @@ namespace OnlineVotingApplication.Repository.Services
             catch (Exception fileEx)
             {
                 response.Success = false;
-                response.Message = $"Supabase file upload failed: {fileEx.Message}";
+                response.Message = $"Supabase profile image upload failed: {fileEx.Message}";
+                return response;
+            }
+
+            // ── Upload gallery images (OUTSIDE transaction) ────
+            try
+            {
+                if (model.GalleryPhotos != null && model.GalleryPhotos.Any())
+                {
+                    foreach (var photo in model.GalleryPhotos)
+                    {
+                        if (photo == null || photo.Length == 0) continue;
+
+                        using var stream = photo.OpenReadStream();
+                        var url = await _supabaseService.UploadFileAsync(
+                            galleryFolderSegment,
+                            photo.FileName,
+                            stream,
+                            photo.ContentType
+                        );
+                        uploadedGalleryUrls.Add(url);
+                    }
+                }
+            }
+            catch (Exception galleryEx)
+            {
+                response.Success = false;
+                response.Message = $"Supabase gallery upload failed: {galleryEx.Message}";
+
+                // Rollback any files already uploaded to Supabase
+                foreach (var url in uploadedGalleryUrls)
+                {
+                    try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); } catch { }
+                }
                 return response;
             }
 
@@ -407,16 +405,6 @@ namespace OnlineVotingApplication.Repository.Services
                 await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
                 try
                 {
-                    if (await _userManager.IsInRoleAsync(user, "Voter"))
-                    {
-                        var addRoleResult = await _userManager.AddToRoleAsync(user, "Candidate");
-                        if (!addRoleResult.Succeeded)
-                        {
-                            throw new Exception("Failed to upgrade user profile permissions to candidate.");
-                        }
-                        roleAdded = true;
-                    }
-
                     var slugHelper = new SlugHelper();
                     var newCandidate = new Candidate
                     {
@@ -439,12 +427,46 @@ namespace OnlineVotingApplication.Repository.Services
 
                     await _appDbContext.Candidate.AddAsync(newCandidate);
 
-                    invitation.IsUsed = true;
-                    _appDbContext.candidateInvitations.Update(invitation);
+                    // ── Gallery records ───────────────────────────
+                    if (uploadedGalleryUrls.Any())
+                    {
+                        var galleryItems = new List<CandidateGallery>();
+                        foreach (var url in uploadedGalleryUrls)
+                        {
+                            galleryItems.Add(new CandidateGallery
+                            {
+                                Id = Guid.NewGuid(),
+                                CandidateId = newCandidate.Id,
+                                ImageUrl = url
+                            });
+                        }
+                        await _appDbContext.CandidateGalleries.AddRangeAsync(galleryItems);
+                    }
+
+                    if (invitation != null)
+                    {
+                        invitation.IsUsed = true;
+                        _appDbContext.candidateInvitations.Update(invitation);
+                    }
 
                     await _appDbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
 
+                    // ── Role upgrade AFTER commit ─────────────────
+                    if (!await _userManager.IsInRoleAsync(user, "Candidate"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(user, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            _logger.LogError("Candidate created, but role upgrade failed for user {UserId}", userId);
+                        }
+                        else
+                        {
+                            roleAdded = true;
+                        }
+                    }
+
+                    // ── Dynamic answers ───────────────────────────
                     if (model.DynamicAnswers != null && model.DynamicAnswers.Any())
                     {
                         foreach (var kvp in model.DynamicAnswers)
@@ -471,28 +493,25 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     await transaction.RollbackAsync();
 
+                    // Cleanup profile image
                     if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
-                        try
-                        {
-                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
-                        }
-                        catch (Exception cleanupEx)
-                        {
-                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image: {Path}", uploadedFileUrlPath);
-                        }
+                        try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup profile image: {Path}", uploadedFileUrlPath); }
                     }
 
+                    // Cleanup gallery images
+                    foreach (var url in uploadedGalleryUrls)
+                    {
+                        try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup gallery image: {Path}", url); }
+                    }
+
+                    // Rollback role
                     if (roleAdded && await _userManager.IsInRoleAsync(user, "Candidate"))
                     {
-                        try
-                        {
-                            await _userManager.RemoveFromRoleAsync(user, "Candidate");
-                        }
-                        catch (Exception roleEx)
-                        {
-                            _logger.LogError(roleEx, "Failed to rollback candidate role for user: {UserId}", userId);
-                        }
+                        try { await _userManager.RemoveFromRoleAsync(user, "Candidate"); }
+                        catch (Exception roleEx) { _logger.LogError(roleEx, "Failed to rollback role for user: {UserId}", userId); }
                     }
 
                     response.Success = false;
@@ -502,9 +521,6 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
-        #endregion
-
-
         #region CreateCandidateByOfficialAsync
         public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId)
         {
@@ -554,12 +570,14 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // ── Upload profile image + gallery ────────────────
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string galleryFolderSegment = "Candidate_Galleries";
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
+            var uploadedGalleryUrls = new List<string>();
 
-            // Upload file outside the transaction boundary to avoid holding database locks during network I/O
             try
             {
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
@@ -577,7 +595,38 @@ namespace OnlineVotingApplication.Repository.Services
             catch (Exception fileEx)
             {
                 response.Success = false;
-                response.Message = $"Supabase file upload failed: {fileEx.Message}";
+                response.Message = $"Supabase profile image upload failed: {fileEx.Message}";
+                return response;
+            }
+
+            try
+            {
+                if (model.GalleryPhotos != null && model.GalleryPhotos.Any())
+                {
+                    foreach (var photo in model.GalleryPhotos)
+                    {
+                        if (photo == null || photo.Length == 0) continue;
+
+                        using var stream = photo.OpenReadStream();
+                        var url = await _supabaseService.UploadFileAsync(
+                            galleryFolderSegment,
+                            photo.FileName,
+                            stream,
+                            photo.ContentType
+                        );
+                        uploadedGalleryUrls.Add(url);
+                    }
+                }
+            }
+            catch (Exception galleryEx)
+            {
+                response.Success = false;
+                response.Message = $"Supabase gallery upload failed: {galleryEx.Message}";
+
+                foreach (var url in uploadedGalleryUrls)
+                {
+                    try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); } catch { }
+                }
                 return response;
             }
 
@@ -588,16 +637,6 @@ namespace OnlineVotingApplication.Repository.Services
                 await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
                 try
                 {
-                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                    {
-                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
-                        if (!addRoleResult.Succeeded)
-                        {
-                            throw new Exception("Failed to upgrade target user permissions to Candidate role.");
-                        }
-                        roleAdded = true;
-                    }
-
                     var fullName = $"{targetUser.FullName}".Trim();
                     var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
 
@@ -622,8 +661,38 @@ namespace OnlineVotingApplication.Repository.Services
                     };
 
                     await _appDbContext.Candidate.AddAsync(newCandidate);
+
+                    // ── Gallery records ────────────────────────
+                    if (uploadedGalleryUrls.Any())
+                    {
+                        var galleryItems = uploadedGalleryUrls.Select(url => new CandidateGallery
+                        {
+                            Id = Guid.NewGuid(),
+                            CandidateId = newCandidate.Id,
+                            ImageUrl = url
+                        }).ToList();
+
+                        await _appDbContext.CandidateGalleries.AddRangeAsync(galleryItems);
+                    }
+
                     await _appDbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
+
+                    // ── Role upgrade AFTER commit ────────────────
+                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            var errors = string.Join(", ", addRoleResult.Errors.Select(e => e.Description));
+                            _logger.LogError("Candidate {CandidateId} created, but role upgrade failed for user {UserId}. Errors: {Errors}",
+                                newCandidate.Id, targetUser.Id, errors);
+                        }
+                        else
+                        {
+                            roleAdded = true;
+                        }
+                    }
 
                     response.Data = newCandidate.CandidateID;
                     response.Success = true;
@@ -636,26 +705,20 @@ namespace OnlineVotingApplication.Repository.Services
 
                     if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
-                        try
-                        {
-                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
-                        }
-                        catch (Exception cleanupEx)
-                        {
-                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
-                        }
+                        try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup profile image: {Path}", uploadedFileUrlPath); }
+                    }
+
+                    foreach (var url in uploadedGalleryUrls)
+                    {
+                        try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup gallery image: {Path}", url); }
                     }
 
                     if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
                     {
-                        try
-                        {
-                            await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
-                        }
-                        catch (Exception roleEx)
-                        {
-                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", targetUser.Id);
-                        }
+                        try { await _userManager.RemoveFromRoleAsync(targetUser, "Candidate"); }
+                        catch (Exception roleEx) { _logger.LogError(roleEx, "Failed to rollback role for user: {UserId}", targetUser.Id); }
                     }
 
                     response.Success = false;
@@ -682,8 +745,8 @@ namespace OnlineVotingApplication.Repository.Services
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .FirstOrDefaultAsync(e => e.Id == model.ElectionEventId
-                                         && e.TenantId == model.TenantId
-                                         && !e.IsDeleted);
+                                        && e.TenantId == model.TenantId
+                                        && !e.IsDeleted);
 
             if (targetElection == null)
             {
@@ -715,12 +778,14 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // ── Upload profile image + gallery ────────────────
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
+            string galleryFolderSegment = "Candidate_Galleries";
             string? uploadedFileUrlPath = null;
             bool roleAdded = false;
+            var uploadedGalleryUrls = new List<string>();
 
-            // Perform external file storage upload outside the database transaction boundary
             try
             {
                 if (model.CandidateImage != null && model.CandidateImage.Length > 0)
@@ -738,7 +803,38 @@ namespace OnlineVotingApplication.Repository.Services
             catch (Exception fileEx)
             {
                 response.Success = false;
-                response.Message = $"Supabase file upload failed: {fileEx.Message}";
+                response.Message = $"Supabase profile image upload failed: {fileEx.Message}";
+                return response;
+            }
+
+            try
+            {
+                if (model.GalleryPhotos != null && model.GalleryPhotos.Any())
+                {
+                    foreach (var photo in model.GalleryPhotos)
+                    {
+                        if (photo == null || photo.Length == 0) continue;
+
+                        using var stream = photo.OpenReadStream();
+                        var url = await _supabaseService.UploadFileAsync(
+                            galleryFolderSegment,
+                            photo.FileName,
+                            stream,
+                            photo.ContentType
+                        );
+                        uploadedGalleryUrls.Add(url);
+                    }
+                }
+            }
+            catch (Exception galleryEx)
+            {
+                response.Success = false;
+                response.Message = $"Supabase gallery upload failed: {galleryEx.Message}";
+
+                foreach (var url in uploadedGalleryUrls)
+                {
+                    try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); } catch { }
+                }
                 return response;
             }
 
@@ -749,16 +845,6 @@ namespace OnlineVotingApplication.Repository.Services
                 await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
                 try
                 {
-                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
-                    {
-                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
-                        if (!addRoleResult.Succeeded)
-                        {
-                            throw new Exception("Failed to upgrade target user permissions to Candidate role.");
-                        }
-                        roleAdded = true;
-                    }
-
                     var fullName = $"{targetUser.FullName}".Trim();
                     var candidateName = string.IsNullOrWhiteSpace(fullName) ? targetUser.UserName! : fullName;
 
@@ -783,8 +869,38 @@ namespace OnlineVotingApplication.Repository.Services
                     };
 
                     await _appDbContext.Candidate.AddAsync(newCandidate);
+
+                    // ── Gallery records ────────────────────────
+                    if (uploadedGalleryUrls.Any())
+                    {
+                        var galleryItems = uploadedGalleryUrls.Select(url => new CandidateGallery
+                        {
+                            Id = Guid.NewGuid(),
+                            CandidateId = newCandidate.Id,
+                            ImageUrl = url
+                        }).ToList();
+
+                        await _appDbContext.CandidateGalleries.AddRangeAsync(galleryItems);
+                    }
+
                     await _appDbContext.SaveChangesAsync();
                     await transaction.CommitAsync();
+
+                    // ── Role upgrade AFTER commit ────────────────
+                    if (!await _userManager.IsInRoleAsync(targetUser, "Candidate"))
+                    {
+                        var addRoleResult = await _userManager.AddToRoleAsync(targetUser, "Candidate");
+                        if (!addRoleResult.Succeeded)
+                        {
+                            var errors = string.Join(", ", addRoleResult.Errors.Select(e => e.Description));
+                            _logger.LogError("Candidate {CandidateId} created, but role upgrade failed for user {UserId}. Errors: {Errors}",
+                                newCandidate.Id, targetUser.Id, errors);
+                        }
+                        else
+                        {
+                            roleAdded = true;
+                        }
+                    }
 
                     response.Data = newCandidate.CandidateID;
                     response.Success = true;
@@ -797,26 +913,20 @@ namespace OnlineVotingApplication.Repository.Services
 
                     if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
-                        try
-                        {
-                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
-                        }
-                        catch (Exception cleanupEx)
-                        {
-                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned candidate image after DB error: {Path}", uploadedFileUrlPath);
-                        }
+                        try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup profile image: {Path}", uploadedFileUrlPath); }
+                    }
+
+                    foreach (var url in uploadedGalleryUrls)
+                    {
+                        try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup gallery image: {Path}", url); }
                     }
 
                     if (roleAdded && await _userManager.IsInRoleAsync(targetUser, "Candidate"))
                     {
-                        try
-                        {
-                            await _userManager.RemoveFromRoleAsync(targetUser, "Candidate");
-                        }
-                        catch (Exception roleEx)
-                        {
-                            _logger.LogError(roleEx, "Failed to rollback candidate role assignment for user: {UserId}", targetUser.Id);
-                        }
+                        try { await _userManager.RemoveFromRoleAsync(targetUser, "Candidate"); }
+                        catch (Exception roleEx) { _logger.LogError(roleEx, "Failed to rollback role for user: {UserId}", targetUser.Id); }
                     }
 
                     response.Success = false;
@@ -826,6 +936,7 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
+
 
         #region ClearCandidateCache
         public void ClearCandidateCache(int pageNumber, int pageSize)

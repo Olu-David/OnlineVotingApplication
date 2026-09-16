@@ -14,7 +14,12 @@ namespace OnlineVotingApplication.Models
         [MaxLength(150)]
         public string Slug { get; set; } = string.Empty;
         public string? Manifesto { get; set; }
-        public string? CandidateImg { get; set; }
+
+        // ✅ REQUIRED — cannot be null
+        [Required]
+        [MaxLength(500)]
+        public string CandidateImg { get; set; } = string.Empty;
+
         public bool isDeleted { get; set; }
         public DateTime? DeletedAt { get; set; }
         public bool isApproved { get; set; }
@@ -50,8 +55,6 @@ namespace OnlineVotingApplication.Models
 
         public virtual ICollection<CandidateCustomValue> CustomValues { get; set; } = new List<CandidateCustomValue>();
         public virtual ICollection<CandidateGallery> GalleryPhotos { get; set; } = new List<CandidateGallery>();
-        
         public virtual ICollection<Vote> Votes { get; set; } = new List<Vote>();
-
     }
 }

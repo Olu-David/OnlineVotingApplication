@@ -96,9 +96,9 @@
                     }
 
                     <!-- ═══════════════════════════════════════════════════
-                         VOTER ONLY — excludes Candidates even if they have the Voter role
+                         VOTER ONLY
                          ═══════════════════════════════════════════════════ -->
-                    @if (isVoter && !isCandidate)
+                    @if (isVoter)
                     {
                         <li class="nav-item">
                             <a asp-controller="Voter" asp-action="MyHistory"
@@ -115,7 +115,8 @@
                     }
 
                     <!-- ═══════════════════════════════════════════════════
-                         CANDIDATE ONLY — no My Ballots
+                         CANDIDATE ONLY — no My Ballots, no Live Results link
+                         (Live Results is inside the Campaign dropdown)
                          ═══════════════════════════════════════════════════ -->
                     @if (isCandidate)
                     {
@@ -148,7 +149,7 @@
                         </li>
                     }
 
-                    <!-- AUDITOR -->
+                    <!-- Auditor -->
                     @if (isAuditor)
                     {
                         <li class="nav-item">
@@ -165,7 +166,7 @@
                         </li>
                     }
 
-                    <!-- LIVE RESULTS for admins / officials only (not voter / candidate / auditor) -->
+                    <!-- Live Results for admins / officials only -->
                     @if (!isCandidate && !isVoter && !isAuditor)
                     {
                         <li class="nav-item">
@@ -322,7 +323,7 @@
         vertical-align: middle;
     }
 
-    @keyframes pulseDot {
+    @@keyframes pulseDot {
         0%, 100%
 
     {
@@ -356,7 +357,7 @@
         z-index: 2000;
     }
 
-    @media (max-width: 576px) {
+    @@media (max-width: 576px) {
         .user-dropdown-menu
 
     {
@@ -367,7 +368,7 @@
 
     }
 
-    @keyframes fadeInDropdown {
+    @@keyframes fadeInDropdown {
         from
 
     {

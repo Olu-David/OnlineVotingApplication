@@ -20,6 +20,7 @@ namespace OnlineVotingApplication.Models
          public virtual States State { get; set; } = default!;
 
         public Guid? ElectionId { get; set; }
+        [ForeignKey(nameof(PositionId))]
         public Guid? PositionId { get; set; }
         public virtual Positions Positions { get; set; } = default!;
         public DateTime? CastAt { get; set; }

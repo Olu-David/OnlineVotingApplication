@@ -198,13 +198,35 @@ namespace OnlineVotingApplication.Repository.Services
 
         #region GenerateAndQueueConfirmationCodeAsync
         public async Task<ServiceResponse<string>> GenerateAndQueueConfirmationCodeAsync(
-            string voterId,
-            Guid electionId,
-            Guid positionId)
+         string voterId,
+         Guid electionId,
+         Guid positionId)
         {
             try
             {
+                // ── 0. Guard: Validate that the Voter and Election exist ──
+                var voter = await _userManager.FindByIdAsync(voterId);
+                if (voter == null)
+                {
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "Voter account could not be found."
+                    };
+                }
+
+                var electionExists = await _context.ElectionEvents.AnyAsync(e => e.Id == electionId);
+                if (!electionExists)
+                {
+                    return new ServiceResponse<string>
+                    {
+                        Success = false,
+                        Message = "The specified election does not exist."
+                    };
+                }
+
                 // ── 1. Load or create the vote session ───────────────────
+                // Matching your exact model properties (ElectionId, PositionId, VoterId)
                 var voteRecord = await _context.Votes
                     .FirstOrDefaultAsync(v => v.VoterId == voterId
                                            && v.ElectionId == electionId
@@ -221,9 +243,13 @@ namespace OnlineVotingApplication.Repository.Services
                         IsConfirmed = false,
                         HasVoted = false,
                         IsPenalized = false,
-                        FailedAttempts = 0
+                        FailedAttempts = 0,
+                        CreatedAt = DateTime.UtcNow // Good practice since your model has this property
                     };
                     _context.Votes.Add(voteRecord);
+
+                    // Save immediately to secure the row in the DB
+                    await _context.SaveChangesAsync();
                 }
 
                 // ── 2. Guard: already voted or penalized ─────────────────
@@ -246,7 +272,6 @@ namespace OnlineVotingApplication.Repository.Services
                 }
 
                 // ── 3. Guard: existing code still valid? ─────────────────
-                //    If a code exists AND hasn't expired, don't issue a new one.
                 bool codeStillValid =
                     !string.IsNullOrEmpty(voteRecord.ConfirmationCode) &&
                     voteRecord.ConfirmationCodeExpiry.HasValue &&
@@ -278,8 +303,7 @@ namespace OnlineVotingApplication.Repository.Services
                 await _context.SaveChangesAsync();
 
                 // ── 5. Look up voter + election for the email ────────────
-                var voter = await _userManager.FindByIdAsync(voterId);
-                if (voter == null || string.IsNullOrEmpty(voter.Email))
+                if (string.IsNullOrEmpty(voter.Email))
                 {
                     _logger.LogWarning("Voter {VoterId} has no email on file.", voterId);
                     return new ServiceResponse<string>
@@ -318,11 +342,13 @@ namespace OnlineVotingApplication.Repository.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Failed to generate confirmation code for Voter {VoterId}", voterId);
+                // Logs the exact error and inner exception to help debug if anything unexpected occurs
+                _logger.LogError(ex, "Failed to generate confirmation code for Voter {VoterId}. Inner: {Inner}", voterId, ex.InnerException?.Message);
+
                 return new ServiceResponse<string>
                 {
                     Success = false,
-                    Message = "Failed to generate confirmation code. Please try again."
+                    Message = $"Failed to generate confirmation code: {ex.Message}"
                 };
             }
         }

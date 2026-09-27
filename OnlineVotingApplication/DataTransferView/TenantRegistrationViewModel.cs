@@ -21,7 +21,7 @@ namespace OnlineVotingApplication.DataTransferView
         [Display(Name = "Admin Email")]
         public string AdminEmail { get; set; } = string.Empty;
 
-        // ✅ Organization logo — optional, ≤ 300 KB, image only
+        // Organization logo — optional, <= 300 KB, image only
         [DataType(DataType.Upload)]
         [Display(Name = "Organization Logo")]
         [MaxFileSize(300 * 1024, ErrorMessage = "Organization logo must be under 300 KB.")]
@@ -42,6 +42,6 @@ namespace OnlineVotingApplication.DataTransferView
         public string ConfirmAdminPassword { get; set; } = string.Empty;
 
         [Url(ErrorMessage = "Please enter a valid URL.")]
-        public string BaseUrl { get; set; } = string.Empty;
+        public string? BaseUrl { get; set; } // Fixed: Made nullable
     }
 }

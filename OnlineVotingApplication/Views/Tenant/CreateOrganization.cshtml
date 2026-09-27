@@ -35,7 +35,7 @@
                     <form id="tenantRegistrationForm" asp-controller="Tenant" asp-action="CreateOrganization" method="post" enctype="multipart/form-data">
                         @Html.AntiForgeryToken()
 
-                        <div asp-validation-summary="ModelOnly" class="alert alert-danger border-0 shadow-sm small mb-4" role="alert"></div>
+                        <div asp-validation-summary="All" class="alert alert-danger border-0 shadow-sm small mb-4" role="alert"></div>
 
                         <h4 class="org-section-title mb-3">
                             <span class="step-no fw-bold text-primary">1</span> Organization details
@@ -44,13 +44,13 @@
                         <div class="row g-3 mb-4">
                             <div class="col-md-6">
                                 <label asp-for="OrganizationName" class="form-label">Organization Name</label>
-                                <input asp-for="OrganizationName" type="text" class="form-control" placeholder="e.g. Abuja University, Lagos State Tech" required autocomplete="organization" />
+                                <input asp-for="OrganizationName" type="text" class="form-control" placeholder="e.g. Abuja University, Lagos State Tech" autocomplete="organization" />
                                 <span asp-validation-for="OrganizationName" class="text-danger small"></span>
                             </div>
 
                             <div class="col-md-6">
                                 <label asp-for="TenantCategory" class="form-label">Category</label>
-                                <select asp-for="TenantCategory" class="form-select" required asp-items="Html.GetEnumSelectList<TenantCategory>()">
+                                <select asp-for="TenantCategory" class="form-select" asp-items="Html.GetEnumSelectList<TenantCategory>()">
                                     <option value="">-- Choose a category --</option>
                                 </select>
                                 <span asp-validation-for="TenantCategory" class="text-danger small"></span>
@@ -58,8 +58,8 @@
 
                             <div class="col-12">
                                 <label asp-for="ProfilePicture" class="form-label">Organization Logo</label>
-                                <input asp-for="ProfilePicture" type="file" class="form-control" accept="image/jpeg,image/png,image/webp" />
-                                <div class="form-text text-muted">JPEG, PNG or WEBP. Max size 4MB.</div>
+                                <input asp-for="ProfilePicture" type="file" class="form-control" accept="image/jpeg,image/png,image/webp,image/svg+xml" />
+                                <div class="form-text text-muted">JPEG, PNG, WEBP or SVG. Max size 300 KB.</div>
                                 <span asp-validation-for="ProfilePicture" class="text-danger small"></span>
                             </div>
                         </div>
@@ -73,7 +73,7 @@
                                 <label asp-for="AdminEmail" class="form-label">Admin Email</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-envelope"></i></span>
-                                    <input asp-for="AdminEmail" type="email" class="form-control border-start-0" placeholder="admin@yourorganization.com" required autocomplete="email" />
+                                    <input asp-for="AdminEmail" type="email" class="form-control border-start-0" placeholder="admin@yourorganization.com" autocomplete="email" />
                                 </div>
                                 <div class="form-text text-muted">We'll send your verification link to this address.</div>
                                 <span asp-validation-for="AdminEmail" class="text-danger small"></span>
@@ -83,7 +83,7 @@
                                 <label asp-for="AdminPassword" class="form-label">Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-lock"></i></span>
-                                    <input asp-for="AdminPassword" id="adminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" required autocomplete="new-password" />
+                                    <input asp-for="AdminPassword" id="adminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" autocomplete="new-password" />
                                     <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="toggleAdminPassword">
                                         <i class="fas fa-eye text-muted" id="toggleAdminIcon"></i>
                                     </button>
@@ -95,7 +95,7 @@
                                 <label asp-for="ConfirmAdminPassword" class="form-label">Confirm Password</label>
                                 <div class="input-group">
                                     <span class="input-group-text bg-light text-muted border-end-0"><i class="fas fa-lock"></i></span>
-                                    <input asp-for="ConfirmAdminPassword" id="confirmAdminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" required autocomplete="new-password" />
+                                    <input asp-for="ConfirmAdminPassword" id="confirmAdminPasswordInput" type="password" class="form-control border-start-0 border-end-0" placeholder="••••••••••••" autocomplete="new-password" />
                                     <button class="btn btn-outline-secondary border-start-0 bg-transparent" type="button" id="toggleConfirmPassword">
                                         <i class="fas fa-eye text-muted" id="toggleConfirmIcon"></i>
                                     </button>
@@ -157,13 +157,25 @@
                 }
             }
 
-            // Initialize toggles for AdminPassword and ConfirmAdminPassword
             setupPasswordToggle("toggleAdminPassword", "adminPasswordInput", "toggleAdminIcon");
             setupPasswordToggle("toggleConfirmPassword", "confirmAdminPasswordInput", "toggleConfirmIcon");
 
-            // Form Submit Loading State
+            // Form Submit Loading State & Validation Interceptor
             form.addEventListener("submit", function (event) {
-                const isValid = typeof $(form).valid === "function" ? $(form).valid() : form.checkValidity();
+                let isValid = true;
+
+                // Check jQuery validation if loaded
+                if (typeof $(form).valid === "function") {
+                    isValid = $(form).valid();
+                } else if (typeof form.checkValidity === "function") {
+                    isValid = form.checkValidity();
+                }
+
+                // Also check the manual terms checkbox
+                const termsCheck = document.getElementById("termsCheck");
+                if (termsCheck && !termsCheck.checked) {
+                    isValid = false;
+                }
 
                 if (isValid) {
                     overlay.classList.remove("d-none");
@@ -174,6 +186,8 @@
                     }, 10);
                 } else {
                     event.preventDefault();
+                    overlay.classList.remove("d-flex");
+                    overlay.classList.add("d-none");
                 }
             });
         });

@@ -48,7 +48,6 @@ namespace OnlineVotingApplication.Repository.Services
             _env = env ?? throw new ArgumentNullException(nameof(env));
         }
         #endregion
-
         #region CreateElectionAsync
         public async Task<ServiceResponse<ElectionDto>> CreateElectionAsync(ElectionDto model, string userId)
         {
@@ -92,6 +91,12 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
+            // ── Prepare Slug for Unique File Naming ───────────
+            var slugHelper = new SlugHelper();
+            string electionSlug = !string.IsNullOrWhiteSpace(model.Title)
+                ? slugHelper.GenerateSlug(model.Title)
+                : "election";
+
             string targetDatabasePathUrl = "/images/default-election.png"; // Fallback if no image
             string folderPathSegment = "Election_Image"; // Your Supabase bucket name
             string? uploadedFileUrlPath = null;
@@ -101,10 +106,13 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 if (model.UrlImage != null && model.UrlImage.Length > 0)
                 {
+                    var fileExtension = Path.GetExtension(model.UrlImage.FileName);
+                    var uniqueFileName = $"{electionSlug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+
                     using var stream = model.UrlImage.OpenReadStream();
                     targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
                         folderPathSegment,
-                        model.UrlImage.FileName,
+                        uniqueFileName,
                         stream,
                         model.UrlImage.ContentType
                     );
@@ -128,7 +136,7 @@ namespace OnlineVotingApplication.Repository.Services
                     var election = new ElectionEvent
                     {
                         Id = model.Id == Guid.Empty ? Guid.NewGuid() : model.Id,
-                        Title = model.Title??"",
+                        Title = model.Title ?? "",
                         Description = model.Description,
                         ElectionYear = DateTime.UtcNow.Year,
                         StartDate = model.StartDate,
@@ -185,7 +193,6 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
-
         #region GetElectionByIdOrCategoryAsync
         // Helper Method: Get Active Election by ID or Category (Cross-Tenant Aware)
         public async Task<ElectionEvent?> GetElectionByIdOrCategoryAsync(Guid electionId, TenantCategory? category = null)

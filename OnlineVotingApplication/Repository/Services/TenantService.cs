@@ -69,7 +69,7 @@ namespace OnlineVotingApplication.Repository.Services
         {
             var response = new ServiceResponse<TenantRegistrationResultDto>();
 
-            // 1. Generate unique lookup slug layout
+            // 1. Generate unique lookup slug layout first (needed for secure asset naming)
             string slug = !string.IsNullOrWhiteSpace(model.OrganizationName)
                 ? model.OrganizationName.ToLower().Trim().Replace(" ", "-").Replace("'", "")
                 : string.Empty;
@@ -102,10 +102,14 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 if (model.ProfilePicture != null && model.ProfilePicture.Length > 0)
                 {
+                 
+                    var fileExtension = Path.GetExtension(model.ProfilePicture.FileName);
+                    var uniqueFileName = $"{slug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+
                     using var stream = model.ProfilePicture.OpenReadStream();
                     tenantUrl = await _supaBase.UploadFileAsync(
                         tenantFolder,
-                        model.ProfilePicture.FileName,
+                        uniqueFileName,
                         stream,
                         model.ProfilePicture.ContentType
                     );
@@ -131,7 +135,7 @@ namespace OnlineVotingApplication.Repository.Services
                     Slug = slug,
                     ProfilePicture = tenantUrl,
                     SubscriptionPlan = "Free",
-                    IsApproved = false, // Set to false as per your requirement for admin review
+                    IsApproved = false,
                     IsActive = true,
                     MaxAllowedElections = 1,
                     CreatedAt = DateTime.UtcNow
@@ -151,7 +155,7 @@ namespace OnlineVotingApplication.Repository.Services
                     FullName = $"{model.OrganizationName} Administrator",
                     TenantId = newTenant.Id,
                     EmailConfirmed = false,
-                    IsApproved = false // Requires approval
+                    IsApproved = false
                 };
 
                 var adminResult = await _userManager.CreateAsync(adminUser, model.AdminPassword ?? string.Empty);

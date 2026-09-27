@@ -1,47 +1,30 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace OnlineVotingApplication.Validation
 {
-    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
     public class MaxFileSizeAttribute : ValidationAttribute
     {
-        private readonly int _maxFileSizeInBytes;
+        private readonly int _maxFileSize;
 
-        public MaxFileSizeAttribute(int maxFileSizeInBytes)
+        public MaxFileSizeAttribute(int maxFileSize)
         {
-            _maxFileSizeInBytes = maxFileSizeInBytes;
+            _maxFileSize = maxFileSize;
         }
 
         protected override ValidationResult? IsValid(object? value, ValidationContext validationContext)
         {
-            if (value == null)
-                return ValidationResult.Success;
-
-            // Single file
-            if (value is IFormFile file)
+            // Skip validation if no file was provided (since ProfilePicture is optional)
+            if (value is null)
             {
-                if (file.Length > _maxFileSizeInBytes)
-                {
-                    var maxKb = _maxFileSizeInBytes / 1024;
-                    return new ValidationResult(
-                        ErrorMessage ?? $"File size must not exceed {maxKb} KB.");
-                }
+                return ValidationResult.Success;
             }
 
-            // Multiple files
-            if (value is IEnumerable<IFormFile> files)
+            if (value is IFormFile file)
             {
-                foreach (var f in files)
+                if (file.Length > _maxFileSize)
                 {
-                    if (f != null && f.Length > _maxFileSizeInBytes)
-                    {
-                        var maxKb = _maxFileSizeInBytes / 1024;
-                        return new ValidationResult(
-                            ErrorMessage ?? $"Each file must not exceed {maxKb} KB.");
-                    }
+                    return new ValidationResult(ErrorMessage ?? "File size exceeds the allowed limit.");
                 }
             }
 

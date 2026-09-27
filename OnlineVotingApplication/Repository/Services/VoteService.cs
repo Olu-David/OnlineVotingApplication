@@ -215,8 +215,8 @@ namespace OnlineVotingApplication.Repository.Services
                     };
                 }
 
-                var electionExists = await _context.ElectionEvents.AnyAsync(e => e.Id == electionId);
-                if (!electionExists)
+                var electionExists = await _context.ElectionEvents.FirstOrDefaultAsync(e => e.Id == electionId);
+                if (electionExists == null)
                 {
                     return new ServiceResponse<string>
                     {

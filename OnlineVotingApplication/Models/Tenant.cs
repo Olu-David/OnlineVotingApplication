@@ -8,9 +8,9 @@ namespace OnlineVotingApplication.Models
         public Guid Id { get; set; }
         public string OrganizationName { get; set; } = string.Empty;
 
-        // 🔒 THE RULE SETTER: Determines the fixed category for this platform client
-        public TenantCategory TenantCategory { get; set; }
 
+        public TenantCategory TenantCategory { get; set; }
+q
         public string Slug { get; set; } = string.Empty;
         public string SubscriptionPlan { get; set; } = "Free";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -335,7 +335,13 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // ── Upload profile image ──────────────────────────
+            // ── Prepare Slug for Unique File Naming ───────────
+            var slugHelper = new SlugHelper();
+            string candidateSlug = !string.IsNullOrWhiteSpace(model.Name)
+                ? slugHelper.GenerateSlug(model.Name)
+                : "candidate";
+
+            // ── Upload profile image (with unique naming) ─────
             string targetDatabasePathUrl = "/images/default-candidate.png";
             string folderPathSegment = "Candidate_Profiles";
             string galleryFolderSegment = "Candidate_Galleries";
@@ -348,10 +354,13 @@ namespace OnlineVotingApplication.Repository.Services
             {
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
                 {
+                    var fileExtension = Path.GetExtension(model.CandidateImageUrl.FileName);
+                    var uniqueProfileFileName = $"{candidateSlug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+
                     using var stream = model.CandidateImageUrl.OpenReadStream();
                     targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
                         folderPathSegment,
-                        model.CandidateImageUrl.FileName,
+                        uniqueProfileFileName,
                         stream,
                         model.CandidateImageUrl.ContentType
                     );
@@ -365,23 +374,28 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // ── Upload gallery images (OUTSIDE transaction) ────
+            // ── Upload gallery images (with unique naming) ────
             try
             {
                 if (model.GalleryPhotos != null && model.GalleryPhotos.Any())
                 {
+                    int index = 1;
                     foreach (var photo in model.GalleryPhotos)
                     {
                         if (photo == null || photo.Length == 0) continue;
 
+                        var fileExtension = Path.GetExtension(photo.FileName);
+                        var uniqueGalleryFileName = $"{candidateSlug}-gallery-{index}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+
                         using var stream = photo.OpenReadStream();
                         var url = await _supabaseService.UploadFileAsync(
                             galleryFolderSegment,
-                            photo.FileName,
+                            uniqueGalleryFileName,
                             stream,
                             photo.ContentType
                         );
                         uploadedGalleryUrls.Add(url);
+                        index++;
                     }
                 }
             }
@@ -391,6 +405,10 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Message = $"Supabase gallery upload failed: {galleryEx.Message}";
 
                 // Rollback any files already uploaded to Supabase
+                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                {
+                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
+                }
                 foreach (var url in uploadedGalleryUrls)
                 {
                     try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); } catch { }
@@ -405,7 +423,6 @@ namespace OnlineVotingApplication.Repository.Services
                 await using var transaction = await _appDbContext.Database.BeginTransactionAsync();
                 try
                 {
-                    var slugHelper = new SlugHelper();
                     var newCandidate = new Candidate
                     {
                         Id = Guid.NewGuid(),
@@ -414,7 +431,7 @@ namespace OnlineVotingApplication.Repository.Services
                         Name = model.Name,
                         Manifesto = model.Manifesto,
                         CandidateImg = targetDatabasePathUrl,
-                        Slug = "candidate-" + slugHelper.GenerateSlug(model.Name ?? ""),
+                        Slug = "candidate-" + candidateSlug,
                         PartyId = model.PartyId != Guid.Empty ? model.PartyId : null,
                         PositionId = model.PositionId != Guid.Empty ? model.PositionId : null,
                         StateId = model.StateId != Guid.Empty ? model.StateId : null,
@@ -521,6 +538,7 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
+
         #region CreateCandidateByOfficialAsync
         public async Task<ServiceResponse<string>> CreateCandidateByOfficialAsync(ManualCandidateCreationViewModel model, Guid currentTenantId, string officialUserId)
         {

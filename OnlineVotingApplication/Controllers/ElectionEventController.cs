@@ -164,7 +164,7 @@ namespace OnlineVotingApplication.Controllers
             var election = new ElectionEvent
             {
                 Id = Guid.NewGuid(),
-                Title = model?.Title??"",
+                Title = model?.Title ?? "",
                 ElectionYear = model!.ElectionYear,
 
                 // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
@@ -200,10 +200,7 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-        #region Edit
-        // ─────────────────────────────────────────────
-        // GET/POST: Edit
-        // ─────────────────────────────────────────────
+        #region Edit (GET)
         [HttpGet]
         public async Task<IActionResult> Edit(Guid id)
         {
@@ -230,19 +227,21 @@ namespace OnlineVotingApplication.Controllers
             {
                 Id = election.Id,
                 Title = election.Title,
+                Description = election.Description,
                 ElectionYear = election.ElectionYear,
                 StartDate = election.StartDate,
                 EndDate = election.EndDate,
                 IsActive = election.IsActive,
                 Category = election.Category,
-                TenantId = election.TenantId
+                TenantId = election.TenantId,
+                PhotoImage = election.ImageUrl
             };
 
             return View(model);
         }
         #endregion
 
-        #region Edit (2)
+        #region Edit (POST)
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
@@ -259,42 +258,32 @@ namespace OnlineVotingApplication.Controllers
                 return View(model);
             }
 
-            bool isSuperAdmin = User.IsInRole("SuperAdmin");
-            Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
+            var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
-            var query = _context.ElectionEvents
-                .IgnoreQueryFilters();
-
-            ElectionEvent? election = isSuperAdmin
-                ? await query.FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted)
-                : await query.FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted && e.TenantId == activeTenantId);
-
-            if (election == null)
+            // Map ViewModel to DTO to pass safely to your ElectionService
+            var dto = new ElectionDto
             {
-                TempData["ErrorMessage"] = "Election event could not be found or unauthorized access.";
-                return RedirectToAction(nameof(Index));
-            }
+                Id = model.Id,
+                Title = model.Title,
+                Description = model.Description,
+                StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc),
+                EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc),
+                UrlImage = model.UrlImage, // Handles any newly uploaded file flyer
+                Category = model.Category,
+                TenantId = model.TenantId
+            };
 
-            election.Title = model.Title??"";
-            election.ElectionYear = model.ElectionYear;
+            var result = await _electionService.EditElectionAsync(dto, userId);
 
-            // ─── CONVERTED TO UTC FOR POSTGRESQL ───────────────
-            election.StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc);
-            election.EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc);
-            // ───────────────────────────────────────────────────
-
-            election.IsActive = model.IsActive;
-            election.Category = model.Category;
-
-            if (isSuperAdmin)
+            if (!result.Success)
             {
-                election.TenantId = model.TenantId;
+                ModelState.AddModelError(string.Empty, result.Message);
+                await PopulateFormDataAsync();
+                return View(model);
             }
-
-            await _context.SaveChangesAsync();
 
             // --- AUDIT LOGGING ---
-            var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
+            var activeTenantId = _tenantProvider.GetCurrentTenantId();
             var ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
 
             await _auditLogService.LogActivityAsync(
@@ -305,7 +294,7 @@ namespace OnlineVotingApplication.Controllers
                 tenantId: activeTenantId != Guid.Empty ? activeTenantId : null
             );
 
-            TempData["SuccessMessage"] = $"Election \"{election.Title}\" updated successfully.";
+            TempData["SuccessMessage"] = $"Election \"{model.Title}\" updated successfully.";
             return RedirectToAction(nameof(Index));
         }
         #endregion

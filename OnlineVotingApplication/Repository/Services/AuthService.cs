@@ -221,12 +221,29 @@ namespace OnlineVotingApplication.Repository.Services
             var user = await _userManager.FindByIdAsync(userId);
             if (user == null) return false;
 
-            var result = await _userManager.ConfirmEmailAsync(user, token);
-            if (!result.Succeeded) return false;
+            try
+            {
+                // 1. Decode the base64url string back into bytes
+                var decodedTokenBytes = WebEncoders.Base64UrlDecode(token);
+                var normalToken = Encoding.UTF8.GetString(decodedTokenBytes);
 
-            user.EmailConfirmed = true;
-            await _userManager.UpdateAsync(user);
-            return true;
+                // 2. Pass the decoded token to Identity
+                var result = await _userManager.ConfirmEmailAsync(user, normalToken);
+                if (!result.Succeeded)
+                {
+                  
+                    return false;
+                }
+
+                user.EmailConfirmed = true;
+                await _userManager.UpdateAsync(user);
+                return true;
+            }
+            catch (Exception)
+            {
+                // Catches decoding exceptions if a malformed token is passed
+                return false;
+            }
         }
         #endregion
 

@@ -99,7 +99,7 @@ namespace OnlineVotingApplication.Controllers
             return RedirectToRoute(new
             {
                 area = "Identity",
-                controller = "Account",
+                controller = "Auth",
                 action = "ConfirmEmailSent",
                 email = model.AdminEmail
             });

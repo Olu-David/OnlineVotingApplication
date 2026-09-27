@@ -59,7 +59,7 @@
             <i class="fas fa-hourglass-half me-1" style="font-size: 0.55rem;"></i> Pending Actions
         </li>
 
-        <li class="nav-item">
+        @* <li class="nav-item">
             <a asp-controller="SuperAdminDashboard" asp-action="GetAllPendingTenants"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "GetAllPendingTenants" ? "active" : "")">
                 <i class="fas fa-clock me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Tenants</span>
@@ -70,7 +70,7 @@
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllTenants" ? "active" : "")">
                 <i class="fas fa-clock me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">All Tenants</span>
             </a>
-        </li>
+        </li> *@
         <li class="nav-item">
             <a asp-controller="Candidate" asp-action="GetUnsentCandidateApplications"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "GetUnsentCandidateApplicationsAsync" ? "active" : "")">
@@ -369,7 +369,7 @@
         </li>
 
         <li class="nav-item mt-1">
-            <a asp-controller="Home" asp-action="SupportTickets"
+            <a asp-controller="Home" asp-action="GetPaginatedTicketsAsync"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Home" && currentAction == "SupportTickets" ? "active" : "")">
                 <i class="fas fa-headset me-2 text-info" style="width: 16px;"></i><span style="font-size: 0.85rem;">Support Tickets</span>
             </a>

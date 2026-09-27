@@ -303,7 +303,7 @@ namespace OnlineVotingApplication.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [EnableRateLimiting("StrictVotingPolicy")]
-        public async Task<IActionResult> SoftDelete(Guid id)
+        public async Task<IActionResult> RestoreSoftDelete(Guid id)
         {
             bool isSuperAdmin = User.IsInRole("SuperAdmin");
             Guid activeTenantId = _tenantProvider.GetCurrentTenantId();
@@ -344,7 +344,7 @@ namespace OnlineVotingApplication.Controllers
 
         #region SoftDeleted
         [HttpGet]
-        public async Task<IActionResult> SoftDeleted(int pageNumber = 1, int pageSize = 10)
+        public async Task<IActionResult> SoftDelete(int pageNumber = 1, int pageSize = 10)
         {
             pageNumber = Math.Max(1, pageNumber);
             pageSize = Math.Max(1, pageSize);
@@ -417,20 +417,20 @@ namespace OnlineVotingApplication.Controllers
             if (election == null)
             {
                 TempData["ErrorMessage"] = "Election event could not be found in trash or unauthorized access.";
-                return RedirectToAction(nameof(SoftDeleted));
+                return RedirectToAction(nameof(SoftDelete));
             }
 
             if (!election.DeletedAt.HasValue)
             {
                 TempData["ErrorMessage"] = "Invalid deletion date.";
-                return RedirectToAction(nameof(SoftDeleted));
+                return RedirectToAction(nameof(SoftDelete));
             }
 
             double daysSinceDeleted = (DateTime.UtcNow - election.DeletedAt.Value).TotalDays;
             if (daysSinceDeleted > 30)
             {
                 TempData["ErrorMessage"] = "This election can no longer be restored (past the 30-day window).";
-                return RedirectToAction(nameof(SoftDeleted));
+                return RedirectToAction(nameof(SoftDelete));
             }
 
             election.IsDeleted = false;

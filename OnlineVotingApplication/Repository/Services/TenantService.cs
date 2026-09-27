@@ -184,10 +184,21 @@ namespace OnlineVotingApplication.Repository.Services
                     await _userManager.AddToRoleAsync(adminUser, "Official");
 
                     // 6. Token assembly extraction processing
+                    // 6. Token assembly and full link construction
                     var token = await _userManager.GenerateEmailConfirmationTokenAsync(adminUser);
                     var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
 
-                    var emailResponse = await _authService.SendConfirmationTokenAsync(adminUser, encodedToken);
+                    // Construct the full clickable verification link dynamically
+                    string confirmationLink = string.Empty;
+                    var request = _httpContextAccessor.HttpContext?.Request;
+                    if (request != null)
+                    {
+                        var baseUrl = $"{request.Scheme}://{request.Host}";
+                        confirmationLink = $"{baseUrl}/AuthService/Confirm_Email?userId={adminUser.Id}&token={encodedToken}";
+                    }
+
+                    // Pass the fully assembled link to your auth service
+                    var emailResponse = await _authService.SendConfirmationTokenAsync(adminUser, confirmationLink);
                     if (!emailResponse.Success)
                     {
                         _logger.LogWarning("Tenant was created, but admin verification token failed to queue for {Email}", adminUser.Email);
@@ -232,6 +243,7 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
+
         #region GetTenantDetailsAsync
         public async Task<Tenant?> GetTenantDetailsAsync()
         {

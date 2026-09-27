@@ -49,6 +49,7 @@ namespace OnlineVotingApplication.Repository.Services
             _env = env ?? throw new ArgumentNullException(nameof(env));
         }
         #endregion
+
         #region CreateElectionAsync
         public async Task<ServiceResponse<ElectionDto>> CreateElectionAsync(ElectionDto model, string userId)
         {
@@ -99,25 +100,38 @@ namespace OnlineVotingApplication.Repository.Services
                 : "election";
 
             string targetDatabasePathUrl = "/images/default-election.png"; // Fallback if no image
-            string folderPathSegment = "Election_Image"; // Your Supabase bucket name
-            string? uploadedFileUrlPath = null;
+            string bucketName = "Votezy";             // 👈 Actual Supabase storage bucket
+            string folderPath = "election_image";     // 👈 Sub-folder inside Votezy
+            string? uploadedFileUrlPath = null;       // 👈 Tracks full path for cleanup on failure
 
             // Perform file upload outside the database transaction boundary
             try
             {
                 if (model.UrlImage != null && model.UrlImage.Length > 0)
                 {
+                    // Optional Free Tier size safety limit check (3MB max)
+                    if (model.UrlImage.Length > 3 * 1024 * 1024)
+                    {
+                        response.Success = false;
+                        response.Message = "Election banner image must be less than 3MB.";
+                        return response;
+                    }
+
                     var fileExtension = Path.GetExtension(model.UrlImage.FileName);
                     var uniqueFileName = $"{electionSlug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
 
+                    // Combine sub-folder and file name so S3 Key resolves to: election_image/filename.png
+                    var fullStoragePath = $"{folderPath}/{uniqueFileName}";
+
                     using var stream = model.UrlImage.OpenReadStream();
                     targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
-                        folderPathSegment,
-                        uniqueFileName,
+                        bucketName,       // 👈 Passes "Votezy"
+                        fullStoragePath,  // 👈 Passes "election_image/filename.png"
                         stream,
                         model.UrlImage.ContentType
                     );
-                    uploadedFileUrlPath = targetDatabasePathUrl;
+
+                    uploadedFileUrlPath = fullStoragePath; // Save full path for transaction rollback cleanup
                 }
             }
             catch (Exception fileEx)
@@ -171,12 +185,12 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     await transaction.RollbackAsync();
 
-                    // Cleanup uploaded image from Supabase if transaction fails
+                    // Cleanup uploaded image from Supabase if transaction fails (passing the bucket name)
                     if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
                         try
                         {
-                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, bucketName);
                         }
                         catch (Exception cleanupEx)
                         {

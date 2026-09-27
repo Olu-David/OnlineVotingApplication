@@ -341,30 +341,42 @@ namespace OnlineVotingApplication.Repository.Services
                 ? slugHelper.GenerateSlug(model.Name)
                 : "candidate";
 
-            // ── Upload profile image (with unique naming) ─────
+            // ── Storage Configurations ─────────────────────────
             string targetDatabasePathUrl = "/images/default-candidate.png";
-            string folderPathSegment = "Candidate_Profiles";
-            string galleryFolderSegment = "Candidate_Galleries";
-            string? uploadedFileUrlPath = null;
+            string bucketName = "Votezy";                       // 👈 Actual Supabase bucket
+            string profileFolder = "candidate_profiles";          // 👈 Sub-folder for profile pictures
+            string galleryFolder = "candidate_galleries";         // 👈 Sub-folder for gallery pictures
+
+            string? uploadedProfileStoragePath = null;            // 👈 Tracks relative path for S3 deletion cleanup
+            var uploadedGalleryStoragePaths = new List<string>(); // 👈 Tracks relative gallery paths for cleanup
+            var uploadedGalleryFullUrls = new List<string>();     // 👈 Full URLs for database saving
             bool roleAdded = false;
 
-            var uploadedGalleryUrls = new List<string>();
-
+            // ── Upload profile image ───────────────────────────
             try
             {
                 if (model.CandidateImageUrl != null && model.CandidateImageUrl.Length > 0)
                 {
+                    if (model.CandidateImageUrl.Length > 3 * 1024 * 1024)
+                    {
+                        response.Success = false;
+                        response.Message = "Candidate profile image must be less than 3MB.";
+                        return response;
+                    }
+
                     var fileExtension = Path.GetExtension(model.CandidateImageUrl.FileName);
                     var uniqueProfileFileName = $"{candidateSlug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+                    var fullStoragePath = $"{profileFolder}/{uniqueProfileFileName}";
 
                     using var stream = model.CandidateImageUrl.OpenReadStream();
                     targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
-                        folderPathSegment,
-                        uniqueProfileFileName,
+                        bucketName,
+                        fullStoragePath,
                         stream,
                         model.CandidateImageUrl.ContentType
                     );
-                    uploadedFileUrlPath = targetDatabasePathUrl;
+
+                    uploadedProfileStoragePath = fullStoragePath; // Save relative path for rollback cleanup
                 }
             }
             catch (Exception fileEx)
@@ -374,7 +386,7 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            // ── Upload gallery images (with unique naming) ────
+            // ── Upload gallery images ──────────────────────────
             try
             {
                 if (model.GalleryPhotos != null && model.GalleryPhotos.Any())
@@ -384,17 +396,32 @@ namespace OnlineVotingApplication.Repository.Services
                     {
                         if (photo == null || photo.Length == 0) continue;
 
+                        if (photo.Length > 3 * 1024 * 1024)
+                        {
+                            response.Success = false;
+                            response.Message = "Each gallery photo must be less than 3MB.";
+                            // Cleanup already uploaded profile picture before returning
+                            if (!string.IsNullOrEmpty(uploadedProfileStoragePath))
+                            {
+                                try { await _supabaseService.DeleteFileAsync(uploadedProfileStoragePath, bucketName); } catch { }
+                            }
+                            return response;
+                        }
+
                         var fileExtension = Path.GetExtension(photo.FileName);
                         var uniqueGalleryFileName = $"{candidateSlug}-gallery-{index}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+                        var fullGalleryPath = $"{galleryFolder}/{uniqueGalleryFileName}";
 
                         using var stream = photo.OpenReadStream();
                         var url = await _supabaseService.UploadFileAsync(
-                            galleryFolderSegment,
-                            uniqueGalleryFileName,
+                            bucketName,
+                            fullGalleryPath,
                             stream,
                             photo.ContentType
                         );
-                        uploadedGalleryUrls.Add(url);
+
+                        uploadedGalleryStoragePaths.Add(fullGalleryPath);
+                        uploadedGalleryFullUrls.Add(url);
                         index++;
                     }
                 }
@@ -405,13 +432,13 @@ namespace OnlineVotingApplication.Repository.Services
                 response.Message = $"Supabase gallery upload failed: {galleryEx.Message}";
 
                 // Rollback any files already uploaded to Supabase
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                if (!string.IsNullOrEmpty(uploadedProfileStoragePath))
                 {
-                    try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); } catch { }
+                    try { await _supabaseService.DeleteFileAsync(uploadedProfileStoragePath, bucketName); } catch { }
                 }
-                foreach (var url in uploadedGalleryUrls)
+                foreach (var path in uploadedGalleryStoragePaths)
                 {
-                    try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); } catch { }
+                    try { await _supabaseService.DeleteFileAsync(path, bucketName); } catch { }
                 }
                 return response;
             }
@@ -445,10 +472,10 @@ namespace OnlineVotingApplication.Repository.Services
                     await _appDbContext.Candidate.AddAsync(newCandidate);
 
                     // ── Gallery records ───────────────────────────
-                    if (uploadedGalleryUrls.Any())
+                    if (uploadedGalleryFullUrls.Any())
                     {
                         var galleryItems = new List<CandidateGallery>();
-                        foreach (var url in uploadedGalleryUrls)
+                        foreach (var url in uploadedGalleryFullUrls)
                         {
                             galleryItems.Add(new CandidateGallery
                             {
@@ -510,18 +537,18 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     await transaction.RollbackAsync();
 
-                    // Cleanup profile image
-                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    // Cleanup profile image using Votezy bucket name and relative path
+                    if (!string.IsNullOrEmpty(uploadedProfileStoragePath))
                     {
-                        try { await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment); }
-                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup profile image: {Path}", uploadedFileUrlPath); }
+                        try { await _supabaseService.DeleteFileAsync(uploadedProfileStoragePath, bucketName); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup profile image: {Path}", uploadedProfileStoragePath); }
                     }
 
-                    // Cleanup gallery images
-                    foreach (var url in uploadedGalleryUrls)
+                    // Cleanup gallery images using Votezy bucket name and relative paths
+                    foreach (var path in uploadedGalleryStoragePaths)
                     {
-                        try { await _supabaseService.DeleteFileAsync(url, galleryFolderSegment); }
-                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup gallery image: {Path}", url); }
+                        try { await _supabaseService.DeleteFileAsync(path, bucketName); }
+                        catch (Exception cleanupEx) { _logger.LogError(cleanupEx, "Failed to cleanup gallery image: {Path}", path); }
                     }
 
                     // Rollback role

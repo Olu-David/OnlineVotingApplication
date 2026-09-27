@@ -95,25 +95,38 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             string tenantUrl = "/images/default-tenant.png";
-            string tenantFolder = "Tenant_ProfilePictures"; // Your Supabase storage bucket name
+            string bucketName = "Votezy";             // 👈 Actual Supabase storage bucket
+            string folderPath = "tenant_profile";       // 👈 Sub-folder inside the bucket
             string? uploadedFileUrlPath = null;
 
             try
             {
                 if (model.ProfilePicture != null && model.ProfilePicture.Length > 0)
                 {
-                 
+                    // Optional Free Tier size limit check (3MB max)
+                    if (model.ProfilePicture.Length > 3 * 1024 * 1024)
+                    {
+                        response.Success = false;
+                        response.Message = "Profile picture must be less than 3MB.";
+                        return response;
+                    }
+
                     var fileExtension = Path.GetExtension(model.ProfilePicture.FileName);
                     var uniqueFileName = $"{slug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
 
+                    // Combine sub-folder and file name so S3 Key resolves to: tenant_profile/filename.png
+                    var fullStoragePath = $"{folderPath}/{uniqueFileName}";
+
                     using var stream = model.ProfilePicture.OpenReadStream();
                     tenantUrl = await _supaBase.UploadFileAsync(
-                        tenantFolder,
-                        uniqueFileName,
+                        bucketName,
+                        fullStoragePath,
                         stream,
                         model.ProfilePicture.ContentType
                     );
-                    uploadedFileUrlPath = tenantUrl;
+
+                    // Keep track of the full path for rollback cleanup if transaction fails
+                    uploadedFileUrlPath = fullStoragePath;
                 }
             }
             catch (Exception fileEx)
@@ -202,7 +215,7 @@ namespace OnlineVotingApplication.Repository.Services
                 {
                     try
                     {
-                        await _supaBase.DeleteFileAsync(uploadedFileUrlPath, tenantFolder);
+                        await _supaBase.DeleteFileAsync(uploadedFileUrlPath, bucketName);
                     }
                     catch
                     {
@@ -217,6 +230,7 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
         #endregion
+
         #region GetTenantDetailsAsync
         public async Task<Tenant?> GetTenantDetailsAsync()
         {

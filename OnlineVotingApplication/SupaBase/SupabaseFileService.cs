@@ -30,35 +30,24 @@ namespace OnlineVotingApplication.Services
                 throw new ArgumentException("File stream cannot be empty.", nameof(fileStream));
             }
 
-            // 1. Reset stream position if seekable
             if (fileStream.CanSeek)
             {
                 fileStream.Position = 0;
             }
 
-            // 2. Prepare the S3 Put Object Request
             var putRequest = new PutObjectRequest
             {
-                BucketName = bucketName,
-                Key = fileName,
+                BucketName = bucketName, // This must be "Votezy"
+                Key = fileName,          // This should be "tenant_profile/your-file-name.png"
                 InputStream = fileStream,
                 ContentType = contentType
             };
 
-            // 3. Upload File to Supabase Storage via S3 Protocol
+            // This triggers the upload via S3 protocol to Supabase
             await _s3Client.PutObjectAsync(putRequest);
 
-            // 4. Construct and return the Public Absolute URL
+            // Construct the public absolute URL for Supabase storage
             var supabaseUrl = (_configuration["Supabase:Url"] ?? _configuration["SupabaseUrl"] ?? "").TrimEnd('/');
-
-            if (string.IsNullOrEmpty(supabaseUrl))
-            {
-                var serviceUrl = _configuration["AWS:ServiceUrl"] ?? _configuration["AWS__ServiceUrl"] ?? "";
-                if (serviceUrl.Contains("/storage/v1"))
-                {
-                    supabaseUrl = serviceUrl.Substring(0, serviceUrl.IndexOf("/storage/v1"));
-                }
-            }
 
             return $"{supabaseUrl}/storage/v1/object/public/{bucketName}/{fileName}";
         }

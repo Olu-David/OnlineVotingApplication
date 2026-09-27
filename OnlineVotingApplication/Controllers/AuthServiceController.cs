@@ -119,36 +119,34 @@ namespace OnlineVotingApplication.Controllers
         #region Confirm_Email
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> Confirm_Email(string token, string userId)
+        public async Task<IActionResult> Confirm_Email(string userId, string token)
         {
-            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(userId))
+            if (string.IsNullOrEmpty(userId) || string.IsNullOrEmpty(token))
             {
-                TempData["Error"] = "Invalid payload or token expired.";
-                return RedirectToAction(nameof(UserRegistration));
+                TempData["Error"] = "Invalid email confirmation link.";
+                return RedirectToAction("Login", "Auth"); // Or your preferred fallback route
             }
 
-            var user = await _userManager.FindByIdAsync(userId);
-            if (user == null)
+            var success = await _authService.ConfirmEmailAsync(userId, token);
+            if (!success)
             {
-                TempData["Error"] = "User doesn't exist. Please register.";
-                return RedirectToAction(nameof(UserRegistration));
+                TempData["Error"] = "Email confirmation failed or the link has expired.";
+                return RedirectToAction("Login", "Auth");
             }
 
-            // Decode Base64Url token back to string
-            string decodedToken = Encoding.UTF8.GetString(WebEncoders.Base64UrlDecode(token));
+            // Email confirmed successfully! But remember: IsApproved is still false.
+            TempData["Success"] = "Email successfully verified! Your account is now pending review and approval by the platform administrator.";
 
-            var isConfirmed = await _authService.ConfirmEmailAsync(userId, decodedToken);
-            if (!isConfirmed)
-            {
-                TempData["Error"] = "Account could not be confirmed. The token may have expired.";
-                return RedirectToAction(nameof(UserRegistration));
-            }
-
-            TempData["Info"] = "User account confirmed successfully!";
-            return RedirectToAction(nameof(Login));
+            // Redirect them to a page telling them they are pending approval, or back to login
+            return RedirectToAction("ApprovalPending", "Auth");
         }
         #endregion
-
+        [HttpGet]
+        [AllowAnonymous]
+        public IActionResult ApprovalPending()
+        {
+            return View();
+        }
         [HttpGet]
         [AllowAnonymous]
         public IActionResult Login() => View();

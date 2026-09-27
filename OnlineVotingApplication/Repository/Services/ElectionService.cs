@@ -1,18 +1,19 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
+using OnlineVotingApplication.Areas.Identity.Data;
+using OnlineVotingApplication.DataTransferView;
+using OnlineVotingApplication.Enums;
+using OnlineVotingApplication.Models;
+using OnlineVotingApplication.Repository.iServices;
+using OnlineVotingApplication.SupaBase; // Ensure this namespace matches your Supabase service
+using Slugify;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using OnlineVotingApplication.Models;
-using OnlineVotingApplication.Repository.iServices;
-using OnlineVotingApplication.DataTransferView;
-using OnlineVotingApplication.Areas.Identity.Data;
-using OnlineVotingApplication.Enums;
-using OnlineVotingApplication.SupaBase; // Ensure this namespace matches your Supabase service
 
 namespace OnlineVotingApplication.Repository.Services
 {
@@ -193,6 +194,7 @@ namespace OnlineVotingApplication.Repository.Services
             });
         }
         #endregion
+
         #region GetElectionByIdOrCategoryAsync
         // Helper Method: Get Active Election by ID or Category (Cross-Tenant Aware)
         public async Task<ElectionEvent?> GetElectionByIdOrCategoryAsync(Guid electionId, TenantCategory? category = null)
@@ -534,5 +536,149 @@ namespace OnlineVotingApplication.Repository.Services
             }
         }
         #endregion
+
+        #region EditElectionAsync
+        public async Task<ServiceResponse<ElectionDto>> EditElectionAsync(ElectionDto model, string userId)
+        {
+            var response = new ServiceResponse<ElectionDto>();
+
+            if (model == null || model.Id == Guid.Empty)
+            {
+                response.Success = false;
+                response.Message = "Invalid election data package provided.";
+                return response;
+            }
+
+            var activeTenantId = _tenantProvider.GetCurrentTenantId();
+
+            // 1. Fetch the existing election event
+            var election = await _context.ElectionEvents
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(e => e.Id == model.Id && !e.IsDeleted);
+
+            if (election == null)
+            {
+                response.Success = false;
+                response.Message = "Election event could not be found.";
+                return response;
+            }
+
+            // 2. Validate tenant authorization
+            var currentTenant = await _context.Tenants
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(m => m.Id == activeTenantId);
+
+            if (currentTenant == null)
+            {
+                response.Success = false;
+                response.Message = "Active workspace authorization context could not be verified.";
+                return response;
+            }
+
+            var user = await _userManager.FindByIdAsync(userId);
+            if (user == null)
+            {
+                response.Success = false;
+                response.Message = "User session profile authentication failed.";
+                return response;
+            }
+
+            bool isSuperAdmin = await _userManager.IsInRoleAsync(user, "SuperAdmin");
+            bool isTenantAdmin = await _userManager.IsInRoleAsync(user, "Official");
+
+            if (!isSuperAdmin && !isTenantAdmin)
+            {
+                response.Success = false;
+                response.Message = "Access Denied: Your profile permissions restrict election editing capabilities.";
+                return response;
+            }
+
+            string folderPathSegment = "Election_Image";
+            string? uploadedFileUrlPath = null;
+            string targetDatabasePathUrl = election.ImageUrl??""; // Keep existing image by default
+
+            // 3. Handle new file upload if a replacement was provided
+            try
+            {
+                if (model.UrlImage != null && model.UrlImage.Length > 0)
+                {
+                    var slugHelper = new SlugHelper();
+                    string electionSlug = !string.IsNullOrWhiteSpace(model.Title)
+                        ? slugHelper.GenerateSlug(model.Title)
+                        : "election";
+
+                    var fileExtension = Path.GetExtension(model.UrlImage.FileName);
+                    var uniqueFileName = $"{electionSlug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
+
+                    using var stream = model.UrlImage.OpenReadStream();
+                    targetDatabasePathUrl = await _supabaseService.UploadFileAsync(
+                        folderPathSegment,
+                        uniqueFileName,
+                        stream,
+                        model.UrlImage.ContentType
+                    );
+                    uploadedFileUrlPath = targetDatabasePathUrl;
+                }
+            }
+            catch (Exception fileEx)
+            {
+                response.Success = false;
+                response.Message = $"Supabase file upload failed: {fileEx.Message}";
+                return response;
+            }
+
+            var strategy = _context.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
+            {
+                await using var transaction = await _context.Database.BeginTransactionAsync();
+                try
+                {
+                    // 4. Update entity properties
+                    election.Title = model.Title ?? election.Title;
+                    election.Description = model.Description;
+                    election.StartDate = model.StartDate;
+                    election.EndDate = model.EndDate;
+                    election.Category = model.Category;
+                    election.ImageUrl = targetDatabasePathUrl;
+
+                    _context.ElectionEvents.Update(election);
+                    await _context.SaveChangesAsync();
+                    await transaction.CommitAsync();
+
+                    model.PhotoImage = targetDatabasePathUrl;
+                    response.Data = model;
+                    response.Success = true;
+                    response.Message = "Election workspace successfully updated.";
+                    return response;
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+
+                    // Cleanup newly uploaded image if database transaction fails
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
+                    {
+                        try
+                        {
+                            await _supabaseService.DeleteFileAsync(uploadedFileUrlPath, folderPathSegment);
+                        }
+                        catch (Exception cleanupEx)
+                        {
+                            _logger.LogError(cleanupEx, "Failed to cleanup orphaned election image after DB update error: {Path}", uploadedFileUrlPath);
+                        }
+                    }
+
+                    _logger.LogError(ex, "Fatal error inside EditElectionAsync for User {UserId}", userId);
+
+                    response.Success = false;
+                    response.Message = "An unexpected error occurred while updating election properties.";
+                    response.Errors = new List<string> { ex.Message };
+                    return response;
+                }
+            });
+        }
+        #endregion
     }
+
 }

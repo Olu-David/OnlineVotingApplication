@@ -19,23 +19,20 @@ namespace OnlineVotingApplication.Controllers
         private readonly AppDbContext _context;
         private readonly ITenantProvider _tenantProvider;
         private readonly IAuditLogService _auditLogService;
+        private readonly IElectionService _electionService;
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly ILogger<ElectionEventController> _logger;
-
         #region ElectionEventController
-        public ElectionEventController(
-            AppDbContext context,
-            ITenantProvider tenantProvider,
-            IAuditLogService auditLogService,
-            UserManager<ApplicationUser> userManager,
-            ILogger<ElectionEventController> logger)
+        public ElectionEventController(AppDbContext context, ITenantProvider tenantProvider, IAuditLogService auditLogService, IElectionService electionService, UserManager<ApplicationUser> userManager, ILogger<ElectionEventController> logger)
         {
             _context = context ?? throw new ArgumentNullException(nameof(context));
             _tenantProvider = tenantProvider ?? throw new ArgumentNullException(nameof(tenantProvider));
             _auditLogService = auditLogService ?? throw new ArgumentNullException(nameof(auditLogService));
+            _electionService = electionService ?? throw new ArgumentNullException(nameof(electionService));
             _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
+
         #endregion
 
         #region Index
@@ -234,7 +231,7 @@ namespace OnlineVotingApplication.Controllers
                 IsActive = election.IsActive,
                 Category = election.Category,
                 TenantId = election.TenantId,
-                PhotoImage = election.ImageUrl
+                PhotoImage = election.ImageUrl // Populates the image preview for the view
             };
 
             return View(model);
@@ -260,7 +257,7 @@ namespace OnlineVotingApplication.Controllers
 
             var userId = _userManager.GetUserId(User) ?? User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "";
 
-            // Map ViewModel to DTO to pass safely to your ElectionService
+            // Map ViewModel to DTO to send safely to the service layer
             var dto = new ElectionDto
             {
                 Id = model.Id,
@@ -268,7 +265,7 @@ namespace OnlineVotingApplication.Controllers
                 Description = model.Description,
                 StartDate = DateTime.SpecifyKind(model.StartDate, DateTimeKind.Utc),
                 EndDate = DateTime.SpecifyKind(model.EndDate, DateTimeKind.Utc),
-                UrlImage = model.UrlImage, // Handles any newly uploaded file flyer
+                UrlImage = model.UrlImage, // Captures any newly uploaded image file
                 Category = model.Category,
                 TenantId = model.TenantId
             };
@@ -277,7 +274,7 @@ namespace OnlineVotingApplication.Controllers
 
             if (!result.Success)
             {
-                ModelState.AddModelError(string.Empty, result.Message);
+                ModelState.AddModelError(string.Empty, result.Message??"An error occurred while updating the election.");
                 await PopulateFormDataAsync();
                 return View(model);
             }

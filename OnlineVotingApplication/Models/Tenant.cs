@@ -10,7 +10,7 @@ namespace OnlineVotingApplication.Models
 
 
         public TenantCategory TenantCategory { get; set; }
-q
+
         public string Slug { get; set; } = string.Empty;
         public string SubscriptionPlan { get; set; } = "Free";
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

@@ -1,4 +1,6 @@
 ﻿
+using OnlineVotingApplication.Enums;
+
 namespace OnlineVotingApplication.DataTransferView
 {
     public class ElectionDto
@@ -14,5 +16,6 @@ namespace OnlineVotingApplication.DataTransferView
         public string? RegistrationLink { get;  set; }
         public string? ImageUrl { get;  set; }
         public Guid? TenantId { get;  set; }
+        public TenantCategory Category { get;  set; }
     }
 }

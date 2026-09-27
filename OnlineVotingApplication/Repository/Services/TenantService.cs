@@ -95,15 +95,14 @@ namespace OnlineVotingApplication.Repository.Services
             }
 
             string tenantUrl = "/images/default-tenant.png";
-            string bucketName = "Votezy";             // 👈 Actual Supabase storage bucket
-            string folderPath = "tenant_profile";       // 👈 Sub-folder inside the bucket
+            string bucketName = "Votezy";
+            string folderPath = "tenant_profile";
             string? uploadedFileUrlPath = null;
 
             try
             {
                 if (model.ProfilePicture != null && model.ProfilePicture.Length > 0)
                 {
-                    // Optional Free Tier size limit check (3MB max)
                     if (model.ProfilePicture.Length > 3 * 1024 * 1024)
                     {
                         response.Success = false;
@@ -113,8 +112,6 @@ namespace OnlineVotingApplication.Repository.Services
 
                     var fileExtension = Path.GetExtension(model.ProfilePicture.FileName);
                     var uniqueFileName = $"{slug}-{Guid.NewGuid().ToString()[..8]}{fileExtension}";
-
-                    // Combine sub-folder and file name so S3 Key resolves to: tenant_profile/filename.png
                     var fullStoragePath = $"{folderPath}/{uniqueFileName}";
 
                     using var stream = model.ProfilePicture.OpenReadStream();
@@ -125,7 +122,6 @@ namespace OnlineVotingApplication.Repository.Services
                         model.ProfilePicture.ContentType
                     );
 
-                    // Keep track of the full path for rollback cleanup if transaction fails
                     uploadedFileUrlPath = fullStoragePath;
                 }
             }
@@ -136,102 +132,106 @@ namespace OnlineVotingApplication.Repository.Services
                 return response;
             }
 
-            using var transaction = await _dbContext.Database.BeginTransactionAsync();
-            try
+            // ── Wrap transaction inside the Npgsql execution strategy ──
+            var strategy = _dbContext.Database.CreateExecutionStrategy();
+
+            return await strategy.ExecuteAsync(async () =>
             {
-                // 3. Provision New Organization profile context records
-                var newTenant = new Tenant
+                await using var transaction = await _dbContext.Database.BeginTransactionAsync();
+                try
                 {
-                    Id = Guid.NewGuid(),
-                    OrganizationName = model.OrganizationName ?? string.Empty,
-                    TenantCategory = model.TenantCategory,
-                    Slug = slug,
-                    ProfilePicture = tenantUrl,
-                    SubscriptionPlan = "Free",
-                    IsApproved = false,
-                    IsActive = true,
-                    MaxAllowedElections = 1,
-                    CreatedAt = DateTime.UtcNow
-                };
+                    // 3. Provision New Organization profile context records
+                    var newTenant = new Tenant
+                    {
+                        Id = Guid.NewGuid(),
+                        OrganizationName = model.OrganizationName ?? string.Empty,
+                        TenantCategory = model.TenantCategory,
+                        Slug = slug,
+                        ProfilePicture = tenantUrl,
+                        SubscriptionPlan = "Free",
+                        IsApproved = false,
+                        IsActive = true,
+                        MaxAllowedElections = 1,
+                        CreatedAt = DateTime.UtcNow
+                    };
 
-                _dbContext.Tenants.Add(newTenant);
-                await _dbContext.SaveChangesAsync();
+                    _dbContext.Tenants.Add(newTenant);
+                    await _dbContext.SaveChangesAsync();
 
-                // 4. Initialize necessary default roles for election platform mechanics
-                await EnsureRolesExistAsync(new[] { "Official", "Voter", "Auditor", "Candidate" });
+                    // 4. Initialize necessary default roles for election platform mechanics
+                    await EnsureRolesExistAsync(new[] { "Official", "Voter", "Auditor", "Candidate" });
 
-                // 5. Build Administrative User link structure
-                var adminUser = new ApplicationUser
-                {
-                    Email = model.AdminEmail,
-                    UserName = model.AdminEmail,
-                    FullName = $"{model.OrganizationName} Administrator",
-                    TenantId = newTenant.Id,
-                    EmailConfirmed = false,
-                    IsApproved = false
-                };
+                    // 5. Build Administrative User link structure
+                    var adminUser = new ApplicationUser
+                    {
+                        Email = model.AdminEmail,
+                        UserName = model.AdminEmail,
+                        FullName = $"{model.OrganizationName} Administrator",
+                        TenantId = newTenant.Id,
+                        EmailConfirmed = false,
+                        IsApproved = false
+                    };
 
-                var adminResult = await _userManager.CreateAsync(adminUser, model.AdminPassword ?? string.Empty);
-                if (!adminResult.Succeeded)
-                {
-                    response.Success = false;
-                    response.Errors = adminResult.Errors.Select(e => e.Description).ToList();
-                    await transaction.RollbackAsync();
+                    var adminResult = await _userManager.CreateAsync(adminUser, model.AdminPassword ?? string.Empty);
+                    if (!adminResult.Succeeded)
+                    {
+                        response.Success = false;
+                        response.Errors = adminResult.Errors.Select(e => e.Description).ToList();
+                        await transaction.RollbackAsync();
+                        return response;
+                    }
+
+                    await _userManager.AddToRoleAsync(adminUser, "Official");
+
+                    // 6. Token assembly extraction processing
+                    var token = await _userManager.GenerateEmailConfirmationTokenAsync(adminUser);
+                    var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+
+                    var emailResponse = await _authService.SendConfirmationTokenAsync(adminUser, encodedToken);
+                    if (!emailResponse.Success)
+                    {
+                        _logger.LogWarning("Tenant was created, but admin verification token failed to queue for {Email}", adminUser.Email);
+                    }
+
+                    await transaction.CommitAsync();
+
+                    // 7. Fill matching response properties array
+                    response.Data = new TenantRegistrationResultDto
+                    {
+                        Tenant = newTenant,
+                        AdminUser = adminUser,
+                        UserId = adminUser.Id,
+                        Token = encodedToken
+                    };
+                    response.Success = true;
+                    response.Message = "Organization successfully provisioned. Verification token sent.";
                     return response;
                 }
-
-                await _userManager.AddToRoleAsync(adminUser, "Official");
-
-                // 6. Token assembly extraction processing
-                var token = await _userManager.GenerateEmailConfirmationTokenAsync(adminUser);
-                var encodedToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
-
-                var emailResponse = await _authService.SendConfirmationTokenAsync(adminUser, encodedToken);
-                if (!emailResponse.Success)
+                catch (Exception ex)
                 {
-                    _logger.LogWarning("Tenant was created, but admin verification token failed to queue for {Email}", adminUser.Email);
-                }
+                    await transaction.RollbackAsync();
 
-                await transaction.CommitAsync();
-
-                // 7. Fill matching response properties array
-                response.Data = new TenantRegistrationResultDto
-                {
-                    Tenant = newTenant,
-                    AdminUser = adminUser,
-                    UserId = adminUser.Id,
-                    Token = encodedToken
-                };
-                response.Success = true;
-                response.Message = "Organization successfully provisioned. Verification token sent.";
-                return response;
-            }
-            catch (Exception ex)
-            {
-                await transaction.RollbackAsync();
-
-                // Cleanup uploaded image from Supabase if db commit operation crashes out midway
-                if (!string.IsNullOrEmpty(uploadedFileUrlPath))
-                {
-                    try
+                    // Cleanup uploaded image from Supabase if db commit operation crashes out midway
+                    if (!string.IsNullOrEmpty(uploadedFileUrlPath))
                     {
-                        await _supaBase.DeleteFileAsync(uploadedFileUrlPath, bucketName);
+                        try
+                        {
+                            await _supaBase.DeleteFileAsync(uploadedFileUrlPath, bucketName);
+                        }
+                        catch
+                        {
+                            /* Suppress cleanup failure logs */
+                        }
                     }
-                    catch
-                    {
-                        /* Suppress cleanup failure logs */
-                    }
-                }
 
-                _logger.LogError(ex, "Fatal error provisioning organization {OrganizationName}", model.OrganizationName);
-                response.Success = false;
-          
-                response.Message = $"Database/System Error: {ex.InnerException?.Message ?? ex.Message}"; // 👈 Swap to this temporarily
-                return response;
-            }
+                    _logger.LogError(ex, "Fatal error provisioning organization {OrganizationName}", model.OrganizationName);
+                    response.Success = false;
+                    response.Message = $"Database/System Error: {ex.InnerException?.Message ?? ex.Message}";
+                    return response;
+                }
+            });
         }
         #endregion
-
         #region GetTenantDetailsAsync
         public async Task<Tenant?> GetTenantDetailsAsync()
         {

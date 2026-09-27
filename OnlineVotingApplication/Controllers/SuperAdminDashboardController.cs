@@ -423,7 +423,7 @@ namespace OnlineVotingApplication.Controllers
             );
 
             TempData["SuccessMessage"] = $"Organization '{tenant.OrganizationName}' has been successfully approved.";
-            return RedirectToAction(nameof(GetAllPendingTenants));
+            return RedirectToAction(nameof(AllTenants));
         }
         #endregion
 

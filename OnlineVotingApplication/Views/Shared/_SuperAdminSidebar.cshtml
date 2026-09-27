@@ -65,7 +65,12 @@
                 <i class="fas fa-clock me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">Pending Tenants</span>
             </a>
         </li>
-
+        <li class="nav-item">
+            <a asp-controller="SuperAdminDashboard" asp-action="AllTenants"
+               class="nav-link text-white d-flex align-items-center @(currentCtrl == "SuperAdminDashboard" && currentAction == "AllTenants" ? "active" : "")">
+                <i class="fas fa-clock me-2 text-warning" style="width: 16px;"></i><span style="font-size: 0.85rem;">All Tenants</span>
+            </a>
+        </li>
         <li class="nav-item">
             <a asp-controller="Candidate" asp-action="GetUnsentCandidateApplications"
                class="nav-link text-white d-flex align-items-center @(currentCtrl == "Candidate" && currentAction == "GetUnsentCandidateApplicationsAsync" ? "active" : "")">

@@ -225,7 +225,8 @@ namespace OnlineVotingApplication.Repository.Services
 
                 _logger.LogError(ex, "Fatal error provisioning organization {OrganizationName}", model.OrganizationName);
                 response.Success = false;
-                response.Message = "An error occurred while creating your organization profile.";
+          
+                response.Message = $"Database/System Error: {ex.InnerException?.Message ?? ex.Message}"; // 👈 Swap to this temporarily
                 return response;
             }
         }

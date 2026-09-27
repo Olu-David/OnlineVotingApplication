@@ -93,11 +93,11 @@
                     <label for="roleFilter" class="form-label">Filter by Role</label>
                     <select class="form-select" id="roleFilter" name="roleFilter">
                         <option value="">-- All Roles --</option>
-                        <option value="Voter" selected="@(currentRoleFilter == "Voter")">Voter</option>
-                        <option value="Candidate" selected="@(currentRoleFilter == "Candidate")">Candidate</option>
-                        <option value="TenantAdmin" selected="@(currentRoleFilter == "TenantAdmin")">TenantAdmin</option>
-                        <option value="PlatformAdmin" selected="@(currentRoleFilter == "PlatformAdmin")">PlatformAdmin</option>
-                        <option value="SuperAdmin" selected="@(currentRoleFilter == "SuperAdmin")">SuperAdmin</option>
+                        <option value="Voter" selected="@(currentRoleFilter == "Voter" ? "selected" : null)">Voter</option>
+                        <option value="Candidate" selected="@(currentRoleFilter == "Candidate" ? "selected" : null)">Candidate</option>
+                        <option value="TenantAdmin" selected="@(currentRoleFilter == "TenantAdmin" ? "selected" : null)">TenantAdmin</option>
+                        <option value="PlatformAdmin" selected="@(currentRoleFilter == "PlatformAdmin" ? "selected" : null)">PlatformAdmin</option>
+                        <option value="SuperAdmin" selected="@(currentRoleFilter == "SuperAdmin" ? "selected" : null)">SuperAdmin</option>
                     </select>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">

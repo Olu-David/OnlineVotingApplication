@@ -577,7 +577,6 @@ namespace OnlineVotingApplication.Controllers
         }
         #endregion
 
-
         #region AllSystemUsers
         [HttpGet]
         public async Task<IActionResult> AllSystemUsers(string roleFilter = "", string searchTerm = "", int pageNumber = 1, int pageSize = 10)
@@ -626,19 +625,43 @@ namespace OnlineVotingApplication.Controllers
             {
                 var query = _userManager.Users.AsQueryable();
 
+                // Apply search filter if provided
                 if (!string.IsNullOrEmpty(searchTerm))
                 {
-                    query = query.Where(u => u.UserName != null && u.Email != null && (u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm)));
+                    query = query.Where(u => u.UserName != null && u.Email != null &&
+                        (u.UserName.Contains(searchTerm) || u.Email.Contains(searchTerm)));
                 }
 
-                int totalRecords = await query.CountAsync();
+                // If a role filter is applied, we fetch users belonging to that role first
+                List<ApplicationUser> users;
+                int totalRecords;
 
-                var users = await query
-                    .OrderByDescending(u => u.Id)
-                    .Skip((pageNumber - 1) * pageSize)
-                    .Take(pageSize)
-                    .ToListAsync();
+                if (!string.IsNullOrEmpty(roleFilter))
+                {
+                    var usersInRole = await _userManager.GetUsersInRoleAsync(roleFilter);
+                    var roleUserIds = usersInRole.Select(u => u.Id).ToHashSet();
 
+                    var roleQuery = query.Where(u => roleUserIds.Contains(u.Id));
+                    totalRecords = await roleQuery.CountAsync();
+
+                    users = await roleQuery
+                        .OrderByDescending(u => u.Id)
+                        .Skip((pageNumber - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToListAsync();
+                }
+                else
+                {
+                    totalRecords = await query.CountAsync();
+
+                    users = await query
+                        .OrderByDescending(u => u.Id)
+                        .Skip((pageNumber - 1) * pageSize)
+                        .Take(pageSize)
+                        .ToListAsync();
+                }
+
+                // Map users to view model including their roles
                 var userListVm = new List<UserWithRolesViewModel>();
                 foreach (var user in users)
                 {
@@ -654,18 +677,15 @@ namespace OnlineVotingApplication.Controllers
                     });
                 }
 
-                // Optional post-fetch filter if a specific role was selected
-                if (!string.IsNullOrEmpty(roleFilter))
-                {
-                    userListVm = userListVm.Where(u => u.Roles != null && u.Roles.Contains(roleFilter)).ToList();
-                }
-
+                // Properly assign pagination properties to prevent view/tag-helper rendering errors
+                int totalPages = (int)Math.Ceiling(totalRecords / (double)pageSize);
                 paginatedResult = new PaginatedListViewModel<UserWithRolesViewModel>
                 {
                     Items = userListVm,
                     PageNumber = pageNumber,
-                    TotalItems = (int)Math.Ceiling(totalRecords / (double)pageSize),
-                    TotalCount = totalRecords
+                    PageSize = pageSize,
+                    TotalCount = totalRecords,
+                    TotalItems = totalPages == 0 ? 1 : totalPages
                 };
 
                 // Store paginated view list in Redis for 3 minutes
